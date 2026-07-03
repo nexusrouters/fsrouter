@@ -4,6 +4,7 @@ import { Card, ModelSelectModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 // next/image replaced with native img;
 import ApiKeySelect from "./ApiKeySelect";
+import { getServerBaseUrl } from "@/shared/constants/config";
 
 export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders = [], cloudEnabled = false, tunnelEnabled = false }) {
   const [copiedField, setCopiedField] = useState(null);
@@ -21,7 +22,7 @@ export default function DefaultToolCard({ toolId, tool, isExpanded, onToggle, ba
       : (!cloudEnabled ? "sk_9router" : "your-api-key");
     
     // Add /v1 suffix only if not already present (DRY - avoid duplicate)
-    const normalizedBaseUrl = baseUrl || "http://localhost:3001";
+    const normalizedBaseUrl = baseUrl || getServerBaseUrl();
     const baseUrlWithV1 = normalizedBaseUrl.endsWith("/v1") 
       ? normalizedBaseUrl 
       : `${normalizedBaseUrl}/v1`;

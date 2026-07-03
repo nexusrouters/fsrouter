@@ -29,8 +29,28 @@ export const UPDATER_CONFIG = {
   waitForExitMinMs: 5000,
   waitForExitMaxMs: 20000,
   waitForExitCheckMs: 500,
-  appPort: 3001,
+  appPort: 3001, // fallback; use getServerPort() for actual runtime port
 };
+
+/**
+ * Get the actual server port at runtime.
+ * Reads window.location.port (browser URL = backend port since frontend
+ * is served from the same server). Falls back to UPDATER_CONFIG.appPort.
+ */
+export function getServerPort() {
+  if (typeof window !== "undefined" && window.location.port) {
+    return Number(window.location.port);
+  }
+  return UPDATER_CONFIG.appPort;
+}
+
+/** Get full base URL of the server e.g. http://localhost:3001 */
+export function getServerBaseUrl() {
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:${getServerPort()}`;
+  }
+  return `http://localhost:${UPDATER_CONFIG.appPort}`;
+}
 
 // Theme configuration
 export const THEME_CONFIG = {

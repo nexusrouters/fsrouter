@@ -5,6 +5,7 @@ import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/comp
 import BaseUrlSelect from "./BaseUrlSelect";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
+import { getServerBaseUrl } from "@/shared/constants/config";
 
 const ENDPOINT = "/api/cli-tools/deepseek-tui-settings";
 
@@ -101,7 +102,7 @@ export default function DeepSeekTuiToolCard({
     if (typeof window !== "undefined") {
       return normalizeLocalhost(window.location.origin);
     }
-    return "http://127.0.0.1:3001";
+    return getServerBaseUrl();
   };
 
   const getEffectiveBaseUrl = () => {
