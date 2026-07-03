@@ -328,8 +328,13 @@ def enroll_canva_via_email(page, invite_link: str, email: str, password: str, se
         cur_url = page.url.lower()
 
         # SUCCESS: Dashboard reached
-        if any(x in cur_url for x in ["/home", "/projects", "/teams/", "/templates", "/design"]) and not any(x in cur_url for x in ["/signup", "/login", "/otp", "/brand/join"]):
-            log_step("Berhasil masuk ke dashboard Canva. [DONE]")
+        if "canva.com" in cur_url and not any(x in cur_url for x in ["/signup", "/login", "/otp", "/brand/join"]):
+            log_step(f"Canva page tercapai: {cur_url[:60]} [DONE]")
+            return True
+
+        # Juga sukses jika OTP sudah diisi dan sudah di canva.com (apapun page-nya)
+        if otp_filled and "canva.com" in cur_url:
+            log_step(f"Canva OTP sukses — page: {cur_url[:60]} [DONE]")
             return True
 
         # Password (existing account)
@@ -553,15 +558,33 @@ def run_automation(email, password, invite_link, proxy=None, headless=True):
                 log_step("Authorize diklik, tunggu redirect ke Leonardo...")
                 time.sleep(5)
 
-            # Tunggu Leonardo dashboard (max 60s)
-            log_step("Menunggu redirect ke Leonardo dashboard...")
-            deadline_leo = time.time() + 60
+            # Tunggu Leonardo dashboard atau onboarding (max 90s)
+            log_step("Menunggu redirect ke Leonardo dashboard/onboarding...")
+            deadline_leo = time.time() + 90
             last_log_leo = 0
             while time.time() < deadline_leo:
                 cur = page.url.lower()
+                # Sukses: sudah di luar /auth/
                 if "app.leonardo.ai" in cur and "/auth/" not in cur:
+                    log_step(f"Leonardo post-auth page: {page.url[:60]}")
+                    # Handle onboarding/survey pages — klik Continue/Skip
+                    if any(x in cur for x in ["/onboarding", "/survey", "/welcome", "/get-started"]):
+                        log_step("Onboarding page — cari tombol Continue/Skip...")
+                        for sel in ["button:has-text('Continue')", "button:has-text('Skip')", "button:has-text('Get started')", "button:has-text('Next')", "button[type='submit']"]:
+                            try:
+                                loc = page.locator(sel).first
+                                if loc.count() > 0 and loc.is_visible(timeout=1000):
+                                    loc.click(timeout=3000)
+                                    time.sleep(2)
+                                    break
+                            except Exception: pass
+                        time.sleep(2)
+                        # Cek apakah masih onboarding
+                        if any(x in page.url.lower() for x in ["/onboarding", "/survey", "/welcome", "/get-started"]):
+                            time.sleep(3)
+                            continue
                     break
-                # Cek popup auth
+                # Cek popup auth Canva yang muncul lagi
                 for pg in browser.pages:
                     if "canva.com/api/oauth/authorize" in pg.url and pg != auth_page:
                         log_step("OAuth popup muncul lagi — klik Allow...")
@@ -571,13 +594,13 @@ def run_automation(email, password, invite_link, proxy=None, headless=True):
                 now = time.time()
                 if now - last_log_leo >= 5:
                     short = page.url.replace("https://","").replace("www.","")[:50]
-                    log_step(f"Menunggu Leonardo dashboard... [{short}]")
+                    log_step(f"Menunggu Leonardo post-auth... [{short}]")
                     last_log_leo = now
                 time.sleep(2)
 
             # Tunggu Leonardo load penuh (pastikan session tersimpan di storage)
-            log_step(f"Dashboard Leonardo tercapai: {page.url[:60]}")
-            log_step("Tunggu Leonardo load penuh untuk capture session...")
+            log_step(f"Leonardo page: {page.url[:60]}")
+            log_step("Tunggu load penuh untuk capture session...")
             time.sleep(5)
 
             # Extract Leonardo cookies — pakai semua cookies dari context
