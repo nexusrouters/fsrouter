@@ -611,7 +611,7 @@ def main():
                 args.ammail_base_url,
                 args.ammail_api_key,
                 args.email,
-                timeout=120,
+                timeout=180,
             )
             if verify_link:
                 log_step(f"Membuka link verifikasi...")
@@ -673,7 +673,13 @@ def main():
                             pw_el.fill(args.password)
                         time.sleep(1)
 
-                        # Solve Turnstile on login page
+                        # Solve Turnstile - try click approach first (same as signup)
+                        log_step("Menyelesaikan Turnstile login...")
+                        wait_for_cf_clearance(page, timeout=5)  # quick auto-solve check
+                        try_click_turnstile_checkbox(page)  # click approach
+                        time.sleep(3)
+
+                        # Check if auto-solved, else try 2Captcha
                         login_turnstile_solved = False
                         try:
                             token_val = page.evaluate("() => { const el = document.getElementsByName('cf_challenge_response')[0]; return el ? el.value : ''; }")
@@ -708,7 +714,7 @@ def main():
                                 continue
 
                         log_step("Menunggu redirect ke dashboard...")
-                        time.sleep(6)
+                        time.sleep(8)
 
                         current_url = page.url
                         log_step(f"After login URL: {current_url}")
