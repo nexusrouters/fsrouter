@@ -604,10 +604,22 @@ def main():
 
         # ── Step 2: Fill email ────────────────────────────────────────────────
         log_step("Menunggu form signup muncul...")
-        try:
-            page.wait_for_selector("input[name='email'], input[autocomplete='email']", timeout=15000)
-        except Exception as e:
-            die(f"Form signup tidak muncul: {e}")
+        form_found = False
+        for attempt in range(3):
+            try:
+                page.wait_for_selector("input[name='email'], input[autocomplete='email']", timeout=20000)
+                form_found = True
+                break
+            except Exception:
+                log_step(f"Form belum muncul (attempt {attempt+1}), reload...")
+                try:
+                    page.reload(wait_until="load", timeout=20000)
+                    wait_for_cf_clearance(page, timeout=15)
+                    time.sleep(3)
+                except Exception:
+                    pass
+        if not form_found:
+            die("Form signup tidak muncul setelah 3 percobaan")
 
         log_step("Mengisi email...")
         email_sel = [
