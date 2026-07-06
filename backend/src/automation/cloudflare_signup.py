@@ -1271,34 +1271,35 @@ def main():
                                 all_frame_urls = [f.url[:80] for f in page.frames if f.url and f.url != 'about:blank']
                                 log_step(f"GAK modal frames: {all_frame_urls}")
 
-                                for _ts_attempt in range(10):
+                                # Solve Turnstile in GAK modal — frame is at challenges.cloudflare.com
+                                page.screenshot(path="/tmp/cf_gak_before_ts.png")
+                                _ts_clicked = False
+                                for _ts_attempt in range(5):
                                     try:
-                                        # Try ALL frames (not just challenges.cloudflare.com)
-                                        for _f in page.frames:
-                                            if _f.url and _f.url != 'about:blank':
-                                                try:
-                                                    cb = _f.locator("input[type='checkbox']")
-                                                    if cb.count() > 0 and cb.is_visible(timeout=800):
-                                                        cb.click()
-                                                        time.sleep(2)
-                                                        log_step(f"GAK Turnstile clicked in frame: {_f.url[:60]}")
+                                        ts_frames = [f for f in page.frames if 'challenges.cloudflare.com' in (f.url or '')]
+                                        log_step(f"GAK Turnstile frames: {len(ts_frames)}")
+                                        for _f in ts_frames:
+                                            try:
+                                                # Try both input[type=checkbox] and label
+                                                cb = _f.locator("input[type='checkbox'], label, .ctp-checkbox-label")
+                                                if cb.count() > 0:
+                                                    try:
+                                                        cb.first.click(timeout=5000)
+                                                        time.sleep(3)
+                                                        log_step(f"GAK Turnstile checkbox clicked (frame {_f.url[-30:]})")
+                                                        _ts_clicked = True
                                                         break
-                                                except Exception:
-                                                    pass
-                                        # Check if solved
-                                        _ts_resp = page.evaluate("""
-                                            () => {
-                                                const r = document.querySelector('[name=cf_challenge_response],[name=g-recaptcha-response]');
-                                                const hidden = Array.from(document.querySelectorAll('input[type=hidden]')).find(i=>i.value&&i.value.length>20);
-                                                return r?.value || hidden?.value || null;
-                                            }
-                                        """)
-                                        if _ts_resp:
-                                            log_step(f"GAK Turnstile response found (len={len(str(_ts_resp))})")
+                                                    except Exception as _ce:
+                                                        log_step(f"GAK TS click error: {_ce}")
+                                            except Exception:
+                                                pass
+                                        if _ts_clicked:
+                                            # Wait for auto-solve
+                                            time.sleep(8)
                                             break
                                     except Exception:
                                         pass
-                                    time.sleep(1)
+                                    time.sleep(2)
 
                                 page.screenshot(path="/tmp/cf_gak_before_submit.png")
 
