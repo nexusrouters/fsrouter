@@ -1504,7 +1504,18 @@ def main():
         except Exception as e:
             log_step(f"Session API token failed: {e}")
 
-        # ── Strategy B: Browser UI — /profile/api-tokens/create (dropdown form)
+        # ── EARLY GAK ATTEMPT: Try Global API Key first if ammail available ─────
+        workers_ai_token = None
+        if ammail_ok and not workers_ai_token:
+            log_step("Mencoba GAK dulu (skip UI form yang sering gagal)...")
+            try:
+                workers_ai_token = create_token_via_global_key(page)
+                if workers_ai_token:
+                    log_step(f"Workers AI token via GAK (early): {workers_ai_token[:10]}...")
+            except Exception as _egak_e:
+                log_step(f"Early GAK error: {_egak_e}")
+
+                # ── Strategy B: Browser UI — /profile/api-tokens/create (dropdown form)
         if not workers_ai_token:
             log_step("Trying browser UI token creation")
 
