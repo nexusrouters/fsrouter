@@ -1040,11 +1040,23 @@ def main():
 
                         current_url = page.url
                         log_step(f"After login URL: {current_url}")
-                        # If still on login, log error text
+                        # If still on login, check for error
                         if "/login" in current_url:
                             try:
                                 err_txt = page.evaluate("document.body.innerText")
                                 log_step(f"Login page text (first 300): {err_txt[:300]}")
+                                # Detect wrong password — stop immediately, do not proceed to dashboard
+                                login_fail_kw = [
+                                    "incorrect email or password",
+                                    "invalid email or password",
+                                    "wrong password",
+                                    "email or password is incorrect",
+                                    "authentication failed",
+                                ]
+                                if any(kw in err_txt.lower() for kw in login_fail_kw):
+                                    die(f"Login gagal: password salah untuk {args.email}. Akun CF ini mungkin sudah ada dengan password berbeda.")
+                            except SystemExit:
+                                raise
                             except Exception:
                                 pass
                         _m_after = re.search(r"/([a-f0-9]{32})(?:/|$)", current_url)
@@ -1052,6 +1064,8 @@ def main():
                             _early_account_id = _m_after.group(1)
                             log_step(f"Account ID from login URL: {_early_account_id[:8]}...")
 
+            except SystemExit:
+                raise
             except Exception as e:
                 log_step(f"Login error: {e}")
 
