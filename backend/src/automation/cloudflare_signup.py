@@ -1430,20 +1430,31 @@ def main():
                                             if _gak_ts_tok:
                                                 page.evaluate(f"""
                                                     () => {{
+                                                        const tok = '{_gak_ts_tok}';
+                                                        // Use React native setter trick — plain assignment bypasses React controlled inputs
+                                                        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
                                                         for (const name of ['cf-turnstile-response', 'cf_challenge_response']) {{
-                                                            const els = document.getElementsByName(name);
-                                                            for (const el of els) {{
-                                                                el.value = '{_gak_ts_tok}';
+                                                            document.getElementsByName(name).forEach(el => {{
+                                                                nativeSetter.call(el, tok);
+                                                                el.dispatchEvent(new Event('input', {{bubbles: true}}));
                                                                 el.dispatchEvent(new Event('change', {{bubbles: true}}));
-                                                            }}
+                                                            }});
                                                         }}
-                                                        // Also try the Turnstile callback if available
+                                                        // Also call Turnstile success callback if registered on widget
                                                         try {{
-                                                            if (window.turnstile && window.turnstile.reset) window.turnstile.reset();
+                                                            const widget = document.querySelector('[data-callback]');
+                                                            const cbName = widget && widget.getAttribute('data-callback');
+                                                            if (cbName && window[cbName]) window[cbName](tok);
+                                                        }} catch(e) {{}}
+                                                        // Try direct turnstile API
+                                                        try {{
+                                                            if (window.__cf_chl_opt && window.__cf_chl_opt.cFRq) {{
+                                                                window.__cf_chl_opt.cFRq(tok);
+                                                            }}
                                                         }} catch(e) {{}}
                                                     }}
                                                 """)
-                                                time.sleep(2)
+                                                time.sleep(3)
                                                 log_step(f"GAK TS: 2Captcha token injected ({_gak_ts_tok[:12]}...)")
                                                 _ts_clicked = True
                                         except Exception as _2ce:
@@ -1498,6 +1509,16 @@ def main():
                                 if _clicked_view:
                                     time.sleep(5)
                                     page.screenshot(path="/tmp/cf_gak_after_submit.png")
+                                    # Log modal state after submit — detect error or success
+                                    try:
+                                        _modal_txt = page.locator("[role='dialog']").inner_text(timeout=3000)
+                                        log_step(f"Modal after View click: {_modal_txt[:300]}")
+                                        # Check if error shown (invalid code, expired, etc.)
+                                        _modal_lower = _modal_txt.lower()
+                                        if any(w in _modal_lower for w in ["invalid", "incorrect", "expired", "error", "failed", "wrong"]):
+                                            log_step("GAK modal shows error — OTP rejected by CF")
+                                    except Exception:
+                                        log_step("Modal closed after View click (good sign)")
                             else:
                                 log_step("OTP input not found via any selector")
 
