@@ -16,6 +16,9 @@ yarn-error.log*
 **/venv/
 **/__pycache__/
 
+# Automation Profiles cache
+**/src/automation/profiles/
+
 # Next.js / framework specifics if any
 .next/
 out/
