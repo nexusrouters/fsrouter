@@ -7,3 +7,7 @@ tsconfig.json
 .env.*
 node_modules/
 src/automation/profiles/
+
+# Explicitly include dist folder (compiled server code) to prevent npm from ignoring it due to parent .gitignore
+!dist/
+!dist/**/*
