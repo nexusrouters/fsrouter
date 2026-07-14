@@ -27,7 +27,9 @@ jobs:
         run: npm run build
 
       - name: Copy frontend assets to backend
-        run: cp -r frontend/dist/* backend/public/
+        run: |
+          cp -r frontend/dist/* backend/public/
+          cp README.md backend/
 
       - name: Prepare package.json for publishing
         run: |
