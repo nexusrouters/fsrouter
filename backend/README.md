@@ -154,4 +154,4 @@ MIT — see [LICENSE](./LICENSE)
 
 ## Acknowledgements
 
-> 🙏 **Thanks to [FSRouter](https://github.com/decolua/fsrouter)** — this project is a fork and architectural rewrite of the original FSRouter monolith. The core routing logic, provider integrations, and many features were inspired by and built upon the excellent work of the FSRouter project.
+> 🙏 **Thanks to [FSRouter](https://github.com/decolua/9router)** — this project is a fork and architectural rewrite of the original FSRouter monolith. The core routing logic, provider integrations, and many features were inspired by and built upon the excellent work of the FSRouter project.
