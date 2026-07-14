@@ -1,0 +1,59 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build monorepo
+        run: npm run build
+
+      - name: Copy frontend assets to backend
+        run: cp -r frontend/dist/* backend/public/
+
+      - name: Prepare package.json for publishing
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("backend/package.json", "utf8"));
+            
+            // Rename to fsrouter and make public
+            pkg.name = "fsrouter";
+            pkg.private = false;
+            
+            // Map global command to fsrouter
+            pkg.bin = {
+              "fsrouter": "bin/cli.cjs"
+            };
+            
+            // Keep dependencies but clear devDependencies to keep package lightweight
+            delete pkg.devDependencies;
+            
+            fs.writeFileSync("backend/package.json", JSON.stringify(pkg, null, 2));
+            console.log("package.json prepared successfully for publishing.");
+          '
+
+      - name: Publish to npm
+        run: |
+          cd backend
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

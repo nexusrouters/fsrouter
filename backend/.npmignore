@@ -1,0 +1,8 @@
+# Exclude source code if we want, or keep it. Let's exclude python venv and dev tools
+.venv/
+**/__pycache__/
+*.tsbuildinfo
+tsconfig.json
+.env
+.env.*
+node_modules/
