@@ -1,6 +1,6 @@
 {
   "name": "9router-backend",
-  "version": "0.6.9",
+  "version": "0.6.10",
   "private": true,
   "type": "module",
   "description": "9Router v2 \u2014 Express Backend (API, SSE, DB, Auth, MITM)",
@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc --project tsconfig.json || true",
+    "build": "tsc --project tsconfig.json || true && node bin/copyJs.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
