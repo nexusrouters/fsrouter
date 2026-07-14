@@ -43,8 +43,4 @@ function applyAntigravityIdeVersionOverride(bodyBuffer, headers) {
   }
 }
 
-module.exports = {
-  ANTIGRAVITY_IDE_VERSION,
-  applyAntigravityIdeVersionOverride,
-  rewriteAntigravityUserAgent,
-};
+export { ANTIGRAVITY_IDE_VERSION, applyAntigravityIdeVersionOverride, rewriteAntigravityUserAgent };

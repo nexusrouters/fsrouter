@@ -71,7 +71,7 @@ function SkillRow({ skill }) {
   );
 }
 
-const API_SKILLS = ["9router-chat", "9router-image", "9router-tts", "9router-stt", "9router-embeddings", "9router-web-search", "9router-web-fetch"];
+const API_SKILLS = ["fsrouter-chat", "fsrouter-image", "fsrouter-tts", "fsrouter-stt", "fsrouter-embeddings", "fsrouter-web-search", "fsrouter-web-fetch"];
 const AGENT_SKILLS = ["using-superpowers", "multi-brain"];
 
 export default function SkillsPage() {
@@ -103,9 +103,9 @@ export default function SkillsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex-1 px-3 py-2 rounded-lg bg-surface-2 font-mono text-[12px] text-text-main border border-border-subtle min-w-0 break-all">
-            Read this skill and use it: {getSkillRawUrl("9router")}
+            Read this skill and use it: {getSkillRawUrl("fsrouter")}
           </div>
-          <CopyButton value={`Read this skill and use it: ${getSkillRawUrl("9router")}`} label="Copy prompt" />
+          <CopyButton value={`Read this skill and use it: ${getSkillRawUrl("fsrouter")}`} label="Copy prompt" />
         </div>
         <p className="text-[11px] text-text-muted mt-2">
           This entry skill covers setup, authentication, model discovery, and links to all capability skills below.

@@ -170,6 +170,64 @@ export async function GET_handler(req, res, { params }) {
     // Fetch usage from provider API
     let usage = await getUsageForProvider(connection, proxyOptions);
 
+    // Intercept cloudflare-ai usage to inject real neuron count from database
+    if (connection.provider === "cloudflare-ai") {
+      try {
+        const { getAdapter } = await import("../../../lib/db/driver.js");
+        const db = await getAdapter();
+        // Sum neurons since start of day UTC for this connectionId
+        const rows = db.all(
+          `SELECT model, promptTokens, completionTokens FROM usageHistory 
+           WHERE provider = 'cloudflare-ai' 
+             AND connectionId = ? 
+             AND status = 'ok' 
+             AND timestamp >= (date('now', 'start of day') || 'T00:00:00.000Z')`,
+          [connection.id]
+        );
+        let totalNeurons = 0;
+        for (const row of rows) {
+          const modelLower = (row.model || "").toLowerCase();
+          let neurons = 0;
+          if (modelLower.includes("flux-2-dev")) {
+            neurons = 2500;
+          } else if (modelLower.includes("flux-1-schnell") || modelLower.includes("flux")) {
+            neurons = 1500;
+          } else if (modelLower.includes("xl") || modelLower.includes("phoenix") || modelLower.includes("stable-diffusion")) {
+            neurons = 1000;
+          } else if (modelLower.includes("dreamshaper") || modelLower.includes("lightning") || modelLower.includes("image") || modelLower.includes("draw")) {
+            neurons = 200;
+          } else if (modelLower.includes("whisper")) {
+            neurons = 10;
+          } else if (modelLower.includes("speech") || modelLower.includes("tts")) {
+            neurons = 5;
+          } else {
+            const totalTokens = (row.promptTokens || 0) + (row.completionTokens || 0);
+            if (modelLower.includes("70b") || modelLower.includes("72b") || modelLower.includes("large")) {
+              neurons = totalTokens * 0.00077;
+            } else {
+              neurons = totalTokens * 0.000077;
+            }
+          }
+          totalNeurons += neurons;
+        }
+        
+        totalNeurons = Math.round(totalNeurons);
+
+        const nextReset = new Date();
+        nextReset.setUTCHours(24, 0, 0, 0); // Next 00:00 UTC
+        const resetAt = nextReset.toISOString();
+        
+        if (usage && usage.quotas && usage.quotas.neurons) {
+          usage.quotas.neurons.used = totalNeurons;
+          usage.quotas.neurons.remaining = Math.max(0, usage.quotas.neurons.total - totalNeurons);
+          usage.quotas.neurons.remainingPercentage = (usage.quotas.neurons.remaining / usage.quotas.neurons.total) * 100;
+          usage.quotas.neurons.resetAt = resetAt; // Inject dynamic countdown time!
+        }
+      } catch (dbError) {
+        console.error("[Usage API] Failed to calculate real cloudflare-ai neurons:", dbError);
+      }
+    }
+
     // If provider returned an auth-expired message instead of throwing,
     // force-refresh token and retry once (OAuth or cookie)
     if ((isOAuth && connection.refreshToken || isCookie) && isAuthExpiredMessage(usage)) {

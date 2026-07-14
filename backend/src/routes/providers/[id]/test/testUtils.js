@@ -621,7 +621,19 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
             Cookie: `__Secure-next-auth.session-token=${sessionToken}`,
           },
         }, effectiveProxy);
-        if (!res.ok) return { valid: false, error: "Invalid session cookie" };
+        if (!res.ok) {
+          // Cloudflare challenge pages (403 + HTML with "Just a moment" or "challenge-platform")
+          // are not auth failures — they block server-side requests regardless of key validity.
+          const text = await res.text().catch(() => "");
+          const isCfChallenge = text.includes("Just a moment") || text.includes("challenge-platform") || text.includes("_cf_chl_opt");
+          if (isCfChallenge) {
+            // Can't verify server-side due to Cloudflare. Accept if token has reasonable length/format.
+            if (sessionToken.length > 20) {
+              return { valid: true, error: null };
+            }
+          }
+          return { valid: false, error: "Invalid session cookie" };
+        }
         const data = await res.json().catch(() => null);
         const valid = !!(data && data.user);
         return { valid, error: valid ? null : "Session expired — re-paste cookie" };

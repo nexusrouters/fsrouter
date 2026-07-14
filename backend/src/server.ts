@@ -28,9 +28,23 @@ app.use(cookieParser());
 app.use(express.json({ limit: "128mb" }));
 app.use(express.urlencoded({ extended: true, limit: "128mb" }));
 
+// ─── Serve Static Frontend Assets ─────────────────────────────────────────────
+import { join } from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.use(express.static(join(__dirname, "../public")));
+
+const SPA_ROUTES = ["/dashboard", "/login", "/init", "/settings", "/providers", "/keys", "/models", "/usage", "/combos", "/media-providers"];
+SPA_ROUTES.forEach((route) => {
+  app.get(new RegExp(`^${route}`), (_req, res) => {
+    res.sendFile(join(__dirname, "../public/index.html"));
+  });
+});
+
 // ─── Health Check (no auth) ────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", version: "0.5.0", ts: Date.now() });
+  res.json({ status: "ok", version: "0.6.4", ts: Date.now() });
 });
 
 // ─── Auth Middleware ───────────────────────────────────────────────────────────

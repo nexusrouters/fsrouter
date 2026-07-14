@@ -50,6 +50,47 @@ export async function handleImageGenerationCore({
     );
   }
 
+  // Executor-delegating adapters: skip manual URL/headers/body, use the proven executor flow
+  if (adapter.useExecutor && adapter.executeViaExecutor) {
+    try {
+      log?.debug?.("IMAGE", `${provider.toUpperCase()} | ${model} | prompt="${body.prompt.slice(0, 50)}..." (executor)`);
+      const responseBody = await adapter.executeViaExecutor(model, body, credentials, log);
+      if (onRequestSuccess) await onRequestSuccess();
+      const normalized = adapter.normalize(responseBody, body.prompt);
+      const finalBody = (normalized.created && Array.isArray(normalized.data)) ? normalized : responseBody;
+
+      if (binaryOutput) {
+        const first = finalBody.data?.[0];
+        let b64 = first?.b64_json;
+        if (!b64 && first?.url) {
+          try { b64 = await urlToBase64(first.url); } catch {}
+        }
+        if (b64) {
+          const buf = Buffer.from(b64, "base64");
+          const fmt = (body.output_format || "png").toLowerCase();
+          const mime = fmt === "jpeg" || fmt === "jpg" ? "image/jpeg" : fmt === "webp" ? "image/webp" : "image/png";
+          return {
+            success: true,
+            response: new Response(buf, {
+              headers: { "Content-Type": mime, "Content-Disposition": `inline; filename="image.${fmt === "jpeg" ? "jpg" : fmt}"`, "Access-Control-Allow-Origin": "*" },
+            }),
+          };
+        }
+      }
+
+      return {
+        success: true,
+        response: new Response(JSON.stringify(finalBody), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        }),
+      };
+    } catch (error) {
+      const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);
+      log?.debug?.("IMAGE", `Executor error: ${errMsg}`);
+      return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+    }
+  }
+
   let url;
   let headers;
   let requestBody;
@@ -66,19 +107,11 @@ export async function handleImageGenerationCore({
 
   let providerResponse;
   try {
-    if (adapter.skipFetch) {
-      // Bypass the Node.js fetch step entirely (e.g., if Python script handles it)
-      providerResponse = new Response(JSON.stringify({ skipFetch: true }), {
-        status: HTTP_STATUS.OK,
-        headers: { "Content-Type": "application/json" }
-      });
-    } else {
-      providerResponse = await fetch(url, {
-        method: "POST",
-        headers,
-        body: serializeRequestBody(requestBody),
-      });
-    }
+    providerResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: serializeRequestBody(requestBody),
+    });
   } catch (error) {
     const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);
     log?.debug?.("IMAGE", `Fetch error: ${errMsg}`);
@@ -88,7 +121,6 @@ export async function handleImageGenerationCore({
   // Handle 401/403 — try token refresh (skipped for noAuth providers)
   const executor = getExecutor(provider);
   if (
-    !adapter.skipFetch &&
     !executor?.noAuth &&
     !adapter.noAuth &&
     (providerResponse.status === HTTP_STATUS.UNAUTHORIZED ||
@@ -133,68 +165,16 @@ export async function handleImageGenerationCore({
   let parsed;
   try {
     if (adapter.parseResponse) {
-      try {
-        parsed = await adapter.parseResponse(providerResponse, {
-          headers,
-          log,
-          streamToClient,
-          onRequestSuccess,
-          url,
-          requestBody,
-          model,
-          body,
-        });
-      } catch (parseError) {
-        // Special case for Leonardo/GraphQL auth errors that come in 200 OK
-        const isAuthError =
-          parseError.message?.toLowerCase().includes("unauthorized") ||
-          parseError.message?.toLowerCase().includes("token") ||
-          parseError.message?.toLowerCase().includes("auth");
-
-        if (isAuthError && !adapter.noAuth && !executor?.noAuth) {
-          log?.info?.("TOKEN", `${provider.toUpperCase()} | detected auth error in 200 OK response, triggering refresh`);
-          const newCredentials = await refreshWithRetry(
-            () => executor.refreshCredentials(credentials, log),
-            3,
-            log
-          );
-
-          if (newCredentials?.accessToken || newCredentials?.apiKey) {
-            log?.info?.("TOKEN", `${provider.toUpperCase()} | refreshed for image generation (retry)`);
-            Object.assign(credentials, newCredentials);
-            if (onCredentialsRefreshed) await onCredentialsRefreshed(newCredentials);
-
-            // Re-run adapter.parseResponse with new credentials if possible
-            // Note: This requires re-fetching since the original response was consumed
-            const retryBody = await adapter.buildBody(model, body);
-            const retryHeaders = adapter.buildHeaders(credentials, retryBody, model, body);
-            const retryUrl = adapter.buildUrl(model, credentials);
-            const retryRes = await fetch(retryUrl, {
-              method: "POST",
-              headers: retryHeaders,
-              body: serializeRequestBody(retryBody),
-            });
-            if (retryRes.ok) {
-              parsed = await adapter.parseResponse(retryRes, {
-                headers: retryHeaders,
-                log,
-                streamToClient,
-                onRequestSuccess,
-                url: retryUrl,
-                requestBody: retryBody,
-                model,
-                body,
-              });
-            } else {
-              throw new Error(`Retry after refresh failed with status ${retryRes.status}`);
-            }
-          } else {
-            throw parseError;
-          }
-        } else {
-          throw parseError;
-        }
-      }
+      parsed = await adapter.parseResponse(providerResponse, {
+        headers,
+        log,
+        streamToClient,
+        onRequestSuccess,
+        url,
+        requestBody,
+        model,
+        body,
+      });
       // Codex streaming case: returns an SSE Response directly
       if (parsed?.sseResponse) {
         return { success: true, response: parsed.sseResponse };

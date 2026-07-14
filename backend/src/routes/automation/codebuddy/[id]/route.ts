@@ -137,6 +137,7 @@ export async function POST_handler(req, res, { params }) {
 async function runSingleJob(jobId, accountId) {
   global._codebuddyState.activeJobId = jobId;
   global._codebuddyState.stopFlag = false;
+  const jobStartTimes = { 0: Date.now() };
 
   try {
     await updateCodeBuddyJobStatus(jobId, "running");
@@ -145,12 +146,18 @@ async function runSingleJob(jobId, accountId) {
     await markCodeBuddyRunning(accountId);
     await updateCodeBuddyJobResult(jobId, 0, {
       status: "running",
-      step: "Memulai otomatisasi browser..."
+      step: "Memulai otomatisasi browser... [0s]"
     });
 
-    await executeCodeBuddySignupSingle(accountId, jobId, settings);
+    await executeCodeBuddySignupSingle(accountId, jobId, settings, jobStartTimes);
   } catch (e) {
+    const elapsed = ((Date.now() - jobStartTimes[0]) / 1000).toFixed(1);
     console.error("Error running single CodeBuddy job:", e);
+    await updateCodeBuddyJobResult(jobId, 0, {
+      status: "failed",
+      error: `${e.message || String(e)} [${elapsed}s]`,
+      ok: false
+    });
   } finally {
     global._codebuddyState.activeJobId = null;
     const finalStatus = global._codebuddyState.stopFlag ? "stopped" : "completed";
@@ -169,6 +176,7 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
       const isKimi = account.provider === "kimi-coding" || account.provider === "kimi";
       const isQoder = account.provider === "qoder";
       const isCloudflare = account.provider === "cloudflare";
+      const isFlashloop = account.provider === "flashloop";
       if (isLeonardo && !settings.leonardo_invite_link) {
         return reject(new Error("Leonardo invite link belum di-set di Settings."));
       }
@@ -184,6 +192,8 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
         ? path.resolve(process.cwd(), "src/automation/qoder_signup.py")
         : isCloudflare
         ? path.resolve(process.cwd(), "src/automation/cloudflare_signup.py")
+        : isFlashloop
+        ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")
@@ -195,6 +205,8 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
         ? path.resolve(process.cwd(), "profiles/qoder")
         : isCloudflare
         ? path.resolve(process.cwd(), "profiles/cloudflare")
+        : isFlashloop
+        ? path.resolve(process.cwd(), "profiles/flashloop")
         : path.resolve(process.cwd(), "profiles/codebuddy");
 
       const args = [
@@ -323,7 +335,7 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
                     email: account.email,
                     priority: 1,
                     isActive: true,
-                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare) ? "active" : "unknown",
+                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isFlashloop) ? "active" : "unknown",
                   };
 
                   if (isLeonardo || isWeavy) {

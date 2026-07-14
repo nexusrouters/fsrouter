@@ -69,22 +69,27 @@ function generateHumanAlias() {
   const first = pick(_HUMAN_FIRST_NAMES);
   const style = crypto.randomInt(4);
   const dLen = 2 + crypto.randomInt(3); // 2-4 digits
-  if (style === 0) return `${first}${digits(dLen)}`;
-  if (style === 1) return `${first}.${digits(dLen)}`;
-  if (style === 2) return `${first}_${digits(dLen)}`;
+  
+  // Generate a random 8-character unique alphanumeric string to prevent collisions on Cloudflare
+  const uniqueSuffix = Math.random().toString(36).substring(2, 10);
+  
+  if (style === 0) return `${first}${digits(dLen)}-${uniqueSuffix}`;
+  if (style === 1) return `${first}.${digits(dLen)}-${uniqueSuffix}`;
+  if (style === 2) return `${first}_${digits(dLen)}-${uniqueSuffix}`;
   let second = pick(_HUMAN_FIRST_NAMES);
   while (second === first) second = pick(_HUMAN_FIRST_NAMES);
-  return `${first}.${second}${digits(1 + crypto.randomInt(3))}`;
+  return `${first}.${second}${digits(1 + crypto.randomInt(3))}-${uniqueSuffix}`;
 }
 
 function generateStrongPassword(length = 16) {
   const lower = "abcdefghijklmnopqrstuvwxyz";
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const digit = "0123456789";
-  const symbol = "!@#$%^&*-_=+";
-  const all = lower + upper + digit + symbol;
+  const special = "!@#$%";  // CF requires special chars, keep these shell-safe
+  const all = lower + upper + digit + special;
   const pick = (s) => s[crypto.randomInt(s.length)];
-  const chars = [pick(lower), pick(upper), pick(digit), pick(symbol)];
+  // Ensure at least 1 of each category (CF requirement)
+  const chars = [pick(lower), pick(upper), pick(digit), pick(special)];
   for (let i = 4; i < length; i++) chars.push(pick(all));
   // Fisher-Yates shuffle
   for (let i = chars.length - 1; i > 0; i--) {
@@ -203,7 +208,7 @@ export async function GET(req, res) {
       active_job_id: activeJobId,
       active_job: activeJob,
       settings: {
-        auto_9router: settings.codebuddy_auto_9router || "0",
+        auto_fsrouter: settings.codebuddy_auto_9router || "0",
         browser_headless: settings.codebuddy_browser_headless !== "0",
         debug_mode: settings.codebuddy_debug_mode === "1",
         leave_canva_team: settings.codebuddy_leave_canva_team || "0",
@@ -226,9 +231,10 @@ export async function POST_handler(req, res) {
 
     // ── Action: Settings ─────────────────────────────────────────────
     if (action === "settings") {
-      const { auto_9router, browser_headless, debug_mode, leave_canva_team, proxy_enabled, proxy_pool, leonardo_invite_link, codebuddy_2captcha_api_key } = body;
+      const { auto_fsrouter, auto_9router, browser_headless, debug_mode, leave_canva_team, proxy_enabled, proxy_pool, leonardo_invite_link, codebuddy_2captcha_api_key } = body;
       const updates = {};
-      if (auto_9router !== undefined) updates.codebuddy_auto_9router = auto_9router ? "1" : "0";
+      const effectiveAutoRouterSetting = auto_fsrouter !== undefined ? auto_fsrouter : auto_9router;
+      if (effectiveAutoRouterSetting !== undefined) updates.codebuddy_auto_9router = effectiveAutoRouterSetting ? "1" : "0";
       if (browser_headless !== undefined) updates.codebuddy_browser_headless = browser_headless ? "1" : "0";
       if (debug_mode !== undefined) updates.codebuddy_debug_mode = debug_mode ? "1" : "0";
       if (leave_canva_team !== undefined) updates.codebuddy_leave_canva_team = leave_canva_team ? "1" : "0";
@@ -245,6 +251,7 @@ export async function POST_handler(req, res) {
     if (action === "auto-generate-email") {
       const { count, provider, run_now, concurrency, domain } = body;
       const targetProvider = provider || "leonardo";
+      console.log(`[AUTO-GEN-EMAIL] provider from body: "${provider}", targetProvider: "${targetProvider}"`);
       const numCount = parseInt(count) || 1;
 
       const client = await getAmmailClientFromSettings();
@@ -600,6 +607,7 @@ export async function POST_handler(req, res) {
 async function runCodeBuddySignupJob(jobId, accountIds, concurrencyLimit) {
   global._codebuddyState.activeJobId = jobId;
   global._codebuddyState.stopFlag = false;
+  const jobStartTimes = {}; // Track start time per account index
 
   try {
     await updateCodeBuddyJobStatus(jobId, "running");
@@ -614,19 +622,21 @@ async function runCodeBuddySignupJob(jobId, accountIds, concurrencyLimit) {
         const currentIdx = index++;
         const accountId = accountIds[currentIdx];
 
+        jobStartTimes[currentIdx] = Date.now();
         await markCodeBuddyRunning(accountId);
         await updateCodeBuddyJobResult(jobId, currentIdx, {
           status: "running",
-          step: "Memulai otomatisasi browser..."
+          step: "Memulai otomatisasi browser... [0s]"
         });
 
         try {
-          await executeCodeBuddySignup(accountId, jobId, currentIdx, settings);
+          await executeCodeBuddySignup(accountId, jobId, currentIdx, settings, jobStartTimes);
         } catch (e) {
+          const elapsed = ((Date.now() - (jobStartTimes[currentIdx] || Date.now())) / 1000).toFixed(1);
           await markCodeBuddyError(accountId, e.message || String(e));
           await updateCodeBuddyJobResult(jobId, currentIdx, {
             status: "failed",
-            error: e.message || String(e),
+            error: `${e.message || String(e)} [${elapsed}s]`,
             ok: false
           });
         }
@@ -649,17 +659,28 @@ async function runCodeBuddySignupJob(jobId, accountIds, concurrencyLimit) {
   }
 }
 
-function executeCodeBuddySignup(accountId, jobId, idx, settings) {
+function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes = {}) {
   return new Promise(async (resolve, reject) => {
     try {
       const account = await getCodeBuddyAccount(accountId);
       if (!account) return reject(new Error("Account not found"));
+
+      // Helper: update step with auto-elapsed time
+      const elapsed = () => ((Date.now() - (jobStartTimes[idx] || Date.now())) / 1000).toFixed(1);
+      const updateResult = async (result) => {
+        if (result.step && !/\[\d+(\.\d+)?s\]$/.test(result.step)) {
+          result.step = `${result.step} [${elapsed()}s]`;
+        }
+        return updateCodeBuddyJobResult(jobId, idx, result);
+      };
 
       const isLeonardo = account.provider === "leonardo";
       const isWeavy = account.provider === "weavy";
       const isKimi = account.provider === "kimi-coding" || account.provider === "kimi";
       const isQoder = account.provider === "qoder";
       const isCloudflare = account.provider === "cloudflare";
+      const isOpenVecta = account.provider === "openvecta";
+      const isFlashloop = account.provider === "flashloop";
 
       // ── Cloudflare: Smart routing ─────────────────────────────────────
       // password == GAK (>=37 char or cfk_ prefix) → API-based, no browser
@@ -677,7 +698,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
         }
 
         try {
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email,
             status: "running",
             step: "Menghubungi Cloudflare API..."
@@ -704,7 +725,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
           };
 
           // 1. Get accounts
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email, status: "running", step: "Memverifikasi akun Cloudflare..."
           });
           const accounts_ = await cfFetch("/accounts?per_page=1");
@@ -716,7 +737,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
           const accountName = cfAccount.name;
 
           // 2. Get permission groups — exact match, exclude Metadata Read
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email, status: "running", step: "Mengambil permission groups..."
           });
           const permGroups = await cfFetch(`/accounts/${accountId}/tokens/permission_groups`) as { id: string; name: string }[];
@@ -740,7 +761,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
           }
 
           // 3. Create API token
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email, status: "running", step: "Membuat API Token Workers AI..."
           });
           const permissionGroups: any[] = [{ id: readGroup.id }, { id: editGroup!.id }];
@@ -762,7 +783,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
 
           // 4. Save to DB
           await markCodeBuddySuccess(account.id, newApiToken);
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email,
             status: "done",
             api_key: newApiToken,
@@ -800,7 +821,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
         } catch (err: any) {
           const errMsg = err.message || String(err);
           await markCodeBuddyError(account.id, errMsg);
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email,
             status: "failed",
             error: errMsg,
@@ -826,6 +847,10 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
         ? path.resolve(process.cwd(), "src/automation/qoder_signup.py")
         : isCloudflare
         ? path.resolve(process.cwd(), "src/automation/cloudflare_signup.py")
+        : isOpenVecta
+        ? path.resolve(process.cwd(), "src/automation/openvecta_signup.py")
+        : isFlashloop
+        ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")
@@ -837,6 +862,10 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
         ? path.resolve(process.cwd(), "profiles/qoder")
         : isCloudflare
         ? path.resolve(process.cwd(), "profiles/cloudflare")
+        : isOpenVecta
+        ? path.resolve(process.cwd(), "profiles/openvecta")
+        : isFlashloop
+        ? path.resolve(process.cwd(), "profiles/flashloop")
         : path.resolve(process.cwd(), "profiles/codebuddy");
 
       const args = [
@@ -887,6 +916,22 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
           args.push("--gsuite");
         }
         args.push("--clean");
+      } else if (isOpenVecta) {
+        // Inject Ammail credentials so the script can verify email
+        const ammailSettings = settings;
+        const ammailBaseUrl = ammailSettings.ammail_base_url || "";
+        const ammailApiKey = ammailSettings.ammail_api_key || "";
+        const ammailDomain = ammailSettings.ammail_default_domain || "";
+        if (ammailBaseUrl && ammailApiKey && ammailDomain) {
+          args.push(`--ammail-base-url=${ammailBaseUrl}`);
+          args.push(`--ammail-api-key=${ammailApiKey}`);
+          args.push(`--ammail-domain=${ammailDomain}`);
+        }
+        // Stagger browser launches
+        const slotDelay = (idx % 3) * 5;
+        if (slotDelay > 0) {
+          args.push(`--stagger-delay=${slotDelay}`);
+        }
       }
 
       if (settings.codebuddy_browser_headless !== "0") {
@@ -953,14 +998,14 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
             const parsed = JSON.parse(line);
             if (parsed.step) {
               lastStep = parsed.step;
-              await updateCodeBuddyJobResult(jobId, idx, {
+              await updateResult( {
                 email: account.email,
                 status: "running",
                 step: lastStep
               });
             } else if (parsed.canva_enrolled) {
               await markCanvaEnrolled(account.id, 1);
-              await updateCodeBuddyJobResult(jobId, idx, {
+              await updateResult( {
                 email: account.email,
                 status: "running",
                 step: "Canva Enrolled. Menghubungkan ke Leonardo AI..."
@@ -969,7 +1014,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
               done = true;
               const apiKeyToSave = (isLeonardo || isWeavy) ? parsed.cookie : parsed.api_key;
               await markCodeBuddySuccess(account.id, apiKeyToSave);
-              await updateCodeBuddyJobResult(jobId, idx, {
+              await updateResult( {
                 email: account.email,
                 status: "done",
                 api_key: apiKeyToSave,
@@ -978,7 +1023,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
                 ok: true
               });
 
-              if (settings.codebuddy_auto_9router === "1" || isLeonardo || isWeavy || isKimi || isQoder || isCloudflare) {
+              if (settings.codebuddy_auto_9router === "1" || isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta) {
                 try {
                   const provider = account.provider || "codebuddy";
                   const connData = {
@@ -989,7 +1034,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
                     email: account.email,
                     priority: 1,
                     isActive: true,
-                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare) ? "active" : "unknown",
+                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta || isFlashloop) ? "active" : "unknown",
                   };
 
                   if (isLeonardo || isWeavy) {
@@ -1036,6 +1081,10 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
                     };
                   } else if (provider === "kiro") {
                     connData.accessToken = apiKeyToSave;
+                  } else if (isOpenVecta) {
+                    connData.provider = "openvecta";
+                    connData.authType = "apikey";
+                    connData.apiKey = parsed.api_key;
                   }
 
                   await createProviderConnection(connData);
@@ -1047,7 +1096,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
               done = true;
               const errMsg = parsed.error || parsed.message || "Unknown error";
               await markCodeBuddyError(account.id, errMsg);
-              await updateCodeBuddyJobResult(jobId, idx, {
+              await updateResult( {
                 email: account.email,
                 status: "failed",
                 error: errMsg,
@@ -1072,7 +1121,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
             errMsg += ` | Stderr: ${stderrAccumulator.trim()}`;
           }
           await markCodeBuddyError(account.id, errMsg);
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email,
             status: "failed",
             error: errMsg,
@@ -1091,7 +1140,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings) {
             ? "Dihentikan oleh pengguna." 
             : (err.message || String(err));
           await markCodeBuddyError(account.id, errMsg);
-          await updateCodeBuddyJobResult(jobId, idx, {
+          await updateResult( {
             email: account.email,
             status: "failed",
             error: errMsg,

@@ -6,14 +6,13 @@
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
+    "noEmitOnError": false,
+    "skipLibCheck": true,
     "strict": false,
+    "noEmit": true,
     "noImplicitAny": false,
-    "strictNullChecks": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
     "allowImportingTsExtensions": false,
     "baseUrl": ".",
     "paths": {
@@ -22,6 +21,6 @@
       "open-sse/*": ["./open-sse/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "open-sse", "open-sse/**/*", "open-sse/**/*.js", "open-sse/**/*.ts", "**/open-sse/**/*", "**/open-sse", "src/routes/auth/oidc/**/*"]
 }

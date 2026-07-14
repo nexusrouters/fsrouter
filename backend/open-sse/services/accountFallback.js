@@ -213,3 +213,111 @@ export function applyErrorState(account, status, errorText) {
     status: "error"
   };
 }
+
+// ── Error classification stubs (used by errorClassifier.js) ─────────────────
+
+/**
+ * Check if error text indicates the account has been deactivated/disabled.
+ */
+export function isAccountDeactivated(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('account disabled') ||
+    lower.includes('account_deactivated') ||
+    lower.includes('account has been deactivated') ||
+    lower.includes('account is no longer active') ||
+    lower.includes('organization has been disabled')
+  );
+}
+
+/**
+ * Check if error text indicates credits/billing exhaustion.
+ */
+export function isCreditsExhausted(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('insufficient funds') ||
+    lower.includes('insufficient_funds') ||
+    lower.includes('credits exhausted') ||
+    lower.includes('out of credits') ||
+    lower.includes('no credits') ||
+    lower.includes('credit limit') ||
+    lower.includes('payment required') ||
+    lower.includes('spending limit') ||
+    lower.includes('quota exceeded') ||
+    lower.includes('quota_exceeded') ||
+    lower.includes('budget exceeded') ||
+    lower.includes('budget_exceeded')
+  );
+}
+
+/**
+ * Check if error text indicates daily quota exhaustion (for 429 responses).
+ */
+export function isDailyQuotaExhausted(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('daily') ||
+    lower.includes('per day') ||
+    lower.includes('daily limit') ||
+    lower.includes('rate limit reached') ||
+    lower.includes('daily quota')
+  );
+}
+
+/**
+ * Check if error text indicates an invalid/expired OAuth token.
+ */
+export function isOAuthInvalidToken(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('invalid_token') ||
+    lower.includes('invalid token') ||
+    lower.includes('token expired') ||
+    lower.includes('token has expired') ||
+    lower.includes('access token is invalid')
+  );
+}
+
+/**
+ * Parse retry-after from a response body (JSON or string).
+ * Returns { retryAfterMs, reason }.
+ */
+export function parseRetryAfterFromBody(responseBody) {
+  if (!responseBody) return { retryAfterMs: 0, reason: null };
+  const text = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+
+  let retryAfterMs = 0;
+  let reason = null;
+
+  if (typeof responseBody === 'object' && responseBody !== null) {
+    const raw = responseBody.retry_after ?? responseBody.retryAfter ?? responseBody.retry_after_seconds;
+    if (typeof raw === 'number' && raw > 0) {
+      retryAfterMs = raw < 1e12 ? raw * 1000 : raw - Date.now();
+      reason = 'retry_after header';
+    } else if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        retryAfterMs = parsed < 1e12 ? parsed * 1000 : parsed - Date.now();
+        reason = 'retry_after header';
+      }
+    }
+  }
+
+  if (retryAfterMs === 0) {
+    const match = text.match(/retry.*?(\d+)\s*(?:second|minute|hour)/i);
+    if (match) {
+      const val = Number(match[1]);
+      if (text.includes('minute')) retryAfterMs = val * 60 * 1000;
+      else if (text.includes('hour')) retryAfterMs = val * 3600 * 1000;
+      else retryAfterMs = val * 1000;
+      reason = 'body text pattern';
+    }
+  }
+
+  return { retryAfterMs, reason };
+}

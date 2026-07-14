@@ -12,7 +12,7 @@ import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 
 // const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
-const VISIBLE_MEDIA_KINDS = ["embedding", "image", "tts", "stt", "video"];
+const VISIBLE_MEDIA_KINDS = ["embedding", "image", "tts", "stt", "video", "moderation", "rerank", "ocr"];
 // Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
@@ -23,6 +23,11 @@ const navItems = [
   { href: "/dashboard/combos", label: "Combos", icon: "layers" },
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
   { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
+  { href: "/dashboard/search", label: "Search", icon: "search" },
+  { href: "/dashboard/moderations", label: "Moderations", icon: "verified_user" },
+  { href: "/dashboard/rerank", label: "Rerank", icon: "sort" },
+  { href: "/dashboard/ocr", label: "OCR", icon: "document_scanner" },
+  { href: "/dashboard/audio", label: "Audio", icon: "mic" },
   { href: "/dashboard/mitm", label: "MITM", icon: "security" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
   { href: "/dashboard/docs", label: "Docs", icon: "menu_book" },
@@ -109,7 +114,7 @@ export default function Sidebar({ onClose }) {
 
   return (
     <>
-      <aside className="flex w-72 flex-col border-r border-border-subtle bg-vibrancy backdrop-blur-xl transition-colors duration-300 min-h-full">
+      <aside className="flex w-72 flex-col border-r border-border-subtle bg-vibrancy backdrop-blur-xl transition-colors duration-300 h-screen overflow-hidden">
         {/* Traffic lights */}
         <div className="flex items-center gap-2 px-6 pt-5 pb-2">
           <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
@@ -120,12 +125,12 @@ export default function Sidebar({ onClose }) {
         {/* Logo */}
         <div className="px-6 py-4 flex flex-col gap-2">
           <Link to="/dashboard" className="flex items-center gap-3">
-            <img src="/logo_amrouter.png" alt="AMRouter" className="size-9 rounded-[10px] object-cover" />
+            <img src="/logo_fsrouter.png" alt="FSRouter" className="size-9 rounded-[10px] object-cover" />
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold tracking-tight text-text-main leading-tight">
-                AMRouter
+                FSRouter
               </h1>
-              <span className="text-[10px] text-text-muted mt-0.5 leading-none">by ahwanulm</span>
+              <span className="text-[10px] text-text-muted mt-0.5 leading-none">By FudOne</span>
               <span className="text-[10px] text-text-muted opacity-75 mt-0.5 leading-none">v{APP_CONFIG.version}</span>
             </div>
           </Link>
@@ -338,7 +343,7 @@ export default function Sidebar({ onClose }) {
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
         onConfirm={handleUpdate}
-        title="Update AMRouter"
+        title="Update FSRouter"
         message={`Show install command for v${updateInfo?.latestVersion || ""}? You can copy it and shutdown to install manually.`}
         confirmText="Show Command"
         cancelText="Cancel"
@@ -389,7 +394,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
           <span className="material-symbols-outlined text-[24px]">content_copy</span>
         </div>
         <div>
-          <h2 className="text-lg font-semibold">Update AMRouter{latestVersion ? ` to v${latestVersion}` : ""}</h2>
+          <h2 className="text-lg font-semibold">Update FSRouter{latestVersion ? ` to v${latestVersion}` : ""}</h2>
           <p className="text-xs text-white/60">
             {isDisconnected
               ? "Server stopped. Paste the command into a terminal to install."
@@ -408,7 +413,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
       <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
         <li>Click <strong>Copy & Shutdown</strong> below.</li>
         <li>Paste the command into your terminal and press Enter.</li>
-        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">amrouter</code> again after install.</li>
+        <li>Run <code className="px-1 rounded bg-white/10 text-green-400">fsrouter</code> again after install.</li>
       </ol>
 
       {isDisconnected ? (

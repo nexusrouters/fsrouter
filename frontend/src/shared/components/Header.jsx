@@ -104,7 +104,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/mitm"))
     return {
       title: "MITM Proxy",
-      description: "Intercept CLI tool traffic and route through 9Router",
+      description: "Intercept CLI tool traffic and route through FSRouter",
       icon: "security",
       breadcrumbs: [],
     };
@@ -125,7 +125,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/skills"))
     return {
       title: "Agent Skills",
-      description: "Copy a link and paste to your AI to use 9Router — no install needed",
+      description: "Copy a link and paste to your AI to use FSRouter — no install needed",
       icon: "extension",
       breadcrumbs: [],
     };
@@ -307,7 +307,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
         )}
         <HeaderSearch />
         <a
-          href="https://mayar.to/ahwanulm"
+          href="https://www.paypal.com/paypalme/fudpay"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-pink-500/30 bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors text-sm font-medium"

@@ -1,12 +1,10 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { exec, spawn, execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const { log, err } = require("../logger");
-const { TOOL_HOSTS } = require("../../shared/constants/mitmToolHosts.js");
-const { runElevatedPowerShell, isAdmin } = require("../winElevated.js");
+import { exec, spawn, execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { log, err } from "../logger.js";
+import { TOOL_HOSTS } from "../../shared/constants/mitmToolHosts.js";
+import { runElevatedPowerShell, isAdmin } from "../winElevated.js";
 
 /**
  * Atomic-ish write for Windows hosts file with rollback on failure.
@@ -252,16 +250,6 @@ function removeAllDNSEntriesSync() {
     }
   } catch { /* best effort during shutdown */ }
 }
+;
 
-export { TOOL_HOSTS };
-export { addDNSEntry };
-export { removeDNSEntry };
-export { removeAllDNSEntries };
-export { removeAllDNSEntriesSync };
-export { execWithPassword };
-export { isSudoAvailable };
-export { canRunSudoWithoutPassword };
-export { isSudoPasswordRequired };
-export { checkDNSEntry };
-export { checkAllDNSStatus };
-export {  };;
+export { TOOL_HOSTS, addDNSEntry, removeDNSEntry, removeAllDNSEntries, removeAllDNSEntriesSync, execWithPassword, isSudoAvailable, canRunSudoWithoutPassword, isSudoPasswordRequired, checkDNSEntry, checkAllDNSStatus };

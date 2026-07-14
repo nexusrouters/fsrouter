@@ -10,6 +10,8 @@ import {
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "../../lib/localDb.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
+import { getModelType } from "open-sse/config/providerModels.js";
+import { handleImageGeneration } from "./imageGeneration.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { handleComboChat } from "open-sse/services/combo.js";
@@ -148,6 +150,26 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   const { provider, model } = modelInfo;
 
+  // Redirect image models to image generation handler instead of chat completions
+  const modelType = getModelType(provider, model);
+  if (modelType === "image") {
+    log.info("CHAT", `Model ${provider}/${model} is image type → redirecting to image handler`);
+    const prompt = body.messages?.length
+      ? body.messages[body.messages.length - 1]?.content || ""
+      : body.prompt || "";
+    const imageBody = { ...body, prompt: prompt || "generate image", model: `${provider}/${model}` };
+    delete imageBody.messages;
+    const fullUrl = `http://127.0.0.1:${process.env.PORT || 3001}/api/v1/images/generations`;
+    const imageRequest = new Request(fullUrl, {
+      method: "POST",
+      headers: request ? Object.fromEntries(
+        typeof request.headers?.entries === "function" ? request.headers.entries() : Object.entries(request.headers || {})
+      ) : { "Content-Type": "application/json" },
+      body: JSON.stringify(imageBody),
+    });
+    return handleImageGeneration(imageRequest);
+  }
+
   // Log model routing (alias → actual model)
   if (modelStr !== `${provider}/${model}`) {
     log.info("ROUTING", `${modelStr} → ${provider}/${model}`);
@@ -213,6 +235,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       rtkEnabled: !!chatSettings.rtkEnabled,
       cavemanEnabled: !!chatSettings.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
+      headroomEnabled: !!chatSettings.headroomEnabled,
+      headroomUrl: chatSettings.headroomUrl || "",
+      headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
+      ponytailEnabled: !!chatSettings.ponytailEnabled,
+      ponytailLevel: chatSettings.ponytailLevel || "full",
+      paleoEnabled: !!chatSettings.paleoEnabled,
+      paleoLevel: chatSettings.paleoLevel || "full",
       providerThinking,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,

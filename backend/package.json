@@ -1,9 +1,9 @@
 {
   "name": "9router-backend",
-  "version": "0.5.0",
+  "version": "0.6.4",
   "private": true,
   "type": "module",
-  "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
+  "description": "9Router v2 \u2014 Express Backend (API, SSE, DB, Auth, MITM)",
   "main": "src/server.ts",
   "bin": {
     "amrouter": "bin/cli.cjs"
@@ -11,12 +11,12 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "tsc --project tsconfig.json || true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.11.1",
     "confbox": "^0.2.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

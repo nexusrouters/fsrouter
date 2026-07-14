@@ -1,7 +1,5 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { err } = require("../logger");
-const { fetchRouter, pipeSSE } = require("./base");
+import { err } from "../logger.js";
+import { fetchRouter, pipeSSE } from "./base.js";
 
 // Map Copilot endpoint → 9Router path
 const URL_MAP = {
@@ -34,4 +32,4 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
   }
 }
 
-module.exports = { intercept };
+export { intercept };

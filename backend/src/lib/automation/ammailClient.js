@@ -51,7 +51,7 @@ export class TempMailClient {
   async _executeRequest(baseUrl, method, path, body = null) {
     const url = `${baseUrl}${path}`;
     const headers = {
-      "X-API-Key": this.apiKey,
+      "Authorization": `Bearer ${this.apiKey}`,
       "Accept": "application/json",
     };
 

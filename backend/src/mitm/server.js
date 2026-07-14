@@ -1,19 +1,17 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const https = require("https");
-const http2 = require("http2");
-const tls = require("tls");
-const fs = require("fs");
-const path = require("path");
-const dns = require("dns");
-const { promisify } = require("util");
-const { execSync } = require("child_process");
-const { log, err, dumpRequest, createResponseDumper, clearDumpDir } = require("./logger");
-const { IS_DEV, LSOF_BIN, TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, MODEL_PATTERNS, MODEL_NO_MAP, getToolForHost } = require("./config");
-const { DATA_DIR, MITM_DIR } = require("./paths");
-const { getCertForDomain } = require("./cert/generate");
-const { getMitmAlias } = require("./dbReader");
-const { applyAntigravityIdeVersionOverride } = require("./antigravityIdeVersion");
+import https from "https";
+import http2 from "http2";
+import tls from "tls";
+import fs from "fs";
+import path from "path";
+import dns from "dns";
+import { promisify } from "util";
+import { execSync } from "child_process";
+import { log, err, dumpRequest, createResponseDumper, clearDumpDir } from "./logger.js";
+import { IS_DEV, LSOF_BIN, TARGET_HOSTS, URL_PATTERNS, MODEL_SYNONYMS, MODEL_PATTERNS, MODEL_NO_MAP, getToolForHost } from "./config.js";
+import { DATA_DIR, MITM_DIR } from "./paths.js";
+import { getCertForDomain } from "./cert/generate.js";
+import { getMitmAlias } from "./dbReader.js";
+import { applyAntigravityIdeVersionOverride } from "./antigravityIdeVersion.js";
 const LOCAL_PORT = 443;
 const IS_WIN = process.platform === "win32";
 const ENABLE_FILE_LOG = IS_DEV;
@@ -29,10 +27,10 @@ const HOST_REWRITE = {
 };
 
 const handlers = {
-  antigravity: require("./handlers/antigravity"),
-  copilot: require("./handlers/copilot"),
-  kiro: require("./handlers/kiro"),
-  cursor: require("./handlers/cursor"),
+  antigravity: await import("./handlers/antigravity.js"),
+  copilot: await import("./handlers/copilot.js"),
+  kiro: await import("./handlers/kiro.js"),
+  cursor: await import("./handlers/cursor.js"),
 };
 
 // ── SSL / SNI ─────────────────────────────────────────────────
@@ -45,7 +43,7 @@ function sniCallback(servername, cb) {
     if (certCache.has(servername)) return cb(null, certCache.get(servername));
     const certData = getCertForDomain(servername);
     if (!certData) return cb(new Error(`Failed to generate cert for ${servername}`));
-    const ctx = require("tls").createSecureContext({
+    const ctx = tls.createSecureContext({
       key: certData.key,
       cert: `${certData.cert}\n${rootCAPem}`
     });
@@ -422,7 +420,7 @@ server.on("error", (e) => {
   process.exit(1);
 });
 
-const { removeAllDNSEntriesSync } = require("./dns/dnsConfig");
+import { removeAllDNSEntriesSync } from "./dns/dnsConfig.js";
 let isShuttingDown = false;
 const shutdown = () => {
   if (isShuttingDown) return;

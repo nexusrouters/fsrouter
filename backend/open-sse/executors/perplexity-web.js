@@ -1,5 +1,6 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
 
 const PPLX_SSE_ENDPOINT = PROVIDERS["perplexity-web"].baseUrl;
 const PPLX_API_VERSION = "2.18";
@@ -144,6 +145,24 @@ function parseOpenAIMessages(messages) {
     else if (Array.isArray(msg.content)) {
       content = msg.content.filter((c) => c.type === "text").map((c) => String(c.text || "")).join(" ");
     }
+
+    // Handle tool role messages — convert to user message with tool result context
+    if (role === "tool") {
+      const toolName = msg.name || "unknown_tool";
+      const toolCallId = msg.tool_call_id || "";
+      content = `[Tool Result for ${toolName}${toolCallId ? ` (call_id: ${toolCallId})` : ""}]:\n${content || "(empty result)"}`;
+      role = "user";
+    }
+
+    // Handle assistant messages with tool_calls — serialize them as text
+    if (role === "assistant" && msg.tool_calls && !content) {
+      const tcText = msg.tool_calls.map(tc => {
+        const fn = tc.function || {};
+        return `<tool_call>{"name":"${fn.name}","arguments":${fn.arguments || "{}"}}</tool_call>`;
+      }).join("\n");
+      content = tcText;
+    }
+
     if (!content.trim()) continue;
     if (role === "system") systemMsg += content + "\n";
     else if (role === "user" || role === "assistant") history.push({ role, content });
@@ -181,13 +200,37 @@ function buildPplxRequestBody(query, mode, modelPref, followUpUuid) {
 
 function formatToolsHint(tools) {
   if (!Array.isArray(tools) || tools.length === 0) return "";
-  const lines = tools.map((t) => {
+  const defs = tools.map((t) => {
     const fn = t?.function || t || {};
     const name = fn.name || "unnamed";
-    const desc = (fn.description || "").split("\n")[0].slice(0, 200);
-    return `- ${name}: ${desc}`;
+    const desc = fn.description || "";
+    const params = fn.parameters ? JSON.stringify(fn.parameters) : "{}";
+    return `{"name":"${name}","description":${JSON.stringify(desc)},"parameters":${params}}`;
   });
-  return `Available tools (reference only, cannot invoke):\n${lines.join("\n")}`;
+  return `You have access to these tools:\n[${defs.join(",")}]\n\nTo call a tool, output EXACTLY this format with no other text:\n<tool_call>{"name":"<tool_name>","arguments":{<args>}}</tool_call>\n\nYou may call multiple tools by outputting multiple <tool_call> blocks. If no tool is needed, respond normally.`;
+}
+
+// Parse tool calls from Perplexity text response
+const TOOL_CALL_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g;
+function parseToolCalls(text) {
+  const calls = [];
+  let match;
+  while ((match = TOOL_CALL_RE.exec(text)) !== null) {
+    try {
+      const obj = JSON.parse(match[1]);
+      if (obj.name) {
+        calls.push({
+          id: `call_${Math.random().toString(36).slice(2, 14)}`,
+          type: "function",
+          function: { name: obj.name, arguments: JSON.stringify(obj.arguments || {}) },
+        });
+      }
+    } catch { /* skip malformed */ }
+  }
+  return calls;
+}
+function stripToolCallTags(text) {
+  return text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function buildQuery(parsed, followUpUuid, tools) {
@@ -336,13 +379,31 @@ function buildStreamingResponse(eventStream, model, cid, created, history, curre
           if (chunk.answer) fullAnswer = chunk.answer;
         }
 
-        controller.enqueue(encoder.encode(sseChunk({
-          id: cid, object: "chat.completion.chunk", created, model, system_fingerprint: null,
-          choices: [{ index: 0, delta: {}, finish_reason: "stop", logprobs: null }],
-        })));
+        // Parse tool calls from final answer
+        const toolCalls = parseToolCalls(fullAnswer);
+        const cleanAnswer = stripToolCallTags(fullAnswer);
+
+        if (toolCalls.length > 0) {
+          // Emit tool calls as delta chunks
+          for (const tc of toolCalls) {
+            controller.enqueue(encoder.encode(sseChunk({
+              id: cid, object: "chat.completion.chunk", created, model, system_fingerprint: null,
+              choices: [{ index: 0, delta: { tool_calls: [tc] }, finish_reason: null, logprobs: null }],
+            })));
+          }
+          controller.enqueue(encoder.encode(sseChunk({
+            id: cid, object: "chat.completion.chunk", created, model, system_fingerprint: null,
+            choices: [{ index: 0, delta: {}, finish_reason: "tool_calls", logprobs: null }],
+          })));
+        } else {
+          controller.enqueue(encoder.encode(sseChunk({
+            id: cid, object: "chat.completion.chunk", created, model, system_fingerprint: null,
+            choices: [{ index: 0, delta: {}, finish_reason: "stop", logprobs: null }],
+          })));
+        }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 
-        sessionStore(history, currentMsg, cleanResponse(fullAnswer), respBackendUuid);
+        sessionStore(history, currentMsg, cleanResponse(cleanAnswer), respBackendUuid);
       } catch (err) {
         controller.enqueue(encoder.encode(sseChunk({
           id: cid, object: "chat.completion.chunk", created, model, system_fingerprint: null,
@@ -374,14 +435,27 @@ async function buildNonStreamingResponse(eventStream, model, cid, created, histo
   }
 
   fullAnswer = cleanResponse(fullAnswer);
-  sessionStore(history, currentMsg, fullAnswer, respBackendUuid);
+  sessionStore(history, currentMsg, stripToolCallTags(fullAnswer), respBackendUuid);
 
   const reasoningContent = thinkingParts.length > 0 ? thinkingParts.join("\n") : undefined;
-  const msg = { role: "assistant", content: fullAnswer };
-  if (reasoningContent) msg.reasoning_content = reasoningContent;
+  const toolCalls = parseToolCalls(fullAnswer);
+  const cleanAnswer = stripToolCallTags(fullAnswer);
 
   const promptTokens = Math.ceil(currentMsg.length / 4);
-  const completionTokens = Math.ceil(fullAnswer.length / 4);
+  const completionTokens = Math.ceil(cleanAnswer.length / 4);
+
+  if (toolCalls.length > 0) {
+    const msg = { role: "assistant", content: cleanAnswer || null, tool_calls: toolCalls };
+    if (reasoningContent) msg.reasoning_content = reasoningContent;
+    return new Response(JSON.stringify({
+      id: cid, object: "chat.completion", created, model, system_fingerprint: null,
+      choices: [{ index: 0, message: msg, finish_reason: "tool_calls", logprobs: null }],
+      usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  const msg = { role: "assistant", content: cleanAnswer };
+  if (reasoningContent) msg.reasoning_content = reasoningContent;
 
   return new Response(JSON.stringify({
     id: cid, object: "chat.completion", created, model, system_fingerprint: null,
@@ -395,7 +469,7 @@ export class PerplexityWebExecutor extends BaseExecutor {
     super("perplexity-web", PROVIDERS["perplexity-web"]);
   }
 
-  async execute({ model, body, stream, credentials, signal, log }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
     const messages = body?.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       const errResp = new Response(JSON.stringify({
@@ -457,7 +531,7 @@ export class PerplexityWebExecutor extends BaseExecutor {
 
     let response;
     try {
-      response = await fetch(PPLX_SSE_ENDPOINT, fetchOptions);
+      response = await proxyAwareFetch(PPLX_SSE_ENDPOINT, fetchOptions, proxyOptions);
     } catch (err) {
       log?.error?.("PPLX-WEB", `Fetch failed: ${err.message || String(err)}`);
       const errResp = new Response(JSON.stringify({

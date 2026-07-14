@@ -1,6 +1,4 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { log, err } = require("../logger");
+import { log, err } from "../logger.js";
 
 const DEFAULT_LOCAL_ROUTER = "http://localhost:3001";
 const ROUTER_BASE = String(process.env.MITM_ROUTER_BASE || DEFAULT_LOCAL_ROUTER)
@@ -225,4 +223,4 @@ async function pipeTransformedEventStream(routerRes, res, transformFn, state) {
   res.end();
 }
 
-module.exports = { fetchRouter, pipeSSE, pipeTransformedSSE, pipeTransformedEventStream };
+export { fetchRouter, pipeSSE, pipeTransformedSSE, pipeTransformedEventStream };

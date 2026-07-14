@@ -6,6 +6,8 @@ import { parseModel as parseModelCore, resolveModelAliasFromMap, getModelInfoCor
 const LOCAL_PROVIDER_ALIASES = {
   xmtp: "xiaomi-tokenplan",
   "xiaomi-tokenplan": "xiaomi-tokenplan",
+  ov: "openvecta",
+  openvecta: "openvecta",
 };
 
 export function parseModel(modelStr) {

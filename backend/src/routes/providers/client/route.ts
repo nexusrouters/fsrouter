@@ -151,6 +151,52 @@ export async function GET_handler(req, res) {
       if (ids.length > 0) usageMap = await getTodayUsageMap(ids);
     }
 
+    // Calculate dynamic cloudflare-ai totals
+    const cfConnections = accountFilteredConnections.filter(c => c.provider === "cloudflare-ai");
+    const cfIds = cfConnections.map(c => c.id);
+    let cfUsed = 0;
+    if (cfIds.length > 0) {
+      try {
+        const db = await getAdapter();
+        const rows = db.all(
+          `SELECT model, promptTokens, completionTokens FROM usageHistory 
+           WHERE provider = 'cloudflare-ai' 
+             AND connectionId IN (${cfIds.map(() => "?").join(",")})
+             AND status = 'ok' 
+             AND timestamp >= (date('now', 'start of day') || 'T00:00:00.000Z')`,
+          cfIds
+        );
+        for (const row of rows) {
+          const modelLower = (row.model || "").toLowerCase();
+          let neurons = 0;
+          if (modelLower.includes("flux-2-dev")) {
+            neurons = 2500;
+          } else if (modelLower.includes("flux-1-schnell") || modelLower.includes("flux")) {
+            neurons = 1500;
+          } else if (modelLower.includes("xl") || modelLower.includes("phoenix") || modelLower.includes("stable-diffusion")) {
+            neurons = 1000;
+          } else if (modelLower.includes("dreamshaper") || modelLower.includes("lightning") || modelLower.includes("image") || modelLower.includes("draw")) {
+            neurons = 200;
+          } else if (modelLower.includes("whisper")) {
+            neurons = 10;
+          } else if (modelLower.includes("speech") || modelLower.includes("tts")) {
+            neurons = 5;
+          } else {
+            const totalTokens = (row.promptTokens || 0) + (row.completionTokens || 0);
+            if (modelLower.includes("70b") || modelLower.includes("72b") || modelLower.includes("large")) {
+              neurons = totalTokens * 0.00077;
+            } else {
+              neurons = totalTokens * 0.000077;
+            }
+          }
+          cfUsed += neurons;
+        }
+        cfUsed = Math.round(cfUsed);
+      } catch (dbErr) {
+        console.error("Failed to query cfTotalUsed:", dbErr);
+      }
+    }
+
     const sortedConnections = sortConnections(accountFilteredConnections, sort, usageMap);
     const total = sortedConnections.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -170,6 +216,13 @@ export async function GET_handler(req, res) {
       totals: {
         eligibleConnections: eligibleConnections.length,
         providerFilteredConnections: providerFilteredConnections.length,
+        providerCounts: Object.fromEntries(
+          providerOptions.map(p => [p, eligibleConnections.filter(c => c.provider === p).length])
+        ),
+        cloudflareAi: {
+          total: cfConnections.length * 10000,
+          used: cfUsed
+        }
       },
     });
   } catch (error) {

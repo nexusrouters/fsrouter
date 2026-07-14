@@ -11,6 +11,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Python virtual environment
+.venv/
+**/venv/
+**/__pycache__/
+
 # Next.js / framework specifics if any
 .next/
 out/

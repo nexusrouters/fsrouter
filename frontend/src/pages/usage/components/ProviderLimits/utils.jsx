@@ -135,14 +135,32 @@ export function parseQuotaData(provider, data) {
 
       case "codex":
         if (data.quotas) {
+          const codexNames = {
+            session: "Session (5h)",
+            weekly: "Weekly (7d)",
+            code_review: "Code Review",
+            code_review_weekly: "Code Review Weekly",
+            spark: "Spark",
+            spark_weekly: "Spark Weekly",
+          };
           Object.entries(data.quotas).forEach(([quotaType, quota]) => {
             normalizedQuotas.push({
-              name: quotaType,
+              name: quota.displayName || codexNames[quotaType] || quotaType,
               used: quota.used || 0,
               total: quota.total || 0,
               remaining: quota.remaining,
               resetAt: quota.resetAt || null,
             });
+          });
+        }
+        // Add banked reset credits as a bonus row
+        if (data.bankedResetCredits !== undefined && data.bankedResetCredits > 0) {
+          normalizedQuotas.push({
+            name: "Banked Reset Credits",
+            used: 0,
+            total: data.bankedResetCredits,
+            remaining: data.bankedResetCredits,
+            resetAt: null,
           });
         }
         break;

@@ -1,8 +1,6 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { err, createResponseDumper } = require("../logger");
-const { IS_DEV } = require("../config");
-const { fetchRouter, pipeSSE } = require("./base");
+import { err, createResponseDumper } from "../logger.js";
+import { IS_DEV } from "../config.js";
+import { fetchRouter, pipeSSE } from "./base.js";
 
 /**
  * Intercept Antigravity request — forward Gemini body as-is to /v1/chat/completions.
@@ -32,4 +30,4 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
   }
 }
 
-module.exports = { intercept };
+export { intercept };

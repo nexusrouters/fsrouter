@@ -746,20 +746,32 @@ export default function ProviderLimits() {
 
       if (entry.quotas) {
         entry.quotas.forEach((q) => {
-          let rem = q.remaining;
-          if (typeof rem !== "number") {
-            rem = Math.max(0, (q.total || 0) - (q.used || 0));
-          }
+          let rem = typeof q.remaining === "number" && Number.isFinite(q.remaining) ? q.remaining : Math.max(0, (q.total || 0) - (q.used || 0));
           if (Number.isFinite(rem) && rem > 0) {
-            total += rem;
-            stats[provider].credits += rem;
+            // Don't add CF-AI individual credits here; we'll compute from providerCounts
+            if (provider !== "cloudflare-ai") {
+              total += rem;
+              stats[provider].credits += rem;
+            }
           }
         });
       }
     });
 
+    // For cloudflare-ai: use the exact remaining credits calculated on the server
+    const cfCounts = totals?.providerCounts?.["cloudflare-ai"] || 0;
+    if (cfCounts > 0) {
+      const cfTotal = totals?.cloudflareAi !== undefined 
+        ? Math.max(0, totals.cloudflareAi.total - totals.cloudflareAi.used)
+        : (cfCounts * 10000);
+      if (!stats["cloudflare-ai"]) stats["cloudflare-ai"] = { accounts: cfCounts, credits: 0 };
+      stats["cloudflare-ai"].accounts = cfCounts;
+      stats["cloudflare-ai"].credits = cfTotal;
+      total += cfTotal;
+    }
+
     return { totalCredits: total, providerStats: stats, exhaustedCount: exhausted };
-  }, [quotaData, sortedConnections]);
+  }, [quotaData, sortedConnections, totals]);
 
   const selectedProviderLabel =
     providerFilter === "all" ? "All providers" : providerFilter;
@@ -823,105 +835,39 @@ export default function ProviderLimits() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 justify-end">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-1 justify-end">
+          <div className="flex flex-wrap gap-1">
             <button
               type="button"
-              onClick={() => setProviderMenuOpen((prev) => !prev)}
-              className="flex h-8 items-center justify-between gap-1 rounded-lg border border-black/10 bg-black/[0.02] px-2 text-xs text-text-primary transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/10"
-              aria-haspopup="menu"
-              aria-expanded={providerMenuOpen}
-              title="Filter quota providers"
+              onClick={() => {
+                if (shouldResetPage(providerFilter, "all")) setPage(1);
+                setProviderFilter("all");
+              }}
+              className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${providerFilter === "all" ? "bg-primary/15 text-primary border border-primary/30" : "bg-black/5 text-text-muted border border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"}`}
             >
-              <span className="flex min-w-0 items-center gap-1.5">
-                {providerFilter === "all" ? (
-                  <span className="material-symbols-outlined text-[14px] text-text-muted">
-                    apps
-                  </span>
-                ) : (
-                  <ProviderIcon
-                    src={providerFilter === "codebuddy" || providerFilter === "cb" ? "/providers/codebuddy.svg" : `/providers/${providerFilter}.png`}
-                    alt={providerFilter}
-                    size={18}
-                    className="size-[18px] rounded object-contain"
-                    fallbackText={providerFilter.slice(0, 2).toUpperCase()}
-                  />
-                )}
-                <span className="truncate capitalize hidden lg:inline">
-                  {selectedProviderLabel}
-                </span>
-              </span>
-              <span className="material-symbols-outlined text-[14px] text-text-muted">
-                expand_more
-              </span>
+              <span className="material-symbols-outlined text-[14px]">apps</span>
+              <span>All</span>
             </button>
-
-            {providerMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-30 bg-transparent"
-                  aria-label="Close provider filter"
-                  onClick={() => setProviderMenuOpen(false)}
+            {providerOptions.map((provider) => (
+              <button
+                key={provider}
+                type="button"
+                onClick={() => {
+                  if (shouldResetPage(providerFilter, provider)) setPage(1);
+                  setProviderFilter(provider);
+                }}
+                className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${providerFilter === provider ? "bg-primary/15 text-primary border border-primary/30" : "bg-black/5 text-text-muted border border-transparent hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"}`}
+              >
+                <ProviderIcon
+                  src={provider === "codebuddy" || provider === "cb" ? "/providers/codebuddy.svg" : `/providers/${provider}.png`}
+                  alt={provider}
+                  size={16}
+                  className="size-4 rounded object-contain"
+                  fallbackText={provider.slice(0, 2).toUpperCase()}
                 />
-                <div className="absolute left-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-black/10 bg-surface/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur dark:border-white/10 dark:bg-surface/95 sm:w-72">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (shouldResetPage(providerFilter, "all")) {
-                        setPage(1);
-                      }
-                      setProviderFilter("all");
-                      setProviderMenuOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${providerFilter === "all" ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
-                  >
-                    <span className="material-symbols-outlined text-[22px]">
-                      apps
-                    </span>
-                    <span className="font-medium">All providers</span>
-                    {providerFilter === "all" && (
-                      <span className="material-symbols-outlined ml-auto text-[20px]">
-                        check
-                      </span>
-                    )}
-                  </button>
-                  <div className="my-1 h-px bg-black/10 dark:bg-white/10" />
-                  <div className="max-h-72 overflow-y-auto pr-1">
-                    {providerOptions.map((provider) => (
-                      <button
-                        key={provider}
-                        type="button"
-                        onClick={() => {
-                          if (shouldResetPage(providerFilter, provider)) {
-                            setPage(1);
-                          }
-                          setProviderFilter(provider);
-                          setProviderMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${providerFilter === provider ? "bg-primary/10 text-primary" : "text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
-                      >
-                        <ProviderIcon
-                          src={provider === "codebuddy" || provider === "cb" ? "/providers/codebuddy.svg" : `/providers/${provider}.png`}
-                          alt={provider}
-                          size={24}
-                          className="size-6 rounded-md object-contain"
-                          fallbackText={provider.slice(0, 2).toUpperCase()}
-                        />
-                        <span className="font-medium capitalize">
-                          {provider}
-                        </span>
-                        {providerFilter === provider && (
-                          <span className="material-symbols-outlined ml-auto text-[20px]">
-                            check
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+                <span className="capitalize">{provider}</span>
+              </button>
+            ))}
           </div>
           <select
             value={accountFilter}

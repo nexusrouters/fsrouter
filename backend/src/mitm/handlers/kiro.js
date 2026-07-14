@@ -1,15 +1,13 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { err } = require("../logger");
-const { IS_DEV } = require("../config");
-const { fetchRouter, pipeTransformedEventStream } = require("./base");
-const fs = require("fs");
-const path = require("path");
+import { err } from "../logger.js";
+import { IS_DEV } from "../config.js";
+import { fetchRouter, pipeTransformedEventStream } from "./base.js";
+import fs from "fs";
+import path from "path";
 
 // Debug trace log — written to data/logs/mitm/kiro-debug.log (dev only)
 const DEBUG_LOG = path.join(__dirname, "../../../data/logs/mitm/kiro-debug.log");
@@ -530,4 +528,4 @@ function isBinaryEventStream(buffer) {
   return totalLen > 12 && totalLen < 1000000 && headersLen < totalLen - 12;
 }
 
-module.exports = { intercept };
+export { intercept };

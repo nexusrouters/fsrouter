@@ -89,7 +89,7 @@ const TestimonialCard = ({ testimonial, delay }: { testimonial: Testimonial, del
 // --- MAIN COMPONENT ---
 
 export const SignInPage: React.FC<SignInPageProps> = ({
-  title = <span className="font-light text-zinc-900 dark:text-zinc-100 tracking-tighter">Welcome to AMRouter</span>,
+  title = <span className="font-light text-zinc-900 dark:text-zinc-100 tracking-tighter">Welcome to FSRouter</span>,
   description = "Enter your credentials to access the dashboard",
   heroImageSrc,
   testimonials = [],
@@ -164,7 +164,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                   )}
                   {resetHint && (
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                      Forgot password? Open <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded font-mono">9router</code> CLI on the host → <b>Settings</b> → <b>Reset Password to Default</b>.
+                      Forgot password? Open <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded font-mono">fsrouter</code> CLI on the host → <b>Settings</b> → <b>Reset Password to Default</b>.
                     </p>
                   )}
                 </div>

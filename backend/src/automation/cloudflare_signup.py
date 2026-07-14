@@ -46,6 +46,7 @@ def die(msg):
 def ammail_request(base_url, api_key, path, method="GET", data=None, host_header=None):
     url = base_url.rstrip("/") + "/api" + path
     req = urllib.request.Request(url, method=method)
+    req.add_header("Authorization", f"Bearer {api_key}")
     req.add_header("X-API-Key", api_key)
     req.add_header("Content-Type", "application/json")
     req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
@@ -69,7 +70,7 @@ def create_ammail_inbox(base_url, api_key, email):
     except Exception:
         pass  # might already exist
 
-def wait_for_cf_verify_email(base_url, api_key, email, timeout=240):
+def wait_for_cf_verify_email(base_url, api_key, email, timeout=600):
     log_step(f"Menunggu email verifikasi Cloudflare ({email})...")
     alias = email.split("@")[0]
     deadline = time.time() + timeout
@@ -553,7 +554,16 @@ def extract_global_api_key(page, password, ammail_base_url="", ammail_api_key=""
         pw_input = page.locator("input[type='password']").first
         if pw_input.is_visible(timeout=3000):
             log_step("Mengisi password konfirmasi...")
-            pw_input.fill(password)
+            pw_input.evaluate("""
+                (el, pw) => {
+                    const nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype, 'value'
+                    ).set;
+                    nativeSetter.call(el, pw);
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            """, password)
             time.sleep(0.5)
             # Click confirm button
             for sel in ["button:has-text('View')", "button[type='submit']", "button:has-text('Confirm')"]:
@@ -737,9 +747,16 @@ def main():
             try:
                 el = page.locator(sel).first
                 if el.is_visible(timeout=2000):
-                    el.click()
-                    time.sleep(0.3)
-                    el.fill(args.email)
+                    el.evaluate("""
+                        (el, email) => {
+                            const nativeSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            nativeSetter.call(el, email);
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    """, args.email)
                     email_filled = True
                     break
             except Exception:
@@ -751,12 +768,58 @@ def main():
         log_step("Mengisi password...")
         pw_inputs = page.locator("input[name='password'], input[type='password']")
         pw_count = pw_inputs.count()
+        
+        def fill_password_field(el, password, retries=3):
+            """Fill password field with React-compatible injection + verification."""
+            for attempt in range(retries):
+                try:
+                    # Method 1: React-compatible JS injection (most reliable for React forms)
+                    el.evaluate("""
+                        (el, pw) => {
+                            const nativeSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            nativeSetter.call(el, pw);
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                            el.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                    """, password)
+                    time.sleep(0.3)
+                    
+                    # Verify
+                    actual = el.evaluate("el => el.value")
+                    if actual == password:
+                        log_step(f"Password set via React injection OK (attempt {attempt+1})")
+                        return True
+                    
+                    log_step(f"React injection mismatch (attempt {attempt+1}): expected {len(password)}, got {len(actual)}")
+                    
+                    # Method 2: type() as fallback
+                    el.click()
+                    el.press("Control+a")
+                    el.press("Backspace")
+                    time.sleep(0.1)
+                    el.type(password, delay=50)
+                    time.sleep(0.5)
+                    actual2 = el.evaluate("el => el.value")
+                    if actual2 == password:
+                        log_step(f"Password set via type() OK (attempt {attempt+1})")
+                        return True
+                    
+                    log_step(f"type() mismatch (attempt {attempt+1}): expected {len(password)}, got {len(actual2)}")
+                except Exception as e:
+                    log_step(f"Fill password attempt {attempt+1} error: {e}")
+            return False
+        
         if pw_count >= 1:
-            pw_inputs.nth(0).fill(args.password)
-            time.sleep(0.3)
+            ok1 = fill_password_field(pw_inputs.nth(0), args.password)
+            if not ok1:
+                log_step("WARNING: Password field 0 could not be verified")
         if pw_count >= 2:
-            pw_inputs.nth(1).fill(args.password)
-            time.sleep(0.3)
+            ok2 = fill_password_field(pw_inputs.nth(1), args.password)
+            if not ok2:
+                log_step("WARNING: Password field 1 (confirm) could not be verified")
 
         # ── Step 4: Handle Turnstile ──────────────────────────────────────────
         log_step("Menangani Turnstile captcha...")
@@ -814,20 +877,93 @@ def main():
             "button:has-text('Create Account')",
             "button:has-text('Sign up')",
             "button:has-text('Get started')",
-            "input[type='submit']",
         ]
         submitted = False
         for sel in submit_selectors:
             try:
                 btn = page.locator(sel).first
                 if btn.is_visible(timeout=2000):
-                    btn.click()
+                    # React-compatible click: dispatch mouse events
+                    btn.evaluate("""
+                        (el) => {
+                            // Focus first
+                            el.focus();
+                            el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                            el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                            el.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
+                        }
+                    """)
                     submitted = True
+                    log_step(f"Submit button clicked via: {sel}")
                     break
             except Exception:
                 continue
         if not submitted:
-            die("Tidak bisa menemukan tombol submit registrasi")
+            # Try form.submit() as fallback
+            try:
+                page.evaluate("""
+                    () => {
+                        const form = document.querySelector('form');
+                        if (form) {
+                            form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+                            return 'form dispatched';
+                        }
+                        // Try clicking ANY visible button
+                        const btns = Array.from(document.querySelectorAll('button'));
+                        for (const b of btns) {
+                            const txt = b.textContent.trim().toLowerCase();
+                            if (txt.includes('create') || txt.includes('sign up') || txt.includes('get started') || txt.includes('register')) {
+                                b.click();
+                                return 'clicked: ' + txt;
+                            }
+                        }
+                        return 'no button found';
+                    }
+                """)
+                submitted = True
+                log_step("Submit via form.submit() or JS fallback")
+            except Exception as e:
+                die(f"Tidak bisa menemukan tombol submit registrasi: {e}")
+
+        # Wait longer and check if URL changed
+        time.sleep(5)
+        post_submit_url = page.url
+        log_step(f"Post-submit URL: {post_submit_url}")
+
+        # If still on signup page, try pressing Enter on password field
+        if "/sign-up" in post_submit_url or "/register" in post_submit_url:
+            log_step("Masih di signup page, coba Enter di password field...")
+            try:
+                pw_el = page.locator("input[type='password']").first
+                if pw_el.is_visible(timeout=2000):
+                    pw_el.press("Enter")
+                    time.sleep(5)
+                    log_step(f"After Enter URL: {page.url}")
+            except Exception:
+                pass
+
+        # If STILL on signup page, try dispatching form submit event directly
+        if "/sign-up" in page.url or "/register" in page.url:
+            log_step("Masih di signup page setelah Enter, coba force submit...")
+            try:
+                page.evaluate("""
+                    () => {
+                        const forms = document.querySelectorAll('form');
+                        for (const form of forms) {
+                            // Try native submit
+                            try { HTMLFormElement.prototype.submit.call(form); } catch(e) {}
+                        }
+                        // Try clicking submit button via native click
+                        const btn = document.querySelector('button[type="submit"]');
+                        if (btn) {
+                            HTMLButtonElement.prototype.click.call(btn);
+                        }
+                    }
+                """)
+                time.sleep(5)
+                log_step(f"After force submit URL: {page.url}")
+            except Exception:
+                pass
 
         time.sleep(3)
 
@@ -857,7 +993,7 @@ def main():
         # Detect success: "check your email" / verify message
         signup_success_verify = False
         try:
-            success_kw = ["check your email", "verify your email", "verification email", "link has been sent"]
+            success_kw = ["check your email", "verify your email", "verification email", "link has been sent", "email sent", "confirmation link"]
             if any(kw in page_text_lower for kw in success_kw):
                 signup_success_verify = True
                 log_step("Signup sukses: CF meminta verifikasi email")
@@ -871,7 +1007,7 @@ def main():
                 time.sleep(2)
                 _cur_url = page.url
                 # Any URL change away from signup/login = success
-                if 'dash.cloudflare.com/login' not in _cur_url and 'dash.cloudflare.com' in _cur_url:
+                if 'dash.cloudflare.com/login' not in _cur_url and 'dash.cloudflare.com/sign-up' not in _cur_url and 'dash.cloudflare.com' in _cur_url:
                     log_step(f"CF redirect detected after signup: {_cur_url[:60]}")
                     signup_success_verify = True
                     break
@@ -956,7 +1092,7 @@ def main():
         # After verify link, CF might already redirect to dashboard
         _early_account_id = ""
         _post_verify_url = page.url
-        _m_verify = re.search(r"/([a-f0-9]{32})(?:/|$)", _post_verify_url)
+        _m_verify = re.search(r"/(?:home/)?([a-f0-9]{32})(?:/|$)", _post_verify_url)
         if _m_verify:
             _early_account_id = _m_verify.group(1)
             log_step(f"Sudah di dashboard setelah verify! Account ID: {_early_account_id[:8]}...")
@@ -981,7 +1117,7 @@ def main():
                 time.sleep(2)
 
                 # Check if already redirected to dashboard
-                _m_redir = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
+                _m_redir = re.search(r"/(?:home/)?([a-f0-9]{32})(?:/|$)", page.url)
                 if _m_redir:
                     _early_account_id = _m_redir.group(1)
                     log_step(f"Redirect otomatis ke dashboard: {_early_account_id[:8]}...")
@@ -991,7 +1127,7 @@ def main():
                         page.wait_for_selector("input[name='email'], input[autocomplete='email']", timeout=8000)
                     except Exception:
                         log_step("Login form tidak muncul, cek URL...")
-                        _m2 = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
+                        _m2 = re.search(r"/(?:home/)?([a-f0-9]{32})(?:/|$)", page.url)
                         if _m2:
                             _early_account_id = _m2.group(1)
 
@@ -1015,15 +1151,8 @@ def main():
                         except Exception as e:
                             log_step(f"Login inputs diagnostic: {e}")
 
-                        # CF login is ONE-STEP form (email + password on same page)
-                        # Screenshot showed: Email input + Password input + Sign in button
-                        # Use broad selectors to find the email/password fields
-                        log_step("Menyelesaikan Turnstile login (if any)...")
-                        wait_for_cf_clearance(page, timeout=3)
-                        try_click_turnstile_checkbox(page)
-                        time.sleep(1)
-
-                        # CF Login Step 1: Fill email
+                        # CF login — 2-step flow (email → Continue → password → Sign in)
+                        # Step A: Fill email
                         email_filled = False
                         for sel in [
                             "input[name='email']",
@@ -1032,15 +1161,21 @@ def main():
                             "input[autocomplete='username']",
                             "input[id*='email' i]",
                             "input[placeholder*='email' i]",
-                            # First visible non-hidden, non-password input
                             "form input:not([type='password']):not([type='hidden']):not([type='checkbox'])",
                         ]:
                             try:
                                 el = page.locator(sel).first
-                                cnt = el.count()
-                                if cnt > 0 and el.is_visible(timeout=2000):
-                                    el.click(click_count=3)
-                                    el.fill(args.email)
+                                if el.count() > 0 and el.is_visible(timeout=2000):
+                                    el.evaluate("""
+                                        (el, email) => {
+                                            const nativeSetter = Object.getOwnPropertyDescriptor(
+                                                window.HTMLInputElement.prototype, 'value'
+                                            ).set;
+                                            nativeSetter.call(el, email);
+                                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                                        }
+                                    """, args.email)
                                     email_filled = True
                                     log_step(f"Login email filled via: {sel}")
                                     break
@@ -1052,8 +1187,70 @@ def main():
                             log_step("Email field not found on login page")
                             page.screenshot(path="/tmp/cf_login_noemail.png")
 
-                        # CF Login Step 2: Fill password (same form as email — no Continue needed)
+                        # Step B: Click Continue/Next (2-step flow) or fill password directly (1-step)
+                        # First, try to find a Continue/Next button
+                        continue_clicked = False
+                        for cont_sel in [
+                            "button:has-text('Continue')",
+                            "button:has-text('Next')",
+                            "button[type='submit']:not(:has-text('Sign')):not(:has-text('Log'))",
+                            "input[type='submit']",
+                        ]:
+                            try:
+                                btn = page.locator(cont_sel).first
+                                if btn.count() > 0 and btn.is_visible(timeout=1500):
+                                    # Check if password field is NOT visible (2-step)
+                                    pw_check = page.locator("input[type='password']")
+                                    if pw_check.count() == 0 or not pw_check.first.is_visible(timeout=500):
+                                        btn.click()
+                                        continue_clicked = True
+                                        log_step(f"Clicked Continue via: {cont_sel}")
+                                        time.sleep(3)
+                                        break
+                            except Exception:
+                                continue
+
+                        # Step C: Fill password (after Continue in 2-step, or directly in 1-step)
                         pw_filled = False
+                        def fill_login_pw(el, password, retries=3):
+                            """Fill login password with React-compatible injection + verification."""
+                            for attempt in range(retries):
+                                try:
+                                    # Method 1: React-compatible JS injection
+                                    el.evaluate("""
+                                        (el, pw) => {
+                                            const nativeSetter = Object.getOwnPropertyDescriptor(
+                                                window.HTMLInputElement.prototype, 'value'
+                                            ).set;
+                                            nativeSetter.call(el, pw);
+                                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                                            el.dispatchEvent(new Event('blur', { bubbles: true }));
+                                        }
+                                    """, password)
+                                    time.sleep(0.3)
+                                    actual = el.evaluate("el => el.value")
+                                    if actual == password:
+                                        log_step(f"Login password set via React injection OK (attempt {attempt+1})")
+                                        return True
+                                    log_step(f"React injection mismatch (attempt {attempt+1}): expected {len(password)}, got {len(actual)}")
+                                    
+                                    # Method 2: type() as fallback
+                                    el.click()
+                                    el.press("Control+a")
+                                    el.press("Backspace")
+                                    time.sleep(0.1)
+                                    el.type(password, delay=50)
+                                    time.sleep(0.5)
+                                    actual2 = el.evaluate("el => el.value")
+                                    if actual2 == password:
+                                        log_step(f"Login password set via type() OK (attempt {attempt+1})")
+                                        return True
+                                    log_step(f"type() mismatch (attempt {attempt+1}): expected {len(password)}, got {len(actual2)}")
+                                except Exception as e:
+                                    log_step(f"Fill login pw attempt {attempt+1} error: {e}")
+                            return False
+
                         for pw_sel in [
                             "input[type='password']",
                             "input[name='password']",
@@ -1062,23 +1259,59 @@ def main():
                         ]:
                             try:
                                 pw_el = page.locator(pw_sel).first
-                                if pw_el.count() > 0 and pw_el.is_visible(timeout=2000):
-                                    pw_el.click(click_count=3)
-                                    pw_el.fill(args.password)
-                                    pw_filled = True
-                                    log_step(f"Login password filled via: {pw_sel}")
-                                    break
+                                if pw_el.count() > 0 and pw_el.is_visible(timeout=5000):
+                                    if fill_login_pw(pw_el, args.password):
+                                        pw_filled = True
+                                        break
                             except Exception:
                                 continue
 
                         if not pw_filled:
-                            log_step("Password field not found")
-                            page.screenshot(path="/tmp/cf_login_nopw.png")
+                            # Maybe email page had no Continue — try submit first then fill password
+                            log_step("Password field not visible, trying submit first...")
+                            for sel in ["button[type='submit']", "button:has-text('Sign in')", "button:has-text('Log in')", "button:has-text('Continue')", "button:has-text('Next')"]:
+                                try:
+                                    btn = page.locator(sel).first
+                                    if btn.count() > 0 and btn.is_visible(timeout=1000):
+                                        btn.click()
+                                        break
+                                except Exception:
+                                    continue
+                            time.sleep(3)
+                            # Try password field again
+                            for pw_sel in [
+                                "input[type='password']",
+                                "input[name='password']",
+                            ]:
+                                try:
+                                    pw_el = page.locator(pw_sel).first
+                                    if pw_el.count() > 0 and pw_el.is_visible(timeout=5000):
+                                        if fill_login_pw(pw_el, args.password):
+                                            pw_filled = True
+                                            break
+                                except Exception:
+                                    continue
+                            if not pw_filled:
+                                log_step("Password field not found")
+                                page.screenshot(path="/tmp/cf_login_nopw.png")
 
                         # Solve Turnstile (if any appeared after filling form)
                         wait_for_cf_clearance(page, timeout=3)
                         try_click_turnstile_checkbox(page)
                         time.sleep(1)
+
+                        # DEBUG: screenshot after password fill, before submit
+                        page.screenshot(path="/tmp/cf_before_submit.png")
+                        try:
+                            pw_val = page.evaluate("""
+                                () => {
+                                    const pw = document.querySelector('input[type="password"]');
+                                    return pw ? { len: pw.value.length, type: pw.type, name: pw.name } : 'no pw field';
+                                }
+                            """)
+                            log_step(f"Before submit - PW field: {pw_val}")
+                        except Exception:
+                            pass
 
 
                         # Check if auto-solved, else try 2Captcha
@@ -1122,26 +1355,58 @@ def main():
 
                         current_url = page.url
                         log_step(f"After login URL: {current_url}")
-                        # If still on login, check for error
-                        if "/login" in current_url:
-                            try:
-                                err_txt = page.evaluate("document.body.innerText")
-                                log_step(f"Login page text (first 300): {err_txt[:300]}")
-                                # Detect wrong password — stop immediately, do not proceed to dashboard
-                                login_fail_kw = [
-                                    "incorrect email or password",
-                                    "invalid email or password",
-                                    "wrong password",
-                                    "email or password is incorrect",
-                                    "authentication failed",
-                                ]
-                                if any(kw in err_txt.lower() for kw in login_fail_kw):
-                                    die(f"Login gagal: password salah untuk {args.email}. Akun CF ini mungkin sudah ada dengan password berbeda.")
-                            except SystemExit:
-                                raise
-                            except Exception:
-                                pass
-                        _m_after = re.search(r"/([a-f0-9]{32})(?:/|$)", current_url)
+                        
+                        # Debug: dump password field value before checking
+                        try:
+                            pw_debug = page.evaluate("""
+                                () => {
+                                    const pw = document.querySelector('input[type="password"]');
+                                    return pw ? { exists: true, value_len: pw.value.length, type: pw.type } : { exists: false };
+                                }
+                            """)
+                            log_step(f"PW field after submit: {pw_debug}")
+                        except Exception:
+                            pass
+                        
+                        # Check page content for ANY error (not just "login" in URL)
+                        try:
+                            err_txt = page.evaluate("document.body.innerText")
+                            log_step(f"Page text (first 500): {err_txt[:500]}")
+                            
+                            # Detect wrong password
+                            login_fail_kw = [
+                                "incorrect email or password",
+                                "invalid email or password",
+                                "wrong password",
+                                "email or password is incorrect",
+                                "authentication failed",
+                            ]
+                            if any(kw in err_txt.lower() for kw in login_fail_kw):
+                                page.screenshot(path="/tmp/cf_login_wrong_pw.png")
+                                die(f"Login gagal: password salah untuk {args.email}. Akun CF ini mungkin sudah ada dengan password berbeda.")
+                            
+                            # Detect other errors (rate limit, captcha, etc)
+                            other_errors = [
+                                "too many attempts",
+                                "try again later",
+                                "blocked",
+                                "suspended",
+                                "captcha",
+                                "challenge",
+                            ]
+                            if any(kw in err_txt.lower() for kw in other_errors):
+                                log_step(f"Login blocked by other error: {[kw for kw in other_errors if kw in err_txt.lower()]}")
+                        except SystemExit:
+                            raise
+                        except Exception:
+                            pass
+                        
+                        # If still on login page but no explicit error, it might be a captcha/challenge issue
+                        if "/login" in current_url or "/challenge" in current_url:
+                            page.screenshot(path="/tmp/cf_login_stuck.png")
+                            log_step(f"Still on login/challenge page: {current_url}")
+                        
+                        _m_after = re.search(r"(?:home/)?([a-f0-9]{32})(?:/|$)", current_url)
                         if _m_after:
                             _early_account_id = _m_after.group(1)
                             log_step(f"Account ID from login URL: {_early_account_id[:8]}...")
@@ -1152,27 +1417,6 @@ def main():
                 log_step(f"Login error: {e}")
 
         # ── Step 8: Get to dashboard and extract account ID ───────────────────
-        # If we already got account_id from login URL, skip navigation
-        if _early_account_id:
-            log_step(f"Sudah punya Account ID dari login URL, skip re-navigate.")
-        else:
-            log_step("Memuat Cloudflare Dashboard...")
-            try:
-                # Navigate to profile page — CF redirects to /{account_id}/... URL
-                page.goto("https://dash.cloudflare.com/profile", wait_until="domcontentloaded", timeout=30000)
-                wait_for_cf_clearance(page, timeout=10)
-                time.sleep(3)
-                # If URL has account_id, capture it now
-                _m_profile = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
-                if _m_profile:
-                    _early_account_id = _m_profile.group(1)
-                    log_step(f"Account ID from profile URL: {_early_account_id[:8]}...")
-                    account_id = _early_account_id
-            except Exception as e:
-                log_step(f"Dashboard load warning: {e}")
-
-
-        # Extract account_id — try multiple methods
         account_id = ""
 
         # Method 0: from login URL (already captured above)
@@ -1180,10 +1424,10 @@ def main():
             account_id = _early_account_id
             log_step(f"Account ID (from login): {account_id[:8]}...")
 
-        # Method 1: from current page URL
+        # Method 1: from current page URL — ANY 32-hex in the path (not just /home/)
         if not account_id:
             try:
-                for _ in range(8):
+                for _ in range(5):
                     url_match = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
                     if url_match:
                         account_id = url_match.group(1)
@@ -1193,36 +1437,12 @@ def main():
             except Exception as e:
                 log_step(f"account_id from URL error: {e}")
 
-        # Method 2: from JS window/React state
+        # Method 2: CF API /accounts via page.request.fetch
         if not account_id:
             try:
-                acct_js = page.evaluate("""
-                () => {
-                    try {
-                        // Try window.__INITIAL_STATE__ or similar
-                        if (window.__BOOTSTRAP_DATA__) return window.__BOOTSTRAP_DATA__.account_id || '';
-                        if (window.__cf_data__) return window.__cf_data__.accountId || '';
-                        // Try from meta tags
-                        var m = document.querySelector('meta[name="account-id"]');
-                        if (m) return m.content;
-                        // Try URL one more time
-                        var m2 = window.location.pathname.match(/\\/([a-f0-9]{32})(?:\\/|$)/);
-                        if (m2) return m2[1];
-                    } catch(e) {}
-                    return '';
-                }
-                """)
-                if acct_js and len(acct_js) == 32:
-                    account_id = acct_js
-                    log_step(f"Account ID from JS: {account_id[:8]}...")
-            except Exception as e:
-                log_step(f"account_id from JS error: {e}")
-        # Method 3: CF API /accounts using page.request.fetch (carries browser session cookies)
-        if not account_id:
-            try:
-                log_step("Mengambil Account ID via CF API (page.request.fetch)...")
+                log_step("Method 2: CF /accounts via page.request.fetch...")
                 api_resp = page.request.fetch(
-                    "https://api.cloudflare.com/client/v4/accounts?per_page=1",
+                    "https://api.cloudflare.com/client/v4/accounts?per_page=50",
                     method="GET",
                     headers={"Accept": "application/json"}
                 )
@@ -1230,33 +1450,331 @@ def main():
                 if api_resp.status == 200:
                     data = api_resp.json()
                     if data.get("success") and data.get("result"):
-                        account_id = data["result"][0]["id"]
-                        log_step(f"Account ID via API: {account_id[:8]}...")
+                        for acct in data["result"]:
+                            if acct.get("id") and len(acct["id"]) == 32:
+                                account_id = acct["id"]
+                                log_step(f"Account ID via API: {account_id[:8]}...")
+                                break
                 else:
                     log_step(f"CF /accounts response: {api_resp.text()[:200]}")
             except Exception as e:
-                log_step(f"account_id via API error: {e}")
+                log_step(f"Method 2 error: {e}")
 
-        # Method 4: Navigate to /home and wait for account_id in URL redirect
+        # Method 3: Extract browser cookies → use Python requests to call CF API
         if not account_id:
             try:
-                log_step("Navigasi /home untuk dapat account_id dari URL...")
-                page.goto("https://dash.cloudflare.com/", wait_until="domcontentloaded", timeout=20000)
+                log_step("Method 3: Extract cookies → Python requests to CF API...")
+                cookies = page.context.cookies()
+                cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in cookies)
+                if cookie_str:
+                    import requests as _req
+                    for _retry in range(3):
+                        try:
+                            r = _req.get(
+                                "https://api.cloudflare.com/client/v4/accounts?per_page=50",
+                                headers={
+                                    "Cookie": cookie_str,
+                                    "Accept": "application/json",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                                },
+                                timeout=15
+                            )
+                            log_step(f"Python CF /accounts status: {r.status_code}")
+                            if r.status_code == 200:
+                                data = r.json()
+                                if data.get("success") and data.get("result"):
+                                    for acct in data["result"]:
+                                        if acct.get("id") and len(acct["id"]) == 32:
+                                            account_id = acct["id"]
+                                            log_step(f"Account ID via Python API: {account_id[:8]}...")
+                                            break
+                            if account_id:
+                                break
+                        except Exception as e:
+                            log_step(f"Python API retry {_retry+1}: {e}")
+                        time.sleep(2)
+                else:
+                    log_step("Method 3: No cookies found")
+            except Exception as e:
+                log_step(f"Method 3 error: {e}")
+
+        # Method 4: Navigate to /profile/api-tokens → has account_id in URL
+        if not account_id:
+            try:
+                log_step("Method 4: Navigate to /profile/api-tokens...")
+                page.goto("https://dash.cloudflare.com/profile/api-tokens", wait_until="domcontentloaded", timeout=30000)
                 for _ in range(10):
                     time.sleep(1)
-                    m4 = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
-                    if m4:
-                        account_id = m4.group(1)
+                    m = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
+                    if m:
+                        account_id = m.group(1)
+                        log_step(f"Account ID from api-tokens URL: {account_id[:8]}...")
+                        break
+                if not account_id:
+                    log_step(f"api-tokens final URL: {page.url}")
+            except Exception as e:
+                log_step(f"Method 4 error: {e}")
+
+        # Method 5: Navigate to home → wait for redirect with account_id
+        if not account_id:
+            try:
+                log_step("Method 5: Navigate to / → wait for account_id redirect...")
+                page.goto("https://dash.cloudflare.com/", wait_until="domcontentloaded", timeout=30000)
+                for _ in range(15):
+                    time.sleep(1)
+                    m = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
+                    if m:
+                        account_id = m.group(1)
                         log_step(f"Account ID from / redirect: {account_id[:8]}...")
                         break
                 if not account_id:
                     log_step(f"/ redirect final URL: {page.url}")
+                    page.screenshot(path="/tmp/cf_no_account_id.png")
             except Exception as e:
-                log_step(f"Method 4 error: {e}")
+                log_step(f"Method 5 error: {e}")
+
+        # Method 6: Extract from JS page state (deep search)
+        if not account_id:
+            try:
+                log_step("Method 6: Deep JS search for account_id...")
+                page.goto("https://dash.cloudflare.com/", wait_until="domcontentloaded", timeout=20000)
+                time.sleep(5)
+                account_id = page.evaluate("""
+                () => {
+                    // Deep search window objects
+                    const candidates = [
+                        window.__INITIAL_STATE__, window.__cf_data__,
+                        window.__BOOTSTRAP_DATA__, window.__NEXT_DATA__,
+                        window.__APP_STATE__,
+                    ];
+                    for (const obj of candidates) {
+                        if (!obj) continue;
+                        const search = (o, depth) => {
+                            if (depth > 5 || !o || typeof o !== 'object') return null;
+                            for (const [k, v] of Object.entries(o)) {
+                                if (k === 'account_id' || k === 'accountId') {
+                                    if (typeof v === 'string' && /^[a-f0-9]{32}$/.test(v)) return v;
+                                }
+                                if (typeof v === 'object' && v !== null) {
+                                    const found = search(v, depth + 1);
+                                    if (found) return found;
+                                }
+                            }
+                            return null;
+                        };
+                        const found = search(obj, 0);
+                        if (found) return found;
+                    }
+                    // Check cookies
+                    const cookies = document.cookie.split(';');
+                    for (const c of cookies) {
+                        const m = c.match(/account_id=([a-f0-9]{32})/);
+                        if (m) return m[1];
+                    }
+                    // Check localStorage
+                    try {
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const key = localStorage.key(i);
+                            const val = localStorage.getItem(key);
+                            if (val) {
+                                const m = val.match(/"account_id"\\s*:\\s*"([a-f0-9]{32})"/);
+                                if (m) return m[1];
+                            }
+                        }
+                    } catch(e) {}
+                    return '';
+                }
+                """)
+                if account_id and len(account_id) == 32:
+                    log_step(f"Account ID from JS: {account_id[:8]}...")
+                else:
+                    account_id = ""
+                    log_step("Method 6: account_id not found")
+            except Exception as e:
+                log_step(f"Method 6 error: {e}")
+
+        # Method 7: CF API /memberships endpoint (different from /accounts — may work when /accounts fails)
+        if not account_id:
+            try:
+                log_step("Method 7: CF /memberships via page.request.fetch...")
+                mem_resp = page.request.fetch(
+                    "https://api.cloudflare.com/client/v4/user/memberships?per_page=50",
+                    method="GET",
+                    headers={"Accept": "application/json"}
+                )
+                log_step(f"CF /memberships status: {mem_resp.status}")
+                if mem_resp.status == 200:
+                    mem_data = mem_resp.json()
+                    if mem_data.get("success") and mem_data.get("result"):
+                        for membership in mem_data["result"]:
+                            org = membership.get("organization", {}) or {}
+                            org_id = org.get("id", "")
+                            # Also check membership.account.id
+                            acct = membership.get("account", {}) or {}
+                            acct_id = acct.get("id", "")
+                            for candidate in [org_id, acct_id]:
+                                if candidate and len(candidate) == 32 and re.match(r'^[a-f0-9]{32}$', candidate):
+                                    account_id = candidate
+                                    log_step(f"Account ID via memberships: {account_id[:8]}...")
+                                    break
+                            if account_id:
+                                break
+            except Exception as e:
+                log_step(f"Method 7 error: {e}")
+
+        # Method 8: CF API /memberships via Python requests with browser cookies
+        if not account_id:
+            try:
+                log_step("Method 8: /memberships via Python requests + cookies...")
+                cookies = page.context.cookies()
+                cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in cookies)
+                if cookie_str:
+                    import requests as _req2
+                    for _retry in range(2):
+                        try:
+                            r = _req2.get(
+                                "https://api.cloudflare.com/client/v4/user/memberships?per_page=50",
+                                headers={
+                                    "Cookie": cookie_str,
+                                    "Accept": "application/json",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                                },
+                                timeout=15
+                            )
+                            log_step(f"Python /memberships status: {r.status_code}")
+                            if r.status_code == 200:
+                                data = r.json()
+                                if data.get("success") and data.get("result"):
+                                    for membership in data["result"]:
+                                        acct = membership.get("account", {}) or {}
+                                        acct_id = acct.get("id", "")
+                                        if acct_id and len(acct_id) == 32 and re.match(r'^[a-f0-9]{32}$', acct_id):
+                                            account_id = acct_id
+                                            log_step(f"Account ID via Python memberships: {account_id[:8]}...")
+                                            break
+                            if account_id:
+                                break
+                        except Exception as e:
+                            log_step(f"Python memberships retry {_retry+1}: {e}")
+                        time.sleep(2)
+            except Exception as e:
+                log_step(f"Method 8 error: {e}")
+
+        # Method 9: Deep JS scan — search ALL window properties and global state for account_id
+        if not account_id:
+            try:
+                log_step("Method 9: Deep JS scan ALL global objects...")
+                page.goto("https://dash.cloudflare.com/", wait_until="domcontentloaded", timeout=20000)
+                time.sleep(6)
+                account_id = page.evaluate("""
+                () => {
+                    // Broader search: look in ALL window properties
+                    const hex32 = /^[a-f0-9]{32}$/;
+                    // Check common CF state containers
+                    const stateNames = [
+                        '__INITIAL_STATE__', '__cf_data__', '__BOOTSTRAP_DATA__',
+                        '__NEXT_DATA__', '__APP_STATE__', '__cf_context__',
+                        'cfData', 'CFData', '__CF$', 'analytics',
+                    ];
+                    const deepSearch = (obj, depth, path) => {
+                        if (depth > 8 || !obj) return null;
+                        if (typeof obj === 'string' && hex32.test(obj) && path.toLowerCase().includes('account')) return obj;
+                        if (typeof obj === 'string' && hex32.test(obj)) return obj; // any 32-hex in deep state
+                        if (Array.isArray(obj)) {
+                            for (let i = 0; i < Math.min(obj.length, 10); i++) {
+                                const r = deepSearch(obj[i], depth+1, path+'['+i+']');
+                                if (r) return r;
+                            }
+                        }
+                        if (typeof obj === 'object' && obj !== null) {
+                            for (const [k, v] of Object.entries(obj)) {
+                                if (k === 'account_id' || k === 'accountId' || k === 'account') {
+                                    if (typeof v === 'string' && hex32.test(v)) return v;
+                                    if (typeof v === 'object' && v !== null) {
+                                        if (v.id && hex32.test(v.id)) return v.id;
+                                        const r = deepSearch(v, depth+1, path+'.'+k);
+                                        if (r) return r;
+                                    }
+                                }
+                                if (typeof v === 'object' && v !== null) {
+                                    const r = deepSearch(v, depth+1, path+'.'+k);
+                                    if (r) return r;
+                                }
+                            }
+                        }
+                        return null;
+                    };
+                    for (const name of stateNames) {
+                        try {
+                            const obj = window[name];
+                            if (obj) {
+                                const r = deepSearch(obj, 0, name);
+                                if (r) return r;
+                            }
+                        } catch(e) {}
+                    }
+                    // Also scan all script tags for account_id patterns
+                    try {
+                        const scripts = Array.from(document.querySelectorAll('script'));
+                        for (const s of scripts) {
+                            const txt = s.textContent || '';
+                            const m = txt.match(/"account_id"\\s*:\\s*"([a-f0-9]{32})"/);
+                            if (m) return m[1];
+                            const m2 = txt.match(/"accountId"\\s*:\\s*"([a-f0-9]{32})"/);
+                            if (m2) return m2[1];
+                        }
+                    } catch(e) {}
+                    return '';
+                }
+                """)
+                if account_id and len(account_id) == 32:
+                    log_step(f"Account ID from deep JS scan: {account_id[:8]}...")
+                else:
+                    account_id = ""
+                    log_step("Method 9: account_id not found")
+            except Exception as e:
+                log_step(f"Method 9 error: {e}")
 
         # ── Step 9/10: Buat Workers AI Token via Session API ─────────────────
         global_key = None
         workers_ai_token = None
+
+        if not account_id:
+            # Last-chance: try /accounts one more time via page.evaluate (sends cookies natively)
+            try:
+                log_step("Last-chance account_id: page.evaluate fetch /accounts...")
+                _lc_result = page.evaluate("""
+                    async () => {
+                        try {
+                            const r = await fetch('https://api.cloudflare.com/client/v4/accounts?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d = await r.json();
+                            if (d.success && d.result && d.result.length > 0) {
+                                return d.result[0].id;
+                            }
+                            // Also try /memberships
+                            const r2 = await fetch('https://api.cloudflare.com/client/v4/user/memberships?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d2 = await r2.json();
+                            if (d2.success && d2.result) {
+                                for (const m of d2.result) {
+                                    const id = (m.account && m.account.id) || (m.organization && m.organization.id) || '';
+                                    if (id && /^[a-f0-9]{32}$/.test(id)) return id;
+                                }
+                            }
+                        } catch(e) { return ''; }
+                        return '';
+                    }
+                """)
+                if _lc_result and len(_lc_result) == 32 and re.match(r'^[a-f0-9]{32}$', _lc_result):
+                    account_id = _lc_result
+                    log_step(f"Account ID from last-chance fetch: {account_id[:8]}...")
+            except Exception as e:
+                log_step(f"Last-chance account_id error: {e}")
 
         if not account_id:
             die("Tidak bisa membuat API Token: account_id tidak ditemukan")
@@ -1661,7 +2179,16 @@ def main():
                 try:
                     pwd_input = page.locator("input[type='password']").first
                     if pwd_input.is_visible(timeout=3000):
-                        pwd_input.fill(args.password)
+                        pwd_input.evaluate("""
+                            (el, pw) => {
+                                const nativeSetter = Object.getOwnPropertyDescriptor(
+                                    window.HTMLInputElement.prototype, 'value'
+                                ).set;
+                                nativeSetter.call(el, pw);
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                                el.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        """, args.password)
                         time.sleep(0.5)
                         for btn_sel in ["button:has-text('Continue')", "button[type='submit']", "button:has-text('View')"]:
                             try:
@@ -1831,52 +2358,48 @@ def main():
             return None
 
         def create_token_via_session(page):
-            """Fallback: use page.request.fetch() (Playwright internal HTTP).
-            Carries browser session cookies but bypasses browser CORS + proxy
-            restrictions that cause NetworkError in page.evaluate fetch().
+            """Use same-origin dashboard API proxy (most reliable method).
+            CF dashboard at dash.cloudflare.com proxies /api/v4/... to the CF API
+            with session cookies — no CORS issues, no OTP needed.
             """
-            log_step("Mencoba buat token via Playwright request API...")
+            log_step("Mencoba buat token via same-origin API proxy...")
             try:
-                # Try api.cloudflare.com with session cookies (may include CF_Authorization)
-                base = "https://api.cloudflare.com/client/v4"
-                common_headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Referer": "https://dash.cloudflare.com/",
-                    "Origin": "https://dash.cloudflare.com",
-                }
-
-                # Also try from within page context (sends CF_Authorization cookie as same-site)
-                try:
-                    cookie_info = page.evaluate("""
-                        async () => {
-                            try {
-                                const r = await fetch('https://api.cloudflare.com/client/v4/accounts?per_page=1', {
-                                    credentials: 'include'
-                                });
-                                const d = await r.json();
-                                return {status: r.status, ok: d.success, count: (d.result||[]).length};
-                            } catch(e) { return {error: e.message}; }
-                        }
-                    """)
-                    log_step(f"CF accounts via page.evaluate: {cookie_info}")
-                    if isinstance(cookie_info, dict) and cookie_info.get('ok') and cookie_info.get('count', 0) > 0:
-                        log_step("Session auth works via evaluate — proceeding with token create")
-                except Exception as cke:
-                    log_step(f"page.evaluate accounts check: {cke}")
+                # Verify session auth works first
+                verify = page.evaluate("""
+                    async () => {
+                        try {
+                            const r = await fetch('/api/v4/accounts?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d = await r.json();
+                            return {status: r.status, ok: d.success, count: (d.result||[]).length};
+                        } catch(e) { return {error: e.message}; }
+                    }
+                """)
+                log_step(f"Same-origin auth check: {verify}")
+                if not isinstance(verify, dict) or not verify.get('ok'):
+                    log_step("Same-origin auth failed — not logged in")
+                    return None
 
                 # Step 1: get Workers AI permission group id
-                pg_resp = page.request.fetch(
-                    f"{base}/user/tokens/permission_groups",
-                    method="GET",
-                    headers=common_headers,
-                )
-                if not pg_resp.ok:
-                    log_step(f"permission_groups HTTP {pg_resp.status}")
+                pg_result = page.evaluate("""
+                    async () => {
+                        try {
+                            const r = await fetch('/api/v4/user/tokens/permission_groups', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d = await r.json();
+                            return {status: r.status, ok: d.success, groups: d.result || []};
+                        } catch(e) { return {error: e.message}; }
+                    }
+                """)
+                if not isinstance(pg_result, dict) or not pg_result.get('ok'):
+                    log_step(f"permission_groups failed: {pg_result}")
                     return None
-                pg_data = pg_resp.json()
-                groups = pg_data.get("result") or []
-                # Prefer exact "Workers AI Read" — avoid "Workers AI Metadata Read"
+
+                groups = pg_result.get('groups', [])
                 workers_ai_id = next(
                     (g["id"] for g in groups if g.get("name") in ("Workers AI Read", "Workers AI Write")), None
                 )
@@ -1885,33 +2408,43 @@ def main():
                         (g["id"] for g in groups if "Workers AI" in g.get("name", "") and "Metadata" not in g.get("name", "")), None
                     )
                 if not workers_ai_id:
-                    log_step(f"Workers AI group not found. Available: {[g['name'] for g in groups[:10]]}")
-                    return None
+                    # Hardcoded fallback
+                    workers_ai_id = "a92d2450e05d4e7bb7d0a64968f83d11"
+                    log_step(f"Using hardcoded Workers AI perm group ID")
                 log_step(f"Workers AI permission group id: {workers_ai_id}")
 
-                # Step 2: create scoped API token
-                payload = {
-                    "name": "9router-workers-ai",
-                    "policies": [{
-                        "effect": "allow",
-                        "resources": {f"com.cloudflare.api.account.{account_id}": "*"},
-                        "permission_groups": [{"id": workers_ai_id}],
-                    }],
-                }
-                tok_resp = page.request.fetch(
-                    f"{base}/user/tokens",
-                    method="POST",
-                    headers=common_headers,
-                    data=__import__("json").dumps(payload),
-                )
-                tok_data = tok_resp.json()
-                log_step(f"Token create result: {str(tok_data)[:300]}")
-                if tok_data.get("success"):
-                    return tok_data["result"].get("value")
-                err = tok_data.get("errors", [{}])[0].get("message", "unknown")
-                log_step(f"Token create failed: {err}")
+                # Step 2: create scoped API token via same-origin proxy
+                token_result = page.evaluate("""
+                    async (args) => {
+                        try {
+                            const payload = {
+                                name: 'amrouter-workers-ai',
+                                policies: [{
+                                    effect: 'allow',
+                                    resources: {[`com.cloudflare.api.account.${args.account_id}`]: '*'},
+                                    permission_groups: [{id: args.perm_id}]
+                                }]
+                            };
+                            const r = await fetch('/api/v4/user/tokens', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(payload)
+                            });
+                            const d = await r.json();
+                            return {status: r.status, ok: d.success, value: d.result?.value || null, errors: d.errors || []};
+                        } catch(e) { return {error: e.message}; }
+                    }
+                """, {"account_id": account_id, "perm_id": workers_ai_id})
+                log_step(f"Token create result: {str(token_result)[:300]}")
+                if isinstance(token_result, dict) and token_result.get('ok') and token_result.get('value'):
+                    return token_result['value']
+                log_step(f"Token create failed: {token_result.get('errors', token_result.get('error', 'unknown'))}")
             except Exception as e:
-                log_step(f"Playwright request exception: {e}")
+                log_step(f"Same-origin token exception: {e}")
             return None
 
         # Try session API first (fast, no OTP needed)
@@ -1923,7 +2456,9 @@ def main():
             log_step(f"Session API token failed: {e}")
 
         # ── EARLY GAK ATTEMPT: Try Global API Key first if ammail available ─────
-        workers_ai_token = None
+        # NOTE: Do NOT reset workers_ai_token if create_token_via_session already succeeded
+        if not workers_ai_token:
+            workers_ai_token = None  # only reset if still empty
         token_from_route = []  # always init — used later regardless of GAK success
         if ammail_ok:
             log_step("Mencoba GAK dulu (skip UI form yang sering gagal)...")
@@ -1985,12 +2520,75 @@ def main():
             try:
                 page.goto("https://dash.cloudflare.com/?to=/:account/home", wait_until="domcontentloaded", timeout=15000)
                 time.sleep(3)
-                url_match = re.search(r"/([a-f0-9]{32})(?:/|$)", page.url)
+                url_match = re.search(r"/(?:home/)?([a-f0-9]{32})(?:/|$)", page.url)
                 if url_match:
                     account_id = url_match.group(1)
                     log_step(f"Account ID via redirect: {account_id[:8]}...")
             except Exception as e:
                 log_step(f"account_id method4 error: {e}")
+
+        # Method 4b: /memberships API (different endpoint, may work when /accounts fails)
+        if not account_id:
+            try:
+                log_step("Method 4b: /memberships via page.request.fetch...")
+                _mem_resp = page.request.fetch(
+                    "https://api.cloudflare.com/client/v4/user/memberships?per_page=50",
+                    method="GET",
+                    headers={"Accept": "application/json"}
+                )
+                if _mem_resp.status == 200:
+                    _mem_data = _mem_resp.json()
+                    if _mem_data.get("success") and _mem_data.get("result"):
+                        for _m in _mem_data["result"]:
+                            _acct = _m.get("account", {}) or {}
+                            _acct_id = _acct.get("id", "")
+                            if _acct_id and len(_acct_id) == 32 and re.match(r'^[a-f0-9]{32}$', _acct_id):
+                                account_id = _acct_id
+                                log_step(f"Account ID via memberships (4b): {account_id[:8]}...")
+                                break
+            except Exception as e:
+                log_step(f"Method 4b error: {e}")
+
+        # Method 4c: page.evaluate fetch (native cookies, no CORS)
+        if not account_id:
+            try:
+                log_step("Method 4c: page.evaluate fetch /accounts + /memberships...")
+                _ev_id = page.evaluate("""
+                    async () => {
+                        const hex32 = /^[a-f0-9]{32}$/;
+                        try {
+                            const r = await fetch('https://api.cloudflare.com/client/v4/accounts?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d = await r.json();
+                            if (d.success && d.result) {
+                                for (const a of d.result) {
+                                    if (a.id && hex32.test(a.id)) return a.id;
+                                }
+                            }
+                        } catch(e) {}
+                        try {
+                            const r2 = await fetch('https://api.cloudflare.com/client/v4/user/memberships?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d2 = await r2.json();
+                            if (d2.success && d2.result) {
+                                for (const m of d2.result) {
+                                    const id = (m.account && m.account.id) || '';
+                                    if (id && hex32.test(id)) return id;
+                                }
+                            }
+                        } catch(e) {}
+                        return '';
+                    }
+                """)
+                if _ev_id and len(_ev_id) == 32 and re.match(r'^[a-f0-9]{32}$', _ev_id):
+                    account_id = _ev_id
+                    log_step(f"Account ID via evaluate (4c): {account_id[:8]}...")
+            except Exception as e:
+                log_step(f"Method 4c error: {e}")
 
         if account_id:
             log_step(f"Account ID confirmed: {account_id[:8]}...")
@@ -2731,6 +3329,353 @@ def main():
                     log_step(f"Workers AI token via Global Key: {workers_ai_token[:10]}...")
             except Exception as gke:
                 log_step(f"Global API Key fallback error: {gke}")
+
+        # ── Strategy C: Dashboard same-origin API proxy ──────────────────────
+        # CF dashboard proxies /api/v4/... to api.cloudflare.com with session cookies
+        # This is SAME-ORIGIN so no CORS issues — the most reliable method
+        if not workers_ai_token and account_id:
+            log_step("Strategy C: Dashboard same-origin API proxy...")
+            try:
+                # First verify session auth works
+                verify_result = page.evaluate("""
+                    async () => {
+                        try {
+                            const r = await fetch('/api/v4/accounts?per_page=50', {
+                                credentials: 'include',
+                                headers: {'Accept': 'application/json'}
+                            });
+                            const d = await r.json();
+                            return {status: r.status, ok: d.success, count: (d.result||[]).length,
+                                    first_id: (d.result||[])[0]?.id || ''};
+                        } catch(e) { return {error: e.message}; }
+                    }
+                """)
+                log_step(f"Strategy C verify: {verify_result}")
+
+                if isinstance(verify_result, dict) and verify_result.get('ok'):
+                    # Get permission groups
+                    pg_result = page.evaluate("""
+                        async () => {
+                            try {
+                                const r = await fetch('/api/v4/user/tokens/permission_groups', {
+                                    credentials: 'include',
+                                    headers: {'Accept': 'application/json'}
+                                });
+                                const d = await r.json();
+                                return {status: r.status, ok: d.success, groups: d.result || []};
+                            } catch(e) { return {error: e.message}; }
+                        }
+                    """)
+                    log_step(f"Strategy C perm groups: status={pg_result.get('status') if isinstance(pg_result, dict) else 'err'}")
+
+                    wa_read_id = None
+                    wa_write_id = None
+                    if isinstance(pg_result, dict) and pg_result.get('ok'):
+                        for g in pg_result.get('groups', []):
+                            gname = g.get('name', '')
+                            if gname == 'Workers AI Read':
+                                wa_read_id = g['id']
+                            elif gname == 'Workers AI Write':
+                                wa_write_id = g['id']
+                        if not wa_read_id:
+                            wa_read_id = next(
+                                (g['id'] for g in pg_result.get('groups', [])
+                                 if 'Workers AI' in g.get('name', '') and 'Metadata' not in g.get('name', '')),
+                                None
+                            )
+
+                    if not wa_read_id:
+                        wa_read_id = "a92d2450e05d4e7bb7d0a64968f83d11"
+                        wa_write_id = "bacc64e0f6c34fc0883a1223f938a104"
+                        log_step(f"Strategy C: Using hardcoded perm group IDs")
+
+                    if wa_read_id:
+                        log_step(f"Strategy C: Workers AI perm group: {wa_read_id}")
+                        # Create token via same-origin proxy
+                        perm_groups = [{"id": wa_read_id}]
+                        if wa_write_id:
+                            perm_groups.append({"id": wa_write_id})
+
+                        token_result = page.evaluate("""
+                            async (args) => {
+                                try {
+                                    const payload = {
+                                        name: 'amrouter-workers-ai',
+                                        policies: [{
+                                            effect: 'allow',
+                                            resources: {[`com.cloudflare.api.account.${args.account_id}`]: '*'},
+                                            permission_groups: args.perm_groups
+                                        }]
+                                    };
+                                    const r = await fetch('/api/v4/user/tokens', {
+                                        method: 'POST',
+                                        credentials: 'include',
+                                        headers: {
+                                            'Accept': 'application/json',
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(payload)
+                                    });
+                                    const d = await r.json();
+                                    return {
+                                        status: r.status,
+                                        ok: d.success,
+                                        value: d.result?.value || null,
+                                        errors: d.errors || []
+                                    };
+                                } catch(e) { return {error: e.message}; }
+                            }
+                        """, {"account_id": account_id, "perm_groups": perm_groups})
+                        log_step(f"Strategy C token result: status={token_result.get('status') if isinstance(token_result, dict) else 'err'}")
+
+                        if isinstance(token_result, dict) and token_result.get('ok') and token_result.get('value'):
+                            workers_ai_token = token_result['value']
+                            log_step(f"Strategy C token created: {workers_ai_token[:15]}...")
+                        elif isinstance(token_result, dict):
+                            log_step(f"Strategy C token failed: {token_result.get('errors', token_result.get('error', 'unknown'))}")
+                else:
+                    log_step(f"Strategy C: Session auth failed: {verify_result}")
+            except Exception as sce:
+                log_step(f"Strategy C error: {sce}")
+
+        # ── Strategy D: CF API direct with session cookies (Python requests) ──────
+        # Bypasses browser UI entirely — uses browser session cookies to auth with CF API
+        if not workers_ai_token and account_id:
+            log_step("Strategy D: CF API direct via session cookies (Python requests)...")
+            try:
+                import requests as _req_d
+                cookies = page.context.cookies()
+                cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in cookies)
+                if cookie_str:
+                    # Step 1: Get Workers AI permission group IDs
+                    pg_resp = _req_d.get(
+                        "https://api.cloudflare.com/client/v4/user/tokens/permission_groups",
+                        headers={
+                            "Cookie": cookie_str,
+                            "Accept": "application/json",
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                            "Referer": "https://dash.cloudflare.com/",
+                        },
+                        timeout=20
+                    )
+                    log_step(f"Strategy D permission_groups status: {pg_resp.status_code}")
+                    wa_read_id = None
+                    wa_write_id = None
+                    if pg_resp.status_code == 200:
+                        pg_data = pg_resp.json()
+                        groups = pg_data.get("result") or []
+                        for g in groups:
+                            gname = g.get("name", "")
+                            if gname == "Workers AI Read":
+                                wa_read_id = g["id"]
+                            elif gname == "Workers AI Write":
+                                wa_write_id = g["id"]
+                        if not wa_read_id:
+                            wa_read_id = next(
+                                (g["id"] for g in groups
+                                 if "Workers AI" in g.get("name", "") and "Metadata" not in g.get("name", "")),
+                                None
+                            )
+                    if wa_read_id:
+                        log_step(f"Strategy D: Workers AI perm group: {wa_read_id}")
+                    else:
+                        # Fallback: use known hardcoded permission group IDs
+                        wa_read_id = "a92d2450e05d4e7bb7d0a64968f83d11"
+                        wa_write_id = "bacc64e0f6c34fc0883a1223f938a104"
+                        log_step(f"Strategy D: Using hardcoded perm group IDs")
+
+                    # Step 2: Create token via CF API
+                    perm_groups = [{"id": wa_read_id}]
+                    if wa_write_id:
+                        perm_groups.append({"id": wa_write_id})
+                    token_payload = {
+                        "name": "9router-workers-ai",
+                        "policies": [{
+                            "effect": "allow",
+                            "resources": {f"com.cloudflare.api.account.{account_id}": "*"},
+                            "permission_groups": perm_groups,
+                        }],
+                    }
+                    tok_resp = _req_d.post(
+                        "https://api.cloudflare.com/client/v4/user/tokens",
+                        json=token_payload,
+                        headers={
+                            "Cookie": cookie_str,
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                            "Referer": "https://dash.cloudflare.com/profile/api-tokens",
+                            "Origin": "https://dash.cloudflare.com",
+                        },
+                        timeout=20
+                    )
+                    log_step(f"Strategy D token create status: {tok_resp.status_code}")
+                    if tok_resp.status_code in (200, 201):
+                        tok_data = tok_resp.json()
+                        if tok_data.get("success") and tok_data.get("result", {}).get("value"):
+                            workers_ai_token = tok_data["result"]["value"]
+                            log_step(f"Strategy D token created: {workers_ai_token[:10]}...")
+                        else:
+                            log_step(f"Strategy D token failed: {tok_data.get('errors', 'unknown')}")
+                    else:
+                        log_step(f"Strategy D HTTP error: {tok_resp.text[:300]}")
+                else:
+                    log_step("Strategy D: No cookies available")
+            except Exception as sde:
+                log_step(f"Strategy D error: {sde}")
+
+        # ── Strategy E: UI form final fallback — navigate to create-token page directly ──
+        if not workers_ai_token:
+            log_step("Strategy E: UI form final fallback — /profile/api-tokens/create-token...")
+            try:
+                # Navigate directly to the token creation page
+                for _e_url in [
+                    "https://dash.cloudflare.com/profile/api-tokens/create-token",
+                    "https://dash.cloudflare.com/profile/api-tokens/create",
+                    f"https://dash.cloudflare.com/{account_id}/api-tokens/create-token" if account_id else "",
+                    f"https://dash.cloudflare.com/{account_id}/api-tokens/create" if account_id else "",
+                ]:
+                    if not _e_url:
+                        continue
+                    try:
+                        page.goto(_e_url, wait_until="domcontentloaded", timeout=20000)
+                        time.sleep(3)
+                        _cur = page.url
+                        log_step(f"Strategy E nav: {_cur}")
+                        if "api-tokens" in _cur and "create" in _cur:
+                            break
+                    except Exception:
+                        continue
+
+                # Dismiss any consent dialogs
+                try:
+                    dismiss_consent_dialogs(page)
+                except Exception:
+                    pass
+                time.sleep(2)
+                page.screenshot(path="/tmp/cf_strategy_e_page.png")
+
+                # Try "Edit Cloudflare Workers" template first (simpler than Workers AI)
+                _e_template_clicked = False
+                for _tmpl_name in ["Workers AI", "Edit Cloudflare Workers", "Read Cloudflare Workers"]:
+                    if _e_template_clicked:
+                        break
+                    try:
+                        _tmpl_result = page.evaluate(f"""
+                            () => {{
+                                const btns = Array.from(document.querySelectorAll('button, a'));
+                                for (const btn of btns) {{
+                                    if (btn.textContent.trim() === 'Use template') {{
+                                        let el = btn.parentElement;
+                                        for (let i = 0; i < 6; i++) {{
+                                            if (el && el.textContent.includes('{_tmpl_name}')) {{
+                                                btn.click();
+                                                return 'clicked ' + '{_tmpl_name}';
+                                            }}
+                                            el = el ? el.parentElement : null;
+                                        }}
+                                    }}
+                                }}
+                                return 'template not found: ' + '{_tmpl_name}';
+                            }}
+                        """)
+                        log_step(f"Strategy E template ({_tmpl_name}): {_tmpl_result}")
+                        if "clicked" in str(_tmpl_result):
+                            _e_template_clicked = True
+                            time.sleep(3)
+                    except Exception:
+                        continue
+
+                if _e_template_clicked:
+                    # Template pre-fills the form — rename and continue
+                    try:
+                        for name_sel in ["input[name*='name' i]", "input[placeholder*='name' i]", "input[type='text']:first-of-type"]:
+                            try:
+                                el = page.locator(name_sel).first
+                                if el.count() > 0 and el.is_visible(timeout=2000):
+                                    el.click(click_count=3)
+                                    el.fill("9router-workers-ai")
+                                    break
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+
+                    # Click Continue to summary
+                    time.sleep(1)
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    time.sleep(1)
+                    for cont_sel in ["button:has-text('Continue to summary')", "button:has-text('Continue')", "button:has-text('Review')"]:
+                        try:
+                            cb = page.locator(cont_sel).first
+                            if cb.count() > 0 and cb.is_visible(timeout=3000):
+                                cb.click()
+                                time.sleep(3)
+                                log_step(f"Strategy E continue: {cont_sel}")
+                                break
+                        except Exception:
+                            continue
+
+                    # Click Create Token on summary page
+                    time.sleep(2)
+                    page.screenshot(path="/tmp/cf_strategy_e_summary.png")
+                    for ct_sel in ["button:has-text('Create Token')", "input[value*='Create Token']", "button[type='submit']"]:
+                        try:
+                            ct = page.locator(ct_sel).first
+                            if ct.count() > 0 and ct.is_visible(timeout=5000):
+                                ct.click()
+                                time.sleep(5)
+                                log_step(f"Strategy E create token: {ct_sel}")
+                                break
+                        except Exception:
+                            continue
+
+                    # Extract token from result page
+                    try:
+                        _e_body = page.inner_text("body")
+                        import re as _re_e
+                        _e_cfut = _re_e.search(r'\b(cfut_[A-Za-z0-9_\-]{30,})\b', _e_body)
+                        if _e_cfut:
+                            workers_ai_token = _e_cfut.group(1)
+                            log_step(f"Strategy E token from body: {workers_ai_token[:12]}...")
+                        else:
+                            # Try broader pattern
+                            _e_tok = _re_e.search(r'\b([a-zA-Z0-9_\-]{40,})\b', _e_body)
+                            if _e_tok and len(_e_tok.group(1)) > 30:
+                                workers_ai_token = _e_tok.group(1)
+                                log_step(f"Strategy E token (broad): {workers_ai_token[:12]}...")
+                    except Exception:
+                        pass
+
+                    # Also try selector-based extraction
+                    if not workers_ai_token:
+                        for tok_sel in ["code", "input[readonly]", "[data-testid='token-value']", ".cf-input-code"]:
+                            try:
+                                tel = page.locator(tok_sel).first
+                                if tel.is_visible(timeout=2000):
+                                    tval = (tel.input_value() if "input" in tok_sel else tel.text_content()) or ""
+                                    tval = tval.strip()
+                                    if tval and len(tval) > 10 and ' ' not in tval:
+                                        workers_ai_token = tval
+                                        log_step(f"Strategy E token from selector: {tval[:12]}...")
+                                        break
+                            except Exception:
+                                continue
+
+                    # Intercept via route as well
+                    if not workers_ai_token:
+                        try:
+                            page.screenshot(path="/tmp/cf_strategy_e_result.png")
+                            log_step("Strategy E: no token found from page content")
+                        except Exception:
+                            pass
+
+            except Exception as see:
+                log_step(f"Strategy E error: {see}")
+                try:
+                    page.screenshot(path="/tmp/cf_strategy_e_err.png")
+                except Exception:
+                    pass
 
         if not workers_ai_token:
             die("Tidak ada API key yang bisa digunakan")

@@ -162,7 +162,7 @@ export default function ProvidersPage() {
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
-      (c) => c.provider === providerId && (c.authType === authType || (providerId === "codebuddy" && c.authType === "apikey")),
+      (c) => c.provider === providerId && (c.authType === authType || ((providerId === "codebuddy" || providerId === "kimchi") && c.authType === "apikey")),
     );
 
     const getEffectiveStatus = (conn) => {

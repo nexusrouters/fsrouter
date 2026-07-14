@@ -75,6 +75,17 @@ export default function APIPageClient({ machineId }) {
   const [rtkEnabled, setRtkEnabledState] = useState(true);
   const [cavemanEnabled, setCavemanEnabled] = useState(false);
   const [cavemanLevel, setCavemanLevel] = useState("full");
+  const [headroomEnabled, setHeadroomEnabled] = useState(false);
+  const [headroomUrl, setHeadroomUrl] = useState("");
+  const [headroomCompressUserMessages, setHeadroomCompressUserMessages] = useState(false);
+  const [headroomStatus, setHeadroomStatus] = useState({ installed: false, running: false, python: null, loading: true });
+  const [showHeadroomInstallModal, setShowHeadroomInstallModal] = useState(false);
+  const [headroomActionLoading, setHeadroomActionLoading] = useState(false);
+  const [headroomActionError, setHeadroomActionError] = useState("");
+  const [ponytailEnabled, setPonytailEnabled] = useState(false);
+  const [ponytailLevel, setPonytailLevel] = useState("full");
+  const [paleoEnabled, setPaleoEnabled] = useState(false);
+  const [paleoLevel, setPaleoLevel] = useState("full");
   const [locale, setLocale] = useState("en");
 
   // Cloudflare Tunnel state
@@ -274,6 +285,14 @@ export default function APIPageClient({ machineId }) {
         setRtkEnabledState(data.rtkEnabled !== false);
         setCavemanEnabled(!!data.cavemanEnabled);
         setCavemanLevel(data.cavemanLevel || "full");
+        setHeadroomEnabled(!!data.headroomEnabled);
+        setHeadroomUrl(data.headroomUrl || "");
+        setHeadroomCompressUserMessages(!!data.headroomCompressUserMessages);
+        setPonytailEnabled(!!data.ponytailEnabled);
+        setPonytailLevel(data.ponytailLevel || "full");
+        setPaleoEnabled(!!data.paleoEnabled);
+        setPaleoLevel(data.paleoLevel || "full");
+        refreshHeadroomStatus();
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -356,6 +375,88 @@ export default function APIPageClient({ machineId }) {
   const handleCavemanLevel = (level) => {
     setCavemanLevel(level);
     patchSetting({ cavemanLevel: level });
+  };
+
+  const handleHeadroomEnabled = (value) => {
+    setHeadroomEnabled(value);
+    patchSetting({ headroomEnabled: value });
+  };
+
+  const handleHeadroomUrl = (value) => {
+    setHeadroomUrl(value);
+    patchSetting({ headroomUrl: value });
+  };
+
+  const handleHeadroomCompressUserMessages = (value) => {
+    setHeadroomCompressUserMessages(value);
+    patchSetting({ headroomCompressUserMessages: value });
+  };
+
+  const refreshHeadroomStatus = useCallback(async () => {
+    setHeadroomStatus((s) => ({ ...s, loading: true }));
+    try {
+      const res = await fetch("/api/headroom/status", { headers: { "Cache-Control": "no-store" } });
+      const data = await res.json();
+      setHeadroomStatus({ ...data, loading: false });
+      // Auto-fill URL from status if user hasn't set one
+      if (data.url && !headroomUrl) {
+        setHeadroomUrl(data.url);
+      }
+    } catch {
+      setHeadroomStatus({ installed: false, running: false, python: null, loading: false });
+    }
+  }, [headroomUrl]);
+
+  const handleHeadroomStart = useCallback(async () => {
+    setHeadroomActionError("");
+    setHeadroomActionLoading(true);
+    try {
+      const res = await fetch("/api/headroom/start", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to start proxy");
+      await refreshHeadroomStatus();
+    } catch (e) {
+      setHeadroomActionError(e.message);
+    } finally {
+      setHeadroomActionLoading(false);
+    }
+  }, [refreshHeadroomStatus]);
+
+  const handleHeadroomStop = useCallback(async () => {
+    setHeadroomActionLoading(true);
+    try {
+      await fetch("/api/headroom/stop", { method: "POST" });
+      await refreshHeadroomStatus();
+    } finally {
+      setHeadroomActionLoading(false);
+    }
+  }, [refreshHeadroomStatus]);
+
+  const handleHeadroomUrlBlur = async () => {
+    const next = headroomUrl.trim() || "http://localhost:8787";
+    setHeadroomUrl(next);
+    await patchSetting({ headroomUrl: next });
+    refreshHeadroomStatus();
+  };
+
+  const handlePonytailEnabled = (value) => {
+    setPonytailEnabled(value);
+    patchSetting({ ponytailEnabled: value });
+  };
+
+  const handlePonytailLevel = (level) => {
+    setPonytailLevel(level);
+    patchSetting({ ponytailLevel: level });
+  };
+
+  const handlePaleoEnabled = (value) => {
+    setPaleoEnabled(value);
+    patchSetting({ paleoEnabled: value });
+  };
+
+  const handlePaleoLevel = (level) => {
+    setPaleoLevel(level);
+    patchSetting({ paleoLevel: level });
   };
 
   const fetchData = async () => {
@@ -805,6 +906,19 @@ export default function APIPageClient({ machineId }) {
   }
 
   const currentEndpoint = baseUrl;
+  const headroomRunning = !!headroomStatus.running;
+  const headroomLocalUrl = headroomStatus.localUrl !== false;
+  const headroomCanStart = !!headroomStatus.canStart;
+  const headroomManaged = headroomLocalUrl && !!headroomStatus.managedPid;
+  const headroomStatusLabel = headroomStatus.loading
+    ? "Checking…"
+    : headroomRunning
+      ? "Running"
+      : headroomLocalUrl && !headroomStatus.installed
+        ? "Not installed"
+        : headroomLocalUrl
+          ? "Proxy off"
+          : "Unreachable";
 
   return (
     <div className="flex flex-col gap-8">
@@ -1118,6 +1232,178 @@ export default function APIPageClient({ machineId }) {
             />
           </div>
         </div>
+        <div className="flex items-center justify-between pt-4 pb-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Code minimalism{" "}
+              <a
+                href="https://github.com/DietrichGebert/ponytail"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-normal text-primary underline hover:opacity-80"
+              >
+                (Ponytail)
+              </a>
+            </p>
+            <p className="text-sm text-text-muted">
+              Lazy senior dev system prompt → YAGNI / stdlib-first / shortest diff
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {ponytailEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  {["lite", "full", "ultra"].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => handlePonytailLevel(lvl)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        ponytailLevel === lvl
+                          ? "bg-primary text-white border-primary"
+                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                      }`}
+                      title={
+                        lvl === "lite" ? "Build what's asked, name lazier alternative"
+                        : lvl === "full" ? "Enforce ladder, shortest diff"
+                        : "YAGNI extremist, deletion before addition"
+                      }
+                    >
+                      {lvl === "lite" ? "Lite" : lvl === "full" ? "Full" : "Ultra"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-primary">
+                  {ponytailLevel === "lite" ? "Build what's asked, name lazier alternative"
+                    : ponytailLevel === "full" ? "Enforce ladder, shortest diff"
+                    : "YAGNI extremist, deletion before addition"}
+                </p>
+              </div>
+            )}
+            <Toggle
+              checked={ponytailEnabled}
+              onChange={() => handlePonytailEnabled(!ponytailEnabled)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-4 gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Token Saver{" "}
+              <a
+                href="https://github.com/mocasus/paleo"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-normal text-primary underline hover:opacity-80"
+              >
+                (Paleo)
+              </a>
+            </p>
+            <p className="text-sm text-text-muted">
+              Compress LLM output → ~50-80% fewer output tokens
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {paleoEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1.5">
+                  {["lite", "full", "ultra"].map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => handlePaleoLevel(lvl)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                        paleoLevel === lvl
+                          ? "bg-primary text-white border-primary"
+                          : "bg-transparent border-border text-text-muted hover:bg-surface-2"
+                      }`}
+                      title={
+                        lvl === "lite" ? "Gentle hints, keep grammar"
+                        : lvl === "full" ? "Strong compression, fragments OK"
+                        : "Telegraphic, max savings"
+                      }
+                    >
+                      {lvl === "lite" ? "Lite" : lvl === "full" ? "Full" : "Ultra"}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-primary">
+                  {paleoLevel === "lite" ? "Gentle hints, keep grammar"
+                    : paleoLevel === "full" ? "Strong compression, fragments OK"
+                    : "Telegraphic, max savings"}
+                </p>
+              </div>
+            )}
+            <Toggle
+              checked={paleoEnabled}
+              onChange={() => handlePaleoEnabled(!paleoEnabled)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-4 gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Context compression{" "}
+              <a
+                href="https://github.com/jerhadf/headroom"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-normal text-primary underline hover:opacity-80"
+              >
+                (Headroom)
+              </a>
+            </p>
+            <p className="text-sm text-text-muted">
+              External proxy compresses input messages → fewer prompt tokens
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {headroomEnabled && (
+              <div className="flex flex-col items-end gap-2 min-w-[200px]">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={headroomUrl}
+                    onChange={(e) => handleHeadroomUrl(e.target.value)}
+                    placeholder="http://localhost:8787"
+                    className="text-xs"
+                  />
+                  {!headroomRunning && headroomCanStart && (
+                    <button
+                      onClick={handleHeadroomStart}
+                      disabled={headroomActionLoading}
+                      className="px-2 py-1.5 rounded text-xs font-medium bg-primary text-white hover:opacity-80 disabled:opacity-50"
+                    >
+                      {headroomActionLoading ? "..." : "Start"}
+                    </button>
+                  )}
+                  {headroomRunning && headroomManaged && (
+                    <button
+                      onClick={handleHeadroomStop}
+                      disabled={headroomActionLoading}
+                      className="px-2 py-1.5 rounded text-xs font-medium bg-red-500 text-white hover:opacity-80 disabled:opacity-50"
+                    >
+                      {headroomActionLoading ? "..." : "Stop"}
+                    </button>
+                  )}
+                </div>
+                <p className={`text-xs ${headroomRunning ? 'text-green-500' : headroomCanStart ? 'text-yellow-500' : 'text-red-500'}`}>
+                  {headroomStatusLabel}
+                </p>
+                <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={headroomCompressUserMessages}
+                    onChange={(e) => handleHeadroomCompressUserMessages(e.target.checked)}
+                    className="rounded"
+                  />
+                  Compress user messages
+                </label>
+              </div>
+            )}
+            <Toggle
+              checked={headroomEnabled}
+              onChange={() => handleHeadroomEnabled(!headroomEnabled)}
+            />
+          </div>
+        </div>
       </Card>
 
       {/* API Keys */}
@@ -1317,7 +1603,7 @@ export default function APIPageClient({ machineId }) {
                   Cloudflare Tunnel
                 </p>
                 <p className="text-sm text-text-muted">
-                  Expose your local 9Router to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.
+                  Expose your local FSRouter to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.
                 </p>
               </div>
             </div>

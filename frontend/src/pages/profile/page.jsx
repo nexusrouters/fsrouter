@@ -59,7 +59,7 @@ export default function ProfilePage() {
 
   // Automation settings state
   const [automationForm, setAutomationForm] = useState({
-    codebuddy_auto_9router: false,
+    codebuddy_auto_fsrouter: false,
     codebuddy_leave_canva_team: false,
     codebuddy_browser_headless: true,
     codebuddy_proxy_enabled: false,
@@ -73,8 +73,8 @@ export default function ProfilePage() {
   });
   const [automationStatus, setAutomationStatus] = useState({ type: "", message: "" });
   const [automationLoading, setAutomationLoading] = useState(false);
-  const [ammailTestLoading, setAmmailTestLoading] = useState(false);
-  const [ammailWebhookLoading, setAmmailWebhookLoading] = useState(false);
+  const [ammailTestLoading, setFSMailTestLoading] = useState(false);
+  const [ammailWebhookLoading, setFSMailWebhookLoading] = useState(false);
   const [automationExpanded, setAutomationExpanded] = useState(false);
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export default function ProfilePage() {
           outboundNoProxy: data?.outboundNoProxy || "",
         });
         setAutomationForm({
-          codebuddy_auto_9router: data?.codebuddy_auto_9router === "1",
+          codebuddy_auto_fsrouter: data?.codebuddy_auto_fsrouter === "1",
           codebuddy_leave_canva_team: data?.codebuddy_leave_canva_team === "1",
           codebuddy_browser_headless: data?.codebuddy_browser_headless !== "0",
           codebuddy_proxy_enabled: data?.codebuddy_proxy_enabled === "1",
@@ -137,7 +137,7 @@ export default function ProfilePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          codebuddy_auto_9router: automationForm.codebuddy_auto_9router ? "1" : "0",
+          codebuddy_auto_fsrouter: automationForm.codebuddy_auto_fsrouter ? "1" : "0",
           codebuddy_leave_canva_team: automationForm.codebuddy_leave_canva_team ? "1" : "0",
           codebuddy_browser_headless: automationForm.codebuddy_browser_headless ? "1" : "0",
           codebuddy_proxy_enabled: automationForm.codebuddy_proxy_enabled ? "1" : "0",
@@ -165,8 +165,8 @@ export default function ProfilePage() {
     }
   };
 
-  const testAmmailConnection = async () => {
-    setAmmailTestLoading(true);
+  const testFSMailConnection = async () => {
+    setFSMailTestLoading(true);
     setAutomationStatus({ type: "", message: "" });
     try {
       // Save settings first
@@ -194,19 +194,19 @@ export default function ProfilePage() {
       });
       const testData = await testRes.json().catch(() => ({}));
       if (testRes.ok) {
-        setAutomationStatus({ type: "success", message: "Ammail Connection Successful!" });
+        setAutomationStatus({ type: "success", message: "FSMail Connection Successful!" });
       } else {
-        setAutomationStatus({ type: "error", message: testData.error || "Ammail Connection Failed." });
+        setAutomationStatus({ type: "error", message: testData.error || "FSMail Connection Failed." });
       }
     } catch (err) {
       setAutomationStatus({ type: "error", message: err.message || "An error occurred" });
     } finally {
-      setAmmailTestLoading(false);
+      setFSMailTestLoading(false);
     }
   };
 
-  const registerAmmailWebhook = async () => {
-    setAmmailWebhookLoading(true);
+  const registerFSMailWebhook = async () => {
+    setFSMailWebhookLoading(true);
     setAutomationStatus({ type: "", message: "" });
     try {
       // Save settings first
@@ -234,17 +234,17 @@ export default function ProfilePage() {
       });
       const webhookData = await webhookRes.json().catch(() => ({}));
       if (webhookRes.ok) {
-        setAutomationStatus({ type: "success", message: "Ammail Webhook Registered Successfully!" });
+        setAutomationStatus({ type: "success", message: "FSMail Webhook Registered Successfully!" });
         if (webhookData.webhook?.secret) {
           setAutomationForm(prev => ({ ...prev, ammail_webhook_secret: webhookData.webhook.secret }));
         }
       } else {
-        setAutomationStatus({ type: "error", message: webhookData.error || "Ammail Webhook Registration Failed." });
+        setAutomationStatus({ type: "error", message: webhookData.error || "FSMail Webhook Registration Failed." });
       }
     } catch (err) {
       setAutomationStatus({ type: "error", message: err.message || "An error occurred" });
     } finally {
-      setAmmailWebhookLoading(false);
+      setFSMailWebhookLoading(false);
     }
   };
 
@@ -641,7 +641,7 @@ export default function ProfilePage() {
       const anchor = document.createElement("a");
       const stamp = new Date().toISOString().replace(/[.:]/g, "-");
       anchor.href = url;
-      anchor.download = `9router-backup-${stamp}.json`;
+      anchor.download = `fsrouter-backup-${stamp}.json`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
@@ -755,7 +755,7 @@ export default function ProfilePage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-bg border border-border gap-2">
               <div>
                 <p className="font-medium text-sm sm:text-base">Database Location</p>
-                <p className="text-xs sm:text-sm text-text-muted font-mono break-all">~/.9router/db/data.sqlite</p>
+                <p className="text-xs sm:text-sm text-text-muted font-mono break-all">~/.fsrouter/db/data.sqlite</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -949,7 +949,7 @@ export default function ProfilePage() {
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm sm:text-base">Issuer URL</label>
                 <Input
-                  placeholder="https://auth.example.com/application/o/9router/"
+                  placeholder="https://auth.example.com/application/o/fsrouter/"
                   value={oidcForm.oidcIssuerUrl}
                   onChange={(e) => updateOidcForm("oidcIssuerUrl", e.target.value)}
                   disabled={loading || oidcLoading}
@@ -959,7 +959,7 @@ export default function ProfilePage() {
               <div className="flex flex-col gap-2">
                 <label className="font-medium text-sm sm:text-base">Client ID</label>
                 <Input
-                  placeholder="9router-dashboard"
+                  placeholder="fsrouter-dashboard"
                   value={oidcForm.oidcClientId}
                   onChange={(e) => updateOidcForm("oidcClientId", e.target.value)}
                   disabled={loading || oidcLoading}
@@ -1216,7 +1216,7 @@ export default function ProfilePage() {
             <div className="flex-1 min-w-0">
               <h3 className="text-base sm:text-lg font-semibold">Automation Settings</h3>
               <p className="text-xs text-text-muted">
-                Manage CodeBuddy browser signup & Ammail temporary email configurations.
+                Manage CodeBuddy browser signup & FSMail temporary email configurations.
               </p>
             </div>
             <span className="material-symbols-outlined text-text-muted shrink-0">
@@ -1247,12 +1247,12 @@ export default function ProfilePage() {
 
                 <div className="flex items-start sm:items-center justify-between gap-4 pt-2 border-t border-border/50">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm sm:text-base">Auto Inject to 9router</p>
-                    <p className="text-xs sm:text-sm text-text-muted">Automatically add newly generated CodeBuddy API keys to 9router connections.</p>
+                    <p className="font-medium text-sm sm:text-base">Auto Inject to fsrouter</p>
+                    <p className="text-xs sm:text-sm text-text-muted">Automatically add newly generated CodeBuddy API keys to fsrouter connections.</p>
                   </div>
                   <Toggle
-                    checked={automationForm.codebuddy_auto_9router}
-                    onChange={(checked) => setAutomationForm(prev => ({ ...prev, codebuddy_auto_9router: checked }))}
+                    checked={automationForm.codebuddy_auto_fsrouter}
+                    onChange={(checked) => setAutomationForm(prev => ({ ...prev, codebuddy_auto_fsrouter: checked }))}
                     disabled={loading || automationLoading}
                   />
                 </div>
@@ -1317,11 +1317,11 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Ammail Subsection */}
+              {/* FSMail Subsection */}
               <div className="space-y-4 pt-4 border-t border-border/55">
                 <h4 className="font-semibold text-sm text-text-main flex items-center gap-1.5 border-b border-border/55 pb-1">
                   <span className="material-symbols-outlined text-[16px]">mail</span>
-                  Ammail Temp Mail Settings
+                  FSMail Temp Mail Settings
                 </h4>
 
                 <div className="flex flex-col gap-2">
@@ -1338,7 +1338,7 @@ export default function ProfilePage() {
                   <label className="font-medium text-sm sm:text-base">API Key</label>
                   <Input
                     type="password"
-                    placeholder="Ammail API Key"
+                    placeholder="FSMail API Key"
                     value={automationForm.ammail_api_key}
                     onChange={(e) => setAutomationForm(prev => ({ ...prev, ammail_api_key: e.target.value }))}
                     disabled={loading || automationLoading}
@@ -1382,16 +1382,16 @@ export default function ProfilePage() {
                   type="button"
                   variant="secondary"
                   loading={ammailTestLoading}
-                  onClick={testAmmailConnection}
+                  onClick={testFSMailConnection}
                   className="w-full sm:w-auto"
                 >
-                  Test Ammail Connection
+                  Test FSMail Connection
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   loading={ammailWebhookLoading}
-                  onClick={registerAmmailWebhook}
+                  onClick={registerFSMailWebhook}
                   className="w-full sm:w-auto"
                 >
                   Register Webhook

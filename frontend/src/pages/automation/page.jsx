@@ -25,11 +25,11 @@ export default function AutomationDashboard() {
       {/* Tab Switcher */}
       <div className="flex border-b border-border-subtle pb-px gap-6 flex-wrap">
         {tabBtn("codebuddy", "smart_toy", "Automation")}
-        {tabBtn("ammail", "mail", "Ammail Temp Mail")}
+        {tabBtn("ammail", "mail", "FSMail Temp Mail")}
       </div>
 
       {activeTab === "codebuddy" && <CodeBuddyTab />}
-      {activeTab === "ammail" && <AmmailTab />}
+      {activeTab === "ammail" && <FSMailTab />}
     </div>
   );
 }
@@ -47,6 +47,8 @@ function CodeBuddyTab() {
     weavy: "Weavy AI",
     "kimi-coding": "Kimi Coding",
     cloudflare: "Cloudflare Workers AI",
+    openvecta: "OpenVecta",
+    flashloop: "Flashloop",
   };
 
   const [accounts, setAccounts] = useState([]);
@@ -61,7 +63,7 @@ function CodeBuddyTab() {
   const logsDismissed = useRef(false);
   const [mounted, setMounted] = useState(false);
   const [concurrency, setConcurrency] = useState(3);
-  const [auto9Router, setAuto9Router] = useState(false);
+  const [autoFSRouter, setAutoFSRouter] = useState(false);
   const [runNow, setRunNow] = useState(false);
   const [addGoogleText, setAddGoogleText] = useState("");
   const [addGoogleStatus, setAddGoogleStatus] = useState("");
@@ -110,14 +112,14 @@ function CodeBuddyTab() {
 
   const [autoGenerateEmail, setAutoGenerateEmail] = useState(false);
   const [generateCount, setGenerateCount] = useState(5);
-  const [ammailDomains, setAmmailDomains] = useState([]);
-  const [selectedAmmailDomain, setSelectedAmmailDomain] = useState("");
+  const [ammailDomains, setFSMailDomains] = useState([]);
+  const [selectedFSMailDomain, setSelectedFSMailDomain] = useState("");
 
   // Load from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedProvider = localStorage.getItem("automation_target_provider");
-      if (savedProvider && savedProvider === "cloudflare") {
+      if (savedProvider) {
         setTargetProvider(savedProvider);
       } else {
         setTargetProvider("cloudflare");
@@ -156,7 +158,7 @@ function CodeBuddyTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  // Fetch available Ammail domains
+  // Fetch available FSMail domains
   useEffect(() => {
     fetch("/api/automation/ammail", {
       method: "POST",
@@ -166,8 +168,8 @@ function CodeBuddyTab() {
       .then(r => r.json())
       .then(d => {
         if (d.domains?.length) {
-          setAmmailDomains(d.domains);
-          setSelectedAmmailDomain(prev => prev || d.default_domain || d.domains[0]);
+          setFSMailDomains(d.domains);
+          setSelectedFSMailDomain(prev => prev || d.default_domain || d.domains[0]);
         }
       })
       .catch(() => {});
@@ -210,7 +212,7 @@ function CodeBuddyTab() {
         // Only update settings on initial load, not during polling
         if (includeSettings) {
           const s = data.settings || {};
-          setAuto9Router(s.auto_9router === "1" || s.auto_9router === true);
+          setAutoFSRouter(s.auto_fsrouter === "1" || s.auto_fsrouter === true);
           setBrowserHeadless(!!s.browser_headless);
           setDebugMode(!!s.debug_mode);
           setLeaveCanvaTeam(s.leave_canva_team === "1" || s.leave_canva_team === true);
@@ -292,7 +294,7 @@ function CodeBuddyTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "settings",
-          auto_9router: auto9Router,
+          auto_fsrouter: autoFSRouter,
           browser_headless: browserHeadless,
           debug_mode: debugMode,
           leave_canva_team: leaveCanvaTeam,
@@ -361,7 +363,7 @@ function CodeBuddyTab() {
           provider: targetProvider,
           run_now: true,
           concurrency,
-          domain: selectedAmmailDomain || undefined
+          domain: selectedFSMailDomain || undefined
         })
       });
       const data = await res.json();
@@ -435,12 +437,12 @@ function CodeBuddyTab() {
     }
   };
 
-  const handleSingleAddTo9Router = async (id) => {
+  const handleSingleAddToFSRouter = async (id) => {
     try {
       const res = await fetch(`/api/automation/codebuddy/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add-to-9router" })
+        body: JSON.stringify({ action: "add-to-fsrouter" })
       });
       const data = await res.json();
       if (res.ok) {
@@ -454,14 +456,14 @@ function CodeBuddyTab() {
     }
   };
 
-  const handleBulkAddTo9Router = async () => {
+  const handleBulkAddToFSRouter = async () => {
     const providerName = providerNames[targetProvider] || "CodeBuddy";
-    if (!confirm(`Inject all Ready ${providerName} accounts into 9router?`)) return;
+    if (!confirm(`Inject all Ready ${providerName} accounts into fsrouter?`)) return;
     try {
       const res = await fetch("/api/automation/codebuddy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "bulk-add-to-9router", provider: targetProvider })
+        body: JSON.stringify({ action: "bulk-add-to-fsrouter", provider: targetProvider })
       });
       const data = await res.json();
       if (res.ok) {
@@ -477,13 +479,13 @@ function CodeBuddyTab() {
 
   const handleSingleDelete = async (id) => {
     if (!confirm("Hapus akun ini?")) return;
-    const deleteFrom9router = confirm("Apakah ingin menghapus juga koneksi akun ini di 9router?");
+    const deleteFromfsrouter = confirm("Apakah ingin menghapus juga koneksi akun ini di fsrouter?");
     const deletedAcc = accounts.find(a => a.id === id);
     try {
       await fetch(`/api/automation/codebuddy/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", deleteFrom9router })
+        body: JSON.stringify({ action: "delete", deleteFromfsrouter })
       });
       if (deletedAcc) {
         clearedEmails.current.add(deletedAcc.email.toLowerCase());
@@ -498,7 +500,7 @@ function CodeBuddyTab() {
   const handleBulkDelete = async (statuses, ids = null) => {
     const label = ids ? `${ids.length} selected accounts` : `all accounts with status: ${statuses.join(", ")}`;
     if (!confirm(`Delete ${label}?`)) return;
-    const deleteFrom9router = confirm("Apakah ingin menghapus juga koneksi akun-akun tersebut di 9router?");
+    const deleteFromfsrouter = confirm("Apakah ingin menghapus juga koneksi akun-akun tersebut di fsrouter?");
     const deletedEmailsList = accounts
       .filter(a => ids ? ids.includes(a.id) : (a.provider === targetProvider && statuses.includes(a.api_key_status)))
       .map(a => a.email.toLowerCase());
@@ -507,8 +509,8 @@ function CodeBuddyTab() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ids
-          ? { action: "bulk-delete-ids", ids, provider: targetProvider, deleteFrom9router }
-          : { action: "bulk-delete", statuses, provider: targetProvider, deleteFrom9router })
+          ? { action: "bulk-delete-ids", ids, provider: targetProvider, deleteFromfsrouter }
+          : { action: "bulk-delete", statuses, provider: targetProvider, deleteFromfsrouter })
       });
       if (res.ok) {
         deletedEmailsList.forEach(e => clearedEmails.current.add(e));
@@ -566,11 +568,13 @@ function CodeBuddyTab() {
                 className="flex-1 text-xs p-2 rounded-lg border border-border-subtle bg-surface text-text-main focus:outline-none focus:border-primary cursor-pointer"
               >
                 <option value="cloudflare">☁️ Cloudflare Workers AI</option>
+                <option value="openvecta">🟣 OpenVecta</option>
+                <option value="flashloop">⚡ Flashloop</option>
               </select>
             </div>
           </div>
 
-          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare") && (
+          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop") && (
             <div className="pt-1 border-t border-border-subtle">
               <label className="flex items-center gap-2 text-xs text-text-main cursor-pointer">
                 <input
@@ -579,12 +583,12 @@ function CodeBuddyTab() {
                   onChange={(e) => setAutoGenerateEmail(e.target.checked)}
                   className="rounded border-border-subtle accent-primary size-4"
                 />
-                Auto Generate Email (Ammail)
+                Auto Generate Email (FSMail)
               </label>
             </div>
           )}
 
-          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare") && autoGenerateEmail ? (
+          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop") && autoGenerateEmail ? (
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-text-muted">Count to generate:</span>
@@ -601,8 +605,8 @@ function CodeBuddyTab() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-text-muted">Email domain:</span>
                   <select
-                    value={selectedAmmailDomain}
-                    onChange={(e) => setSelectedAmmailDomain(e.target.value)}
+                    value={selectedFSMailDomain}
+                    onChange={(e) => setSelectedFSMailDomain(e.target.value)}
                     className="flex-1 text-xs p-1.5 rounded-lg border border-border-subtle bg-surface text-text-main ml-2 max-w-[180px]"
                   >
                     {ammailDomains.map(d => (
@@ -673,8 +677,8 @@ function CodeBuddyTab() {
                     <Toggle checked={debugMode} onChange={setDebugMode} />
                   </div>
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-xs font-medium text-text-main">Auto Inject to 9router</span>
-                    <Toggle checked={auto9Router} onChange={setAuto9Router} />
+                    <span className="text-xs font-medium text-text-main">Auto Inject to fsrouter</span>
+                    <Toggle checked={autoFSRouter} onChange={setAutoFSRouter} />
                   </div>
                 </div>
               )}
@@ -828,8 +832,8 @@ function CodeBuddyTab() {
               </div>
             </div>
             {/* Log entries — compact scrollable */}
-            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/40 border border-border/40 text-[11px] font-mono">
-              <table className="w-full">
+            <div className="max-h-96 overflow-y-auto overflow-x-auto rounded-lg bg-black/40 border border-border/40 text-[11px] font-mono">
+              <table className="w-full min-w-[540px]">
                 <thead className="sticky top-0 bg-black/80 backdrop-blur-sm">
                   <tr className="text-text-muted text-left">
                     <th className="px-2 py-1 w-6">#</th>
@@ -966,8 +970,8 @@ function CodeBuddyTab() {
               <Button variant="primary" size="sm" onClick={handleRunAll} disabled={!!activeJobId}>
                 Run All Pending
               </Button>
-              <Button variant="secondary" size="sm" onClick={handleBulkAddTo9Router}>
-                ⚡ Add All Ready → 9router
+              <Button variant="secondary" size="sm" onClick={handleBulkAddToFSRouter}>
+                ⚡ Add All Ready → fsrouter
               </Button>
               <Button variant="danger" size="sm" onClick={() => handleBulkDelete(["pending", "failed"])}>
                 🗑 Delete Pending/Failed
@@ -1001,8 +1005,8 @@ function CodeBuddyTab() {
             </div>
           )}
 
-          <div className="rounded-xl border border-border-subtle bg-surface-2">
-            <table className="w-full text-xs text-left border-collapse">
+          <div className="rounded-xl border border-border-subtle bg-surface-2 overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-surface text-text-muted border-b border-border-subtle font-semibold">
                   <th className="p-2.5 w-8">
@@ -1048,7 +1052,7 @@ function CodeBuddyTab() {
                       />
                     </td>
                     <td className="p-2.5 font-mono text-text-muted">#{a.id}</td>
-                    <td className="p-2.5 font-semibold text-text-main truncate max-w-[200px]" title={a.email}>{a.email}</td>
+                    <td className="p-2.5 font-semibold text-text-main truncate max-w-[100px] sm:max-w-[140px] sm:max-w-[200px]" title={a.email}>{a.email}</td>
                     <td className="p-2.5">
                       <Badge
                         variant={
@@ -1072,7 +1076,7 @@ function CodeBuddyTab() {
                     </td>
                     <td className="p-2.5">
                       {a.api_key ? (
-                        <code className="bg-surface px-1.5 py-0.5 rounded font-mono text-[10px] text-text-main max-w-[140px] block truncate" title={a.api_key}>
+                        <code className="bg-surface px-1.5 py-0.5 rounded font-mono text-[10px] text-text-main max-w-[100px] sm:max-w-[140px] block truncate" title={a.api_key}>
                           {a.api_key}
                         </code>
                       ) : (
@@ -1095,11 +1099,11 @@ function CodeBuddyTab() {
                         </button>
                         {a.api_key_status === "ready" && a.api_key && (
                           <button
-                            onClick={() => handleSingleAddTo9Router(a.id)}
+                            onClick={() => handleSingleAddToFSRouter(a.id)}
                             className="inline-flex items-center gap-0.5 text-[11px] font-bold text-green-400 hover:text-green-300 hover:underline transition-all cursor-pointer"
                           >
                             <span className="material-symbols-outlined text-[13px]">add_link</span>
-                            +9router
+                            +fsrouter
                           </button>
                         )}
                         <button
@@ -1280,7 +1284,7 @@ function CodeBuddyTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 2. AMMAIL COMPONENT
+// 2. FSMAIL COMPONENT
 // ─────────────────────────────────────────────────────────────────────
 
 function getInjectedHtml(html) {
@@ -1313,7 +1317,7 @@ function getInjectedHtml(html) {
   return styleInject + html;
 }
 
-function AmmailTab() {
+function FSMailTab() {
   const [loading, setLoading] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -1694,9 +1698,9 @@ function AmmailTab() {
             <span className="material-symbols-outlined text-[32px]">mail_lock</span>
           </div>
           <div>
-            <h3 className="text-base font-semibold text-text-main">Ammail Client Not Configured</h3>
+            <h3 className="text-base font-semibold text-text-main">FSMail Client Not Configured</h3>
             <p className="text-xs text-text-muted mt-1 max-w-sm">
-              Please enter your Ammail Cloudflare worker credentials and endpoint in settings to enable temp emails.
+              Please enter your FSMail Cloudflare worker credentials and endpoint in settings to enable temp emails.
             </p>
           </div>
           <Button variant="primary" onClick={() => setShowSettingsModal(true)}>
@@ -2187,7 +2191,7 @@ function AmmailTab() {
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-md text-white max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex justify-between items-center p-5 border-b border-white/5 shrink-0">
-              <h3 className="text-base font-bold">Ammail Settings</h3>
+              <h3 className="text-base font-bold">FSMail Settings</h3>
               <button onClick={() => setShowSettingsModal(false)} className="text-white/60 hover:text-white cursor-pointer flex items-center">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
@@ -2413,7 +2417,7 @@ function AmmailTab() {
 
               <div className="space-y-3 pt-2 border-t border-white/5 shrink-0">
                 <a
-                  href="/dashboard/automation/ammail-tutorial"
+                  href="/dashboard/automation/fsmail-tutorial"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2 rounded-lg bg-neutral-900 border border-primary/20 hover:border-primary/50 text-primary text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
@@ -2425,7 +2429,7 @@ function AmmailTab() {
                   <summary className="list-none flex items-center justify-between p-3 cursor-pointer select-none text-[11px] font-semibold text-white/80 hover:text-white transition-colors">
                     <span className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[16px] text-primary">help</span>
-                      Cara Setup Temp Mail (Ammail)
+                      Cara Setup Temp Mail (FSMail)
                     </span>
                     <span className="material-symbols-outlined text-[16px] transition-transform group-open:rotate-180">
                       expand_more
@@ -2433,11 +2437,11 @@ function AmmailTab() {
                   </summary>
                   <div className="p-3 pt-0 border-t border-white/5 text-[11px] text-white/70 space-y-2 leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">
                     <p className="mt-2">
-                      Ammail adalah sistem email sementara berbasis <strong>Cloudflare Worker</strong>. Ikuti langkah berikut untuk mengaturnya:
+                      FSMail adalah sistem email sementara berbasis <strong>Cloudflare Worker</strong>. Ikuti langkah berikut untuk mengaturnya:
                     </p>
                     <ol className="list-decimal list-inside space-y-1.5 text-white/60">
                       <li>
-                        <strong className="text-white/80">Deploy Worker:</strong> Deploy kode worker Ammail di akun Cloudflare Anda.
+                        <strong className="text-white/80">Deploy Worker:</strong> Deploy kode worker FSMail di akun Cloudflare Anda.
                       </li>
                       <li>
                         <strong className="text-white/80">Set API Key:</strong> Pada dashboard Worker Anda, tambahkan Environment Variable <code className="bg-white/10 px-1 py-0.5 rounded font-mono text-amber-300">API_KEY</code> dengan nilai token rahasia Anda.
@@ -2510,8 +2514,8 @@ function AmmailTab() {
                   Masuk ke direktori tempmail lokal di sistem Anda dan install dependensi NPM:
                 </p>
                 <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg border border-white/10 font-mono text-xs text-amber-300">
-                  <span>cd /home/data/Project/9router/tempmail && npm install</span>
-                  <CopyButton value="cd /home/data/Project/9router/tempmail && npm install" />
+                  <span>cd /home/data/Project/fsrouter/tempmail && npm install</span>
+                  <CopyButton value="cd /home/data/Project/fsrouter/tempmail && npm install" />
                 </div>
               </div>
 
@@ -2530,7 +2534,7 @@ function AmmailTab() {
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300 flex items-start gap-2">
                   <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">info</span>
                   <span>
-                    Salin <strong>database_id</strong> hasil output perintah di atas, lalu buka file <a href="file:///home/data/Project/9router/tempmail/wrangler.jsonc" className="underline font-semibold hover:text-blue-200">wrangler.jsonc</a> dan ganti nilai <code>database_id</code> di dalamnya.
+                    Salin <strong>database_id</strong> hasil output perintah di atas, lalu buka file <a href="file:///home/data/Project/fsrouter/tempmail/wrangler.jsonc" className="underline font-semibold hover:text-blue-200">wrangler.jsonc</a> dan ganti nilai <code>database_id</code> di dalamnya.
                   </span>
                 </div>
               </div>
@@ -2575,7 +2579,7 @@ function AmmailTab() {
                   Konfigurasi `wrangler.jsonc` & Deploy
                 </h4>
                 <p className="mb-2">
-                  Sesuaikan nilai di bagian <code>vars</code> (domain dan base URL) pada file <a href="file:///home/data/Project/9router/tempmail/wrangler.jsonc" className="underline font-semibold hover:text-white">wrangler.jsonc</a>, lalu deploy worker:
+                  Sesuaikan nilai di bagian <code>vars</code> (domain dan base URL) pada file <a href="file:///home/data/Project/fsrouter/tempmail/wrangler.jsonc" className="underline font-semibold hover:text-white">wrangler.jsonc</a>, lalu deploy worker:
                 </p>
                 <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg border border-white/10 font-mono text-xs text-amber-300">
                   <span>npm run deploy</span>

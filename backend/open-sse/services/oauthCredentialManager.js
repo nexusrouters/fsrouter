@@ -3,8 +3,10 @@ import {
   isUnrecoverableRefreshError,
   refreshTokenByProvider,
 } from "./tokenRefresh.js";
+import { PROVIDER_OAUTH } from "../providers/index.js";
 
-export const CODEX_MAX_REFRESH_AGE_MS = 8 * 24 * 60 * 60 * 1000;
+// Single source: codex.oauth.maxRefreshAgeMs (8 days) — proactive refresh window
+export const CODEX_MAX_REFRESH_AGE_MS = PROVIDER_OAUTH["codex"]?.maxRefreshAgeMs;
 
 const refreshLocks = new Map();
 
@@ -24,25 +26,7 @@ function toExpiresAt(expiresIn, nowMs = Date.now()) {
 }
 
 export function getCredentialExpiryMs(credentials) {
-  const explicit = parseTimeMs(credentials?.expiresAt ?? credentials?.tokenExpiresAt);
-  if (explicit !== null) return explicit;
-
-  const token = credentials?.accessToken ?? credentials?.token;
-  if (typeof token === "string") {
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) {
-        const payloadStr = parts[1];
-        const base64 = payloadStr.replace(/-/g, "+").replace(/_/g, "/");
-        const jsonPayload = Buffer.from(base64, "base64").toString("utf8");
-        const payload = JSON.parse(jsonPayload);
-        if (payload && typeof payload.exp === "number") {
-          return payload.exp * 1000;
-        }
-      }
-    } catch {}
-  }
-  return null;
+  return parseTimeMs(credentials?.expiresAt ?? credentials?.tokenExpiresAt);
 }
 
 export function getCredentialLastRefreshMs(credentials) {
@@ -53,28 +37,22 @@ export function getCredentialLastRefreshMs(credentials) {
   );
 }
 
-export function isCodexRefreshStale(credentials, nowMs = Date.now()) {
+export function isCodexRefreshStale(credentials, nowMs = Date.now(), maxAgeMs = CODEX_MAX_REFRESH_AGE_MS) {
   const lastRefreshMs = getCredentialLastRefreshMs(credentials);
-  return !lastRefreshMs || nowMs - lastRefreshMs >= CODEX_MAX_REFRESH_AGE_MS;
+  return !lastRefreshMs || nowMs - lastRefreshMs >= maxAgeMs;
 }
 
 export function shouldRefreshCredentials(provider, credentials, nowMs = Date.now()) {
   if (!credentials) return false;
-
-  if (provider === "leonardo") {
-    const expiresAtMs = getCredentialExpiryMs(credentials);
-    // Proactive refresh if expires in less than 5 minutes or no token
-    if (!expiresAtMs || expiresAtMs - nowMs < 5 * 60 * 1000) {
-      return true;
-    }
-  }
 
   const expiresAtMs = getCredentialExpiryMs(credentials);
   if (expiresAtMs !== null && expiresAtMs - nowMs < getRefreshLeadMs(provider)) {
     return true;
   }
 
-  if (provider === "codex" && credentials.refreshToken && isCodexRefreshStale(credentials, nowMs)) {
+  // Proactive stale refresh for providers declaring oauth.maxRefreshAgeMs (e.g. codex)
+  const maxAgeMs = PROVIDER_OAUTH[provider]?.maxRefreshAgeMs;
+  if (maxAgeMs && credentials.refreshToken && isCodexRefreshStale(credentials, nowMs, maxAgeMs)) {
     return true;
   }
 
@@ -127,8 +105,9 @@ export function mergeRefreshedCredentials(provider, currentCredentials, refreshe
     next.copilotTokenExpiresAt = refreshedCredentials.copilotTokenExpiresAt;
   }
 
+  // trackRefreshAt providers (e.g. codex) always stamp lastRefreshAt for staleness tracking
   if (
-    provider === "codex" ||
+    PROVIDER_OAUTH[provider]?.trackRefreshAt ||
     next.accessToken ||
     next.apiKey ||
     next.token ||

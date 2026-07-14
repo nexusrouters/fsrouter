@@ -1,7 +1,9 @@
 import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { OAUTH_ENDPOINTS, ANTIGRAVITY_HEADERS, INTERNAL_REQUEST_HEADER, AG_DEFAULT_TOOLS, AG_TOOL_SUFFIX } from "../config/appConstants.js";
+import { OAUTH_ENDPOINTS, INTERNAL_REQUEST_HEADER, AG_DEFAULT_TOOLS, AG_TOOL_SUFFIX } from "../config/appConstants.js";
+import { resolveAntigravityVersion } from "../services/antigravityVersion.js";
+import { antigravityUserAgent } from "../services/antigravityHeaders.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { deriveSessionId } from "../utils/sessionManager.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
@@ -34,7 +36,7 @@ export class AntigravityExecutor extends BaseExecutor {
     return {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${credentials.accessToken}`,
-      "User-Agent": this.config.headers?.["User-Agent"] || ANTIGRAVITY_HEADERS["User-Agent"],
+      "User-Agent": this.config.headers?.["User-Agent"] || antigravityUserAgent(),
       [INTERNAL_REQUEST_HEADER.name]: INTERNAL_REQUEST_HEADER.value,
       ...(sessionId && { "X-Machine-Session-Id": sessionId }),
       "Accept": stream ? "text/event-stream" : "application/json"
@@ -243,6 +245,11 @@ export class AntigravityExecutor extends BaseExecutor {
   }
 
   async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+    // Warm up/resolve version cache
+    try {
+      await resolveAntigravityVersion().catch(() => {});
+    } catch {}
+
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
@@ -277,15 +284,8 @@ export class AntigravityExecutor extends BaseExecutor {
         const isRateLimited = response.status === HTTP_STATUS.RATE_LIMITED;
 
         if (isRateLimited || isForbiddenQuota) {
-          const bodyText = await response.text();
-          const errorInfo = this.parseError(response, bodyText);
-          
-          // Return immediately to allow account rotation in the outer loop (chat.js)
-          return {
-            status: errorInfo.status,
-            message: errorInfo.message,
-            resetsAtMs: errorInfo.resetsAtMs
-          };
+          // Return immediately to allow account rotation in the outer loop (chat.js) without testing other fallback URLs
+          return { response, url, headers, transformedBody };
         }
 
         if (response.status === HTTP_STATUS.SERVICE_UNAVAILABLE) {

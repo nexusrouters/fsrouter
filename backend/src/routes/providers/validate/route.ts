@@ -575,8 +575,17 @@ export async function POST_handler(req, res) {
             }),
           });
           if (res.status === 401 || res.status === 403) {
-            isValid = false;
-            error = "Invalid session cookie — re-paste __Secure-next-auth.session-token from perplexity.ai";
+            // Cloudflare challenge pages (403 + HTML with "Just a moment") block server-side requests
+            // regardless of key validity — check for CF challenge before marking invalid.
+            const text = await res.text().catch(() => "");
+            const isCfChallenge = text.includes("Just a moment") || text.includes("challenge-platform") || text.includes("_cf_chl_opt");
+            if (isCfChallenge && sessionToken.length > 20) {
+              // Can't verify server-side due to Cloudflare bot protection — accept token format check
+              isValid = true;
+            } else {
+              isValid = false;
+              error = "Invalid session cookie — re-paste __Secure-next-auth.session-token from perplexity.ai";
+            }
           } else {
             isValid = true;
           }

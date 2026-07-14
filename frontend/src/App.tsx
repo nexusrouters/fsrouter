@@ -30,7 +30,13 @@ const MediaProviderKind  = lazy(() => import("./pages/media-providers/[kind]/pag
 const MediaProviderKindId = lazy(() => import("./pages/media-providers/[kind]/[id]/page"));
 const MediaProviderComboDetail = lazy(() => import("./pages/media-providers/combo/[id]/page"));
 const WeavyPool          = lazy(() => import("./pages/providers/weavy/pool/page"));
-const AmmailTutorial     = lazy(() => import("./pages/automation/ammail-tutorial/page"));
+const FSMailTutorial     = lazy(() => import("./pages/automation/fsmail-tutorial/page"));
+const SearchPage         = lazy(() => import("./pages/search/page"));
+const ModerationsPage    = lazy(() => import("./pages/moderations/page"));
+const RerankPage         = lazy(() => import("./pages/rerank/page"));
+const OcrPage            = lazy(() => import("./pages/ocr/page"));
+const WebFetchPage       = lazy(() => import("./pages/webfetch/page"));
+const AudioPage          = lazy(() => import("./pages/audio/page"));
 
 // Auth guard — verifies session with backend on every mount
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -105,7 +111,7 @@ export default function App() {
             <Route path="cli-tools"       element={<CliTools />} />
             <Route path="cli-tools/:toolId" element={<CliToolDetail />} />
             <Route path="automation"      element={<Automation />} />
-            <Route path="automation/ammail-tutorial" element={<AmmailTutorial />} />
+            <Route path="automation/fsmail-tutorial" element={<FSMailTutorial />} />
             <Route path="basic-chat"      element={<BasicChat />} />
             <Route path="mitm"            element={<Mitm />} />
             <Route path="profile"         element={<Profile />} />
@@ -116,6 +122,12 @@ export default function App() {
             <Route path="media-providers/:kind" element={<MediaProviderKind />} />
             <Route path="media-providers/:kind/:id" element={<MediaProviderKindId />} />
             <Route path="media-providers/combo/:id" element={<MediaProviderComboDetail />} />
+            <Route path="search"           element={<SearchPage />} />
+            <Route path="moderations"      element={<ModerationsPage />} />
+            <Route path="rerank"           element={<RerankPage />} />
+            <Route path="ocr"              element={<OcrPage />} />
+            <Route path="webfetch"         element={<WebFetchPage />} />
+            <Route path="audio"            element={<AudioPage />} />
           </Route>
 
           {/* Fallback */}

@@ -12,4 +12,4 @@ async function intercept(req, res) {
   }));
 }
 
-module.exports = { intercept };
+export { intercept };

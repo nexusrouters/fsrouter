@@ -243,7 +243,7 @@ export async function POST_handler(req, res) {
         CLOUDFLARE_API_TOKEN: cf_api_token,
         CLOUDFLARE_ACCOUNT_ID: cf_account_id,
       };
-      const cwd = "/home/data/Project/9router/tempmail";
+      const cwd = "/root/tempmail";
 
       try {
         // 1. Resolve D1 database
@@ -293,11 +293,13 @@ export async function POST_handler(req, res) {
           emailDomain = parts.slice(-2).join(".");
         }
 
+        const generatedApiKey = "tm_" + crypto.randomBytes(16).toString("hex");
+
         // 2. Tulis wrangler.jsonc
         const wranglerConfig = {
           "$schema": "./node_modules/wrangler/config-schema.json",
           "name": "tempmail-9router",
-          "main": "src/index.js",
+          "main": "src/index.ts",
           "compatibility_date": "2026-04-10",
           "workers_dev": true,
           "routes": [
@@ -326,7 +328,8 @@ export async function POST_handler(req, res) {
             "ADMIN_CONTACT": "@pixelnest_admin",
             "INBOX_TTL_HOURS": "24",
             "MAX_BODY_CHARS": "100000",
-            "AUTO_DELETE_EXPIRED": "true"
+            "AUTO_DELETE_EXPIRED": "true",
+            "API_KEY": generatedApiKey
           },
           "d1_databases": [
             {
@@ -342,7 +345,7 @@ export async function POST_handler(req, res) {
         await execAsync("echo 'y' | npx wrangler d1 migrations apply tempmail-9router --remote", { env: execEnv, cwd });
 
         // 4. Buat system API key untuk 9router
-        const generatedApiKey = "tm_" + crypto.randomBytes(16).toString("hex");
+        // (already handled above)
         const sqlCommand = `
           INSERT OR IGNORE INTO chats (chat_id, username, first_name, last_name, created_at, updated_at)
           VALUES ('9router', '9router_admin', '9Router', 'Admin', datetime('now'), datetime('now'));
@@ -423,12 +426,22 @@ export async function POST_handler(req, res) {
       return res.status(400).json({ error: "Ammail belum dikonfigurasi." });
     }
 
+    // ── Action: Test Connection ──────────────────────────────────────
+    if (action === "test-connection") {
+      try {
+        await client.listInboxes();
+        return res.json({ ok: true });
+      } catch (e) {
+        return res.status(502).json({ error: e.message || String(e) });
+      }
+    }
+
     // ── Action: Create Inbox ─────────────────────────────────────────
     if (action === "inbox-create") {
       const { alias, domain } = body;
       try {
-        const res = await client.createInbox(alias, domain);
-        return res.json({ ok: true, inbox: res.inbox });
+        const inboxData = await client.createInbox(alias, domain);
+        return res.json({ ok: true, inbox: inboxData });
       } catch (e) {
         return res.status(502).json({ error: e.message || String(e) });
       }
@@ -464,8 +477,8 @@ export async function POST_handler(req, res) {
     // ── Action: Webhook Test ─────────────────────────────────────────
     if (action === "webhook-test") {
       try {
-        const res = await client.testWebhook();
-        return res.json({ ok: true, result: res });
+        const testRes = await client.testWebhook();
+        return res.json({ ok: true, result: testRes });
       } catch (e) {
         return res.status(502).json({ error: e.message || String(e) });
       }

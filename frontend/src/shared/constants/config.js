@@ -2,7 +2,7 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "AMRouter",
+  name: "FSRouter",
   description: "AI Infrastructure Management",
   version: pkg.version,
 };
@@ -10,14 +10,14 @@ export const APP_CONFIG = {
 // GitHub configuration
 export const GITHUB_CONFIG = {
   changelogUrl: "/CHANGELOG.md",
-  donateUrl: "https://9router.com/api/donate",
+  donateUrl: "https://fsrouter.com/api/donate",
 };
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  npmPackageName: "amrouter",
-  installCmd: "npm i -g amrouter",
-  installCmdLatest: "npm i -g amrouter@latest --prefer-online",
+  npmPackageName: "fsrouter",
+  installCmd: "npm i -g fsrouter",
+  installCmdLatest: "npm i -g fsrouter@latest --prefer-online",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

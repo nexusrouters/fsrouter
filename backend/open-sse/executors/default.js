@@ -1,6 +1,6 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { OAUTH_ENDPOINTS, buildKimiHeaders } from "../config/appConstants.js";
+import { OAUTH_ENDPOINTS, buildKimiHeaders, getKimchiVersionSync } from "../config/appConstants.js";
 import { buildClineHeaders } from "../../src/shared/utils/clineAuth.js";
 import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
@@ -202,6 +202,10 @@ export class DefaultExecutor extends BaseExecutor {
       case "kimi-coding":
         headers["Authorization"] = `Bearer ${credentials.apiKey || credentials.accessToken}`;
         Object.assign(headers, buildKimiHeaders());
+        break;
+      case "kimchi":
+        headers["Authorization"] = `Bearer ${credentials.apiKey || credentials.accessToken}`;
+        headers["User-Agent"] = `kimchi/${getKimchiVersionSync()}`;
         break;
       default:
         if (this.provider?.startsWith?.("anthropic-compatible-")) {

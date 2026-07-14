@@ -1,0 +1,469 @@
+import { appendToolCallArgumentDelta } from "../utils/toolCallArguments.js";
+import { sanitizeErrorMessage } from "../utils/error.js";
+
+/**
+ * Extract a provider error message from a buffered SSE stream that carries an
+ * error-only chunk (`data: {"error":...}`) and no content chunks.
+ */
+export function extractSSEErrorMessage(rawSSE) {
+  const lines = String(rawSSE || "").split("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const record = parsed;
+
+    if (Array.isArray(record.choices)) continue;
+
+    const err = record.error;
+    if (err == null) continue;
+
+    let message = "";
+    if (typeof err === "string") {
+      message = err;
+    } else if (typeof err === "object" && !Array.isArray(err)) {
+      const errRecord = err;
+      if (typeof errRecord.message === "string") {
+        message = errRecord.message;
+      } else {
+        message = JSON.stringify(err);
+      }
+    } else {
+      message = String(err);
+    }
+
+    const sanitized = sanitizeErrorMessage(message);
+    if (sanitized) return sanitized;
+  }
+
+  return null;
+}
+
+/**
+ * Convert OpenAI-style SSE chunks into a single non-streaming JSON response.
+ * Used as a fallback when upstream returns text/event-stream for stream=false.
+ */
+function readSSEEvents(rawSSE) {
+  const lines = String(rawSSE || "").split("\n");
+  const events = [];
+  let currentEvent = "";
+  let currentData = [];
+
+  const flush = () => {
+    if (currentData.length === 0) {
+      currentEvent = "";
+      return;
+    }
+
+    const payload = currentData.join("\n").trim();
+    currentData = [];
+    if (!payload || payload === "[DONE]") {
+      currentEvent = "";
+      return;
+    }
+
+    try {
+      const data = JSON.parse(payload);
+      if (
+        currentEvent &&
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        typeof data.type !== "string"
+      ) {
+        data.type = currentEvent;
+      }
+      events.push({
+        event: currentEvent || undefined,
+        data,
+      });
+    } catch {
+      // Ignore malformed SSE events and continue best-effort parsing.
+    }
+
+    currentEvent = "";
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, "");
+    if (line.trim() === "") {
+      flush();
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      if (currentData.length > 0) flush();
+      currentEvent = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      const dataLine = line.slice(5).trimStart();
+      if (dataLine.trim() === "[DONE]") {
+        flush();
+        currentEvent = "";
+        continue;
+      }
+      currentData.push(dataLine);
+    }
+  }
+
+  flush();
+  return events;
+}
+
+function toRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function toString(value, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function toNumber(value, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+export function parseSSEToOpenAIResponse(rawSSE, fallbackModel) {
+  const lines = String(rawSSE || "").split("\n");
+  const chunks = [];
+  let sawChoices = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(payload);
+      if (Array.isArray(parsed?.choices)) {
+        sawChoices = true;
+      }
+      chunks.push(parsed);
+    } catch {
+      // Ignore malformed SSE lines and continue best-effort parsing.
+    }
+  }
+
+  if (chunks.length === 0 || !sawChoices) return null;
+
+  const first = chunks[0];
+  const contentParts = [];
+  const reasoningParts = [];
+
+  const accumulatedToolCalls = new Map();
+  let unknownToolCallSeq = 0;
+  let finishReason = "stop";
+  let usage = null;
+
+  const getToolCallKey = (toolCall) => {
+    if (Number.isInteger(toolCall?.index)) return `idx:${toolCall.index}`;
+    if (toolCall?.id != null) return `id:${String(toolCall.id)}`;
+    unknownToolCallSeq += 1;
+    return `seq:${unknownToolCallSeq}`;
+  };
+
+  for (const chunk of chunks) {
+    const choice = chunk?.choices?.[0];
+    const delta = choice?.delta || {};
+
+    if (typeof delta.content === "string" && delta.content.length > 0) {
+      contentParts.push(delta.content);
+    }
+    if (typeof delta.reasoning_content === "string" && delta.reasoning_content.length > 0) {
+      reasoningParts.push(delta.reasoning_content);
+    }
+    if (
+      typeof delta.reasoning === "string" &&
+      delta.reasoning.length > 0 &&
+      !delta.reasoning_content
+    ) {
+      reasoningParts.push(delta.reasoning);
+    }
+
+    // T18: Accumulate tool calls correctly across streamed chunks
+    if (delta.tool_calls) {
+      for (const tc of delta.tool_calls) {
+        const key = getToolCallKey(tc);
+        const existing = accumulatedToolCalls.get(key);
+        const deltaArgs = typeof tc?.function?.arguments === "string" ? tc.function.arguments : "";
+
+        if (!existing) {
+          accumulatedToolCalls.set(key, {
+            id: tc?.id != null ? String(tc.id) : null,
+            index: Number.isInteger(tc?.index) ? tc.index : accumulatedToolCalls.size,
+            type: tc?.type || "function",
+            function: {
+              name: tc?.function?.name || "unknown",
+              arguments: deltaArgs,
+            },
+          });
+        } else {
+          existing.id = existing.id || (tc?.id != null ? String(tc.id) : null);
+          if (!Number.isInteger(existing.index) && Number.isInteger(tc?.index)) {
+            existing.index = tc.index;
+          }
+          if (tc?.function?.name && !existing.function?.name) {
+            existing.function = existing.function || {};
+            existing.function.name = tc.function.name;
+          }
+          existing.function = existing.function || {};
+          existing.function.arguments = appendToolCallArgumentDelta(
+            existing.function.arguments,
+            deltaArgs
+          );
+          accumulatedToolCalls.set(key, existing);
+        }
+      }
+    }
+
+    if (choice?.finish_reason) {
+      finishReason = choice.finish_reason;
+    }
+    if (chunk?.usage && typeof chunk.usage === "object") {
+      usage = chunk.usage;
+    }
+  }
+
+  const joinedContent = contentParts.length > 0 ? contentParts.join("").trim() : "";
+  const joinedReasoning = reasoningParts.length > 0 ? reasoningParts.join("").trim() : null;
+  const message = {
+    role: "assistant",
+    content: joinedContent,
+  };
+  if (joinedReasoning) {
+    message.reasoning_content = joinedReasoning;
+  }
+
+  const finalToolCalls = [...accumulatedToolCalls.values()].filter(Boolean).sort((a, b) => {
+    const ai = Number.isInteger(a?.index) ? a.index : 0;
+    const bi = Number.isInteger(b?.index) ? b.index : 0;
+    return ai - bi;
+  });
+  if (finalToolCalls.length > 0) {
+    finishReason = "tool_calls";
+    message.tool_calls = finalToolCalls;
+  }
+
+  const result = {
+    id: first.id != null ? String(first.id) : `chatcmpl-${Date.now()}`,
+    object: "chat.completion",
+    created: first.created || Math.floor(Date.now() / 1000),
+    model: first.model || fallbackModel || "unknown",
+    choices: [
+      {
+        index: 0,
+        message,
+        finish_reason: finishReason,
+      },
+    ],
+  };
+
+  if (usage) {
+    result.usage = usage;
+  }
+
+  return result;
+}
+
+/**
+ * Convert Claude-style SSE events into a single non-streaming message object.
+ * Used when Claude-compatible upstreams stream even for stream=false.
+ */
+export function parseSSEToClaudeResponse(rawSSE, fallbackModel) {
+  const payloads = readSSEEvents(rawSSE)
+    .map((event) => toRecord(event.data))
+    .filter((payload) => Object.keys(payload).length > 0);
+
+  if (payloads.length === 0) return null;
+
+  const blocks = new Map();
+  const usage = {};
+  let messageId = "";
+  let model = fallbackModel || "claude";
+  let role = "assistant";
+  let stopReason = "end_turn";
+  let stopSequence = null;
+  let sawClaudeEvent = false;
+
+  const mergeUsage = (incoming) => {
+    const usageRecord = toRecord(incoming);
+    for (const [key, value] of Object.entries(usageRecord)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        usage[key] = value;
+      } else if (value && typeof value === "object" && !Array.isArray(value)) {
+        usage[key] = { ...toRecord(usage[key]), ...toRecord(value) };
+      } else if (typeof value === "string" && value.trim().length > 0) {
+        usage[key] = value;
+      }
+    }
+  };
+
+  const tryParseJson = (raw) => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  };
+
+  for (const payload of payloads) {
+    const eventType = toString(payload.type);
+    if (eventType === "message_start") {
+      sawClaudeEvent = true;
+      const message = toRecord(payload.message);
+      messageId = toString(message.id, messageId || `msg_${Date.now()}`);
+      model = toString(message.model, model);
+      role = toString(message.role, role);
+      mergeUsage(message.usage);
+      continue;
+    }
+
+    if (eventType === "content_block_start") {
+      sawClaudeEvent = true;
+      const index = toNumber(payload.index, blocks.size);
+      const contentBlock = toRecord(payload.content_block);
+      const blockType = toString(contentBlock.type);
+
+      if (blockType === "thinking") {
+        blocks.set(index, {
+          type: "thinking",
+          index,
+          thinking: toString(contentBlock.thinking),
+          signature: toString(contentBlock.signature) || undefined,
+        });
+      } else if (blockType === "tool_use") {
+        blocks.set(index, {
+          type: "tool_use",
+          index,
+          id: toString(contentBlock.id, `toolu_${Date.now()}_${index}`),
+          name: toString(contentBlock.name),
+          input: contentBlock.input ?? {},
+          inputJson: "",
+        });
+      } else {
+        blocks.set(index, {
+          type: "text",
+          index,
+          text: toString(contentBlock.text),
+        });
+      }
+      continue;
+    }
+
+    if (eventType === "content_block_delta") {
+      sawClaudeEvent = true;
+      const index = toNumber(payload.index, 0);
+      const delta = toRecord(payload.delta);
+      const deltaType = toString(delta.type);
+      const existing = blocks.get(index);
+
+      if (deltaType === "input_json_delta") {
+        const toolUse =
+          existing && existing.type === "tool_use"
+            ? existing
+            : {
+                type: "tool_use",
+                index,
+                id: `toolu_${Date.now()}_${index}`,
+                name: "",
+                input: {},
+                inputJson: "",
+              };
+        toolUse.inputJson += toString(delta.partial_json);
+        blocks.set(index, toolUse);
+        continue;
+      }
+
+      const isThinkingDelta = deltaType === "thinking_delta" || typeof delta.thinking === "string";
+      const isSignatureDelta =
+        deltaType === "signature_delta" || typeof delta.signature === "string";
+      if (isThinkingDelta || isSignatureDelta) {
+        const thinking =
+          existing && existing.type === "thinking"
+            ? existing
+            : { type: "thinking", index, thinking: "", signature: undefined };
+        if (isThinkingDelta) thinking.thinking += toString(delta.thinking);
+        const signature = toString(delta.signature);
+        if (signature) thinking.signature = `${thinking.signature || ""}${signature}`;
+        blocks.set(index, thinking);
+        continue;
+      }
+
+      const textBlock =
+        existing && existing.type === "text"
+          ? existing
+          : {
+              type: "text",
+              index,
+              text: "",
+            };
+      textBlock.text += toString(delta.text);
+      blocks.set(index, textBlock);
+      continue;
+    }
+
+    if (eventType === "message_delta") {
+      sawClaudeEvent = true;
+      const delta = toRecord(payload.delta);
+      stopReason = toString(delta.stop_reason, stopReason);
+      stopSequence =
+        typeof delta.stop_sequence === "string" ? String(delta.stop_sequence) : stopSequence;
+      mergeUsage(payload.usage);
+      continue;
+    }
+
+    mergeUsage(payload.usage);
+  }
+
+  if (!sawClaudeEvent) return null;
+
+  const content = [];
+  for (const block of [...blocks.values()].sort((a, b) => a.index - b.index)) {
+    if (block.type === "text") {
+      if (block.text) content.push({ type: "text", text: block.text });
+      continue;
+    }
+    if (block.type === "thinking") {
+      const hasSignature = typeof block.signature === "string" && block.signature.length > 0;
+      if (block.thinking || hasSignature) {
+        content.push({
+          type: "thinking",
+          thinking: block.thinking || "",
+          ...(hasSignature ? { signature: block.signature } : {}),
+        });
+      }
+      continue;
+    }
+
+    const input = block.inputJson.trim().length > 0 ? tryParseJson(block.inputJson) : block.input;
+    content.push({ type: "tool_use", id: block.id, name: block.name, input });
+  }
+
+  return {
+    id: messageId || `msg_${Date.now()}`,
+    type: "message",
+    role,
+    model,
+    content,
+    stop_reason: stopReason,
+    ...(stopSequence ? { stop_sequence: stopSequence } : {}),
+    ...(Object.keys(usage).length > 0 ? { usage } : {}),
+  };
+}

@@ -27,6 +27,11 @@ function normalizeFormData(data = {}) {
 }
 
 export default function ProxyPoolsPage() {
+  const [combos, setCombos] = useState([]);
+  const [showComboModal, setShowComboModal] = useState(false);
+  const [comboName, setComboName] = useState("");
+  const [comboPoolIds, setComboPoolIds] = useState([]);
+  const [editingCombo, setEditingCombo] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFormModal, setShowFormModal] = useState(false);
@@ -79,9 +84,18 @@ export default function ProxyPoolsPage() {
     }
   }, []);
 
+  const fetchCombos = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy-combos", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) setCombos(data.combos || []);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchProxyPools();
-  }, [fetchProxyPools]);
+    fetchCombos();
+  }, [fetchProxyPools, fetchCombos]);
 
   const resetForm = () => {
     setEditingProxyPool(null);
@@ -571,6 +585,27 @@ export default function ProxyPoolsPage() {
     );
   }
 
+  const saveCombo = async () => {
+    if (!comboName.trim() || comboPoolIds.length === 0) return;
+    const method = editingCombo ? "PUT" : "POST";
+    const body = editingCombo
+      ? { id: editingCombo.id, name: comboName, poolIds: comboPoolIds }
+      : { name: comboName, poolIds: comboPoolIds };
+    await fetch("/api/proxy-combos", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setShowComboModal(false);
+    setComboName("");
+    setComboPoolIds([]);
+    setEditingCombo(null);
+    fetchCombos();
+  };
+
+  const deleteCombo = async (id) => {
+    await fetch("/api/proxy-combos", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    fetchCombos();
+  };
+
+  const getPoolName = (id) => proxyPools.find(p => p.id === id)?.name || id.slice(0, 8);
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1044,6 +1079,85 @@ export default function ProxyPoolsPage() {
             <Button fullWidth variant="ghost" onClick={closeFormModal} disabled={saving}>
               Cancel
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Proxy Combos Section */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Proxy Combos</h2>
+            <p className="text-xs text-text-muted">Round-robin rotation across multiple pools</p>
+          </div>
+          <Button size="sm" icon="add" onClick={() => { setEditingCombo(null); setComboName(""); setComboPoolIds([]); setShowComboModal(true); }}>
+            Add Combo
+          </Button>
+        </div>
+        {combos.length === 0 ? (
+          <p className="text-sm text-text-muted py-4 text-center">No combos yet. Create one to rotate proxies automatically.</p>
+        ) : (
+          <div className="space-y-2">
+            {combos.map((c) => (
+              <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border-subtle bg-surface hover:bg-surface/50">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm text-text-main">{c.name}</p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {(c.poolIds || []).map((id, i) => (
+                      <span key={id}>{i > 0 ? " → " : ""}{getPoolName(id)}</span>
+                    ))}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-3">
+                  <Badge variant="success" size="sm">{(c.poolIds || []).length} pools</Badge>
+                  <button
+                    onClick={() => { setEditingCombo(c); setComboName(c.name); setComboPoolIds(c.poolIds || []); setShowComboModal(true); }}
+                    className="text-xs text-brand-400 hover:text-brand-300 cursor-pointer"
+                  >Edit</button>
+                  <button
+                    onClick={() => deleteCombo(c.id)}
+                    className="text-xs text-red-400 hover:text-red-300 cursor-pointer"
+                  >Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Combo Modal */}
+      <Modal isOpen={showComboModal} onClose={() => setShowComboModal(false)} title={editingCombo ? "Edit Combo" : "Create Proxy Combo"}>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-text-muted block mb-1">Combo Name</label>
+            <Input value={comboName} onChange={(e) => setComboName(e.target.value)} placeholder="e.g. Free Proxy Round Robin" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-text-muted block mb-2">Select Pools (click to toggle)</label>
+            <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-border-subtle p-2">
+              {proxyPools.map((p) => (
+                <label key={p.id} className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm transition-colors ${comboPoolIds.includes(p.id) ? "bg-primary/10 text-primary" : "hover:bg-surface-2 text-text-main"}`}>
+                  <input
+                    type="checkbox"
+                    checked={comboPoolIds.includes(p.id)}
+                    onChange={(e) => {
+                      setComboPoolIds(e.target.checked
+                        ? [...comboPoolIds, p.id]
+                        : comboPoolIds.filter(id => id !== p.id)
+                      );
+                    }}
+                    className="rounded"
+                  />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button fullWidth onClick={saveCombo} disabled={!comboName.trim() || comboPoolIds.length === 0}>
+              {editingCombo ? "Save Changes" : "Create Combo"}
+            </Button>
+            <Button fullWidth variant="ghost" onClick={() => setShowComboModal(false)}>Cancel</Button>
           </div>
         </div>
       </Modal>

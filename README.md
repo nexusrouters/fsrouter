@@ -1,8 +1,8 @@
-# 9Router v2
+# FSRouter
 
 > A self-hosted AI gateway — one endpoint, many providers, auto-fallback.
 
-9Router v2 is a decoupled rewrite of [9Router](https://github.com/decolua/9router) with a clean separation between a dedicated **Express backend** and a **Vite + React frontend**. It exposes an OpenAI-compatible REST API that proxies requests across dozens of AI providers with automatic load balancing, fallback, and key rotation.
+FSRouter is a decoupled rewrite of 9Router with a clean separation between a dedicated **Express backend** and a **Vite + React frontend**. It exposes an OpenAI-compatible REST API that proxies requests across dozens of AI providers with automatic load balancing, fallback, and key rotation.
 
 ---
 
@@ -18,7 +18,7 @@
 
 - **OpenAI-compatible API** — works with any client that supports `/v1/chat/completions`, `/v1/images/generations`, `/v1/audio/speech`, `/v1/embeddings`, etc.
 - **Multi-provider routing** — Cloudflare Workers AI, OpenAI, Anthropic, Gemini, Groq, and many more
-- **Cloudflare Workers AI Automation** — automates account registration and API key extraction with Playwright + 2Captcha + Ammail temp mail
+- **Cloudflare Workers AI Automation** — automates account registration and API key extraction with Playwright + 2Captcha + FSMail temp mail
 - **Dashboard UI** — manage providers, connections, proxy pools, CLI tools, and automation from a modern dark-mode interface
 - **OIDC / Password authentication** — single sign-on or local credentials
 - **Agent Skills** — ready-to-use SKILL.md files for Claude, Gemini, Codex, and other AI coding agents
@@ -29,7 +29,7 @@
 ## Architecture
 
 ```
-AMRouter/
+FSRouter/
 ├── backend/          # Express server (port 3001)
 │   └── src/
 │       ├── routes/   # Auto-routed endpoints (/v1, /api, /auth, ...)
@@ -55,8 +55,8 @@ AMRouter/
 ### Install
 
 ```bash
-git clone https://github.com/ahwanulm/AMRouter.git
-cd AMRouter
+git clone https://github.com/ahwanulm/FSRouter.git
+cd FSRouter
 npm install
 ```
 
@@ -111,10 +111,10 @@ Use the included `nginx.conf` to proxy `/api` and `/v1` to the backend while ser
 
 The automation module automatically registers Cloudflare Workers AI accounts:
 
-1. Configure **Ammail** temp mail credentials in Dashboard → Automation → Settings
+1. Configure **FSMail** temp mail credentials in Dashboard → Automation → Settings
 2. Add a **2Captcha** API key for Turnstile solving
 3. Add email accounts in the Automation tab and click **Run**
-4. API keys are extracted and added to 9Router automatically
+4. API keys are extracted and added to FSRouter automatically
 
 ---
 
@@ -124,7 +124,7 @@ Skills are SKILL.md files for AI coding agents. Paste the entry skill URL into y
 
 ```
 Read this skill and use it:
-https://raw.githubusercontent.com/ahwanulm/AMRouter/refs/heads/master/skills/9router/SKILL.md
+https://raw.githubusercontent.com/ahwanulm/FSRouter/refs/heads/master/skills/fsrouter/SKILL.md
 ```
 
 Browse all skills in the Dashboard → Skills page or in the [`skills/`](./skills/) directory.
@@ -154,4 +154,4 @@ MIT — see [LICENSE](./LICENSE)
 
 ## Acknowledgements
 
-> 🙏 **Thanks to [9Router](https://github.com/decolua/9router)** — this project is a fork and architectural rewrite of the original 9Router monolith. The core routing logic, provider integrations, and many features were inspired by and built upon the excellent work of the 9Router project.
+> 🙏 **Thanks to [FSRouter](https://github.com/decolua/fsrouter)** — this project is a fork and architectural rewrite of the original FSRouter monolith. The core routing logic, provider integrations, and many features were inspired by and built upon the excellent work of the FSRouter project.
