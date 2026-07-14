@@ -9,7 +9,7 @@
     "noEmitOnError": false,
     "skipLibCheck": true,
     "strict": false,
-    "noEmit": true,
+    "noEmit": false,
     "noImplicitAny": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
