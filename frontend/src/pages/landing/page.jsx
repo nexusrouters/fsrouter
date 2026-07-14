@@ -62,7 +62,7 @@ export default function LandingPage() {
                 Start Free
               </button>
               <button 
-                onClick={() => window.open("https://github.com/decolua/fsrouter#readme", "_blank")}
+                onClick={() => window.open("https://github.com/nexusrouters/fsrouter#readme", "_blank")}
                 className="w-full sm:w-auto h-14 px-10 rounded-lg border border-[#3a2f27] hover:bg-[#23180f] text-white text-lg font-bold transition-all"
               >
                 Read Documentation
