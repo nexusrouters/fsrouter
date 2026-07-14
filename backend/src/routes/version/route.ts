@@ -1,12 +1,12 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 
-// Fetch latest version from GitHub releases
-function fetchLatestGitHubVersion(): Promise<string | null> {
+// Fetch latest version from NPM registry
+function fetchLatestNPMVersion(): Promise<string | null> {
   return new Promise((resolve) => {
     const options = {
-      hostname: "api.github.com",
-      path: "/repos/nexusrouters/fsrouter/releases/latest",
+      hostname: "registry.npmjs.org",
+      path: "/@fudrouter/fsrouter/latest",
       headers: {
         "User-Agent": "FSRouter-App"
       },
@@ -18,10 +18,8 @@ function fetchLatestGitHubVersion(): Promise<string | null> {
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
         try {
-          const release = JSON.parse(data);
-          const tag = release.tag_name || ""; // e.g. "v0.6.5" or "0.6.5"
-          const cleanVersion = tag.replace(/^v/, "");
-          resolve(cleanVersion || null);
+          const info = JSON.parse(data);
+          resolve(info.version || null);
         } catch {
           resolve(null);
         }
@@ -51,7 +49,7 @@ function compareVersions(a: string, b: string): number {
 export async function GET(req: any, res: any) {
   try {
     const currentVersion = pkg.version;
-    const latestVersion = await fetchLatestGitHubVersion();
+    const latestVersion = await fetchLatestNPMVersion();
 
     if (!latestVersion) {
       return res.json({

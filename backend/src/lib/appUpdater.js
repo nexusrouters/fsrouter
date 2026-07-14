@@ -51,10 +51,14 @@ function collectAppPids() {
         const lower = line.toLowerCase();
         // Match anything running from 9router install dir or wrapper cli.js
         const isAppProcess = lower.includes("9router") ||
+          lower.includes("fsrouter") ||
           lower.includes("next-server") ||
           lower.includes("\\bin\\app\\") ||
           lower.includes("/bin/app/") ||
-          lower.includes("cli.js");
+          lower.includes("\\dist\\") ||
+          lower.includes("/dist/") ||
+          lower.includes("cli.js") ||
+          lower.includes("cli.cjs");
         if (isAppProcess) {
           const match = line.match(/^"(\d+)"/);
           if (match && match[1] && match[1] !== process.pid.toString()) pids.push(match[1]);
@@ -78,11 +82,14 @@ function collectAppPids() {
       const output = execSync("ps aux 2>/dev/null", { encoding: "utf8", timeout: KILL_TIMEOUT_MS });
       output.split("\n").forEach(line => {
         const isAppProcess = line.includes("9router") ||
+          line.includes("fsrouter") ||
           line.includes("next-server") ||
           line.includes("cloudflared") ||
           line.includes("/bin/app/") ||
+          line.includes("/dist/") ||
           line.includes("tray_darwin") ||
-          line.includes("tray_linux");
+          line.includes("tray_linux") ||
+          line.includes("cli.cjs");
         if (isAppProcess) {
           const parts = line.trim().split(/\s+/);
           const pid = parts[1];

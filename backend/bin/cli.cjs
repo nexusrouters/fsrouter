@@ -427,9 +427,9 @@ function openBrowser(url) {
   });
 }
 
-// Find standalone server (bundled in bin/app for published package)
-const standaloneDir = path.join(__dirname, "app");
-const serverPath = path.join(standaloneDir, "server.js");
+// Find standalone server (compiled in dist/server.js for published package)
+const standaloneDir = path.join(__dirname, "..");
+const serverPath = path.join(standaloneDir, "dist/server.js");
 
 if (!fs.existsSync(serverPath)) {
   console.error("Error: Standalone build not found.");
