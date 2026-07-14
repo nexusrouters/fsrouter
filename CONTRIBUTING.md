@@ -4,7 +4,7 @@ First off, thank you for considering contributing to AMRouter! It's people like 
 
 ## Where do I go from here?
 
-If you've noticed a bug or have a feature request, make sure to check our [Issues](https://github.com/ahwanulm/amrouter/issues) to see if someone else has already created a ticket. If not, go ahead and make one!
+If you've noticed a bug or have a feature request, make sure to check our [Issues](https://github.com/nexusrouters/fsrouter/issues) to see if someone else has already created a ticket. If not, go ahead and make one!
 
 ## Fork & create a branch
 
@@ -63,4 +63,4 @@ If a maintainer asks you to "rebase" your PR, they're saying that a lot of code 
 
 ## Need help?
 
-If you need any help, feel free to start a discussion in our [GitHub Discussions](https://github.com/ahwanulm/amrouter/discussions) tab. We're happy to help!
+If you need any help, feel free to start a discussion in our [GitHub Discussions](https://github.com/nexusrouters/fsrouter/discussions) tab. We're happy to help!

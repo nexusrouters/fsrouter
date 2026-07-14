@@ -55,7 +55,7 @@ FSRouter/
 ### Install
 
 ```bash
-git clone https://github.com/ahwanulm/FSRouter.git
+git clone https://github.com/nexusrouters/fsrouter.git
 cd FSRouter
 npm install
 ```
@@ -124,7 +124,7 @@ Skills are SKILL.md files for AI coding agents. Paste the entry skill URL into y
 
 ```
 Read this skill and use it:
-https://raw.githubusercontent.com/ahwanulm/FSRouter/refs/heads/master/skills/fsrouter/SKILL.md
+https://raw.githubusercontent.com/nexusrouters/fsrouter/refs/heads/main/skills/fsrouter/SKILL.md
 ```
 
 Browse all skills in the Dashboard → Skills page or in the [`skills/`](./skills/) directory.
