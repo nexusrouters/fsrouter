@@ -15,9 +15,9 @@ export const GITHUB_CONFIG = {
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  npmPackageName: "fsrouter",
-  installCmd: "npm i -g fsrouter",
-  installCmdLatest: "npm i -g fsrouter@latest --prefer-online",
+  npmPackageName: "@fudrouter/fsrouter",
+  installCmd: "npm i -g @fudrouter/fsrouter",
+  installCmdLatest: "npm i -g @fudrouter/fsrouter@latest --prefer-online",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

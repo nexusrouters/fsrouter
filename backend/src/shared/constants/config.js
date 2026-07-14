@@ -9,15 +9,15 @@ export const APP_CONFIG = {
 
 // GitHub configuration
 export const GITHUB_CONFIG = {
-  changelogUrl: "https://raw.githubusercontent.com/decolua/9router/refs/heads/master/CHANGELOG.md",
-  donateUrl: "https://9router.com/api/donate",
+  changelogUrl: "https://raw.githubusercontent.com/nexusrouters/fsrouter/refs/heads/main/CHANGELOG.md",
+  donateUrl: "https://apikey.eu.org/api/donate",
 };
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  npmPackageName: "9router",
-  installCmd: "npm i -g 9router",
-  installCmdLatest: "npm i -g 9router@latest --prefer-online",
+  npmPackageName: "@fudrouter/fsrouter",
+  installCmd: "npm i -g @fudrouter/fsrouter",
+  installCmdLatest: "npm i -g @fudrouter/fsrouter@latest --prefer-online",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

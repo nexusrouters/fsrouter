@@ -35,8 +35,8 @@ jobs:
             const fs = require("fs");
             const pkg = JSON.parse(fs.readFileSync("backend/package.json", "utf8"));
             
-            // Rename to fsrouter and make public
-            pkg.name = "fsrouter";
+            // Rename to @fudrouter/fsrouter and make public
+            pkg.name = "@fudrouter/fsrouter";
             pkg.private = false;
             
             // Map global command to fsrouter
