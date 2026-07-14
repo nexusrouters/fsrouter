@@ -35,7 +35,7 @@ IDs end in `/fetch` (e.g. `firecrawl/fetch`, `jina/fetch`). `fetch-combo` chains
 curl -X POST $FSROUTER_URL/v1/web/fetch \
   -H "Authorization: Bearer $FSROUTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"jina-reader","url":"https://fsrouter.com","format":"markdown"}'
+  -d '{"model":"jina-reader","url":"https://apikey.eu.org","format":"markdown"}'
 ```
 
 ### Exa

@@ -10,7 +10,7 @@ export const APP_CONFIG = {
 // GitHub configuration
 export const GITHUB_CONFIG = {
   changelogUrl: "/CHANGELOG.md",
-  donateUrl: "https://fsrouter.com/api/donate",
+  donateUrl: "https://apikey.eu.org/api/donate",
 };
 
 // Updater configuration

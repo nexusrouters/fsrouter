@@ -42,6 +42,7 @@ const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
   { href: "/dashboard/automation", label: "Automation", icon: "smart_toy" },
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
+  { href: "/dashboard/update", label: "Update", icon: "system_update" },
 ];
 
 export default function Sidebar({ onClose }) {
@@ -69,7 +70,15 @@ export default function Sidebar({ onClose }) {
   useEffect(() => {
     fetch("/api/version")
       .then(res => res.json())
-      .then(data => { if (data.hasUpdate) setUpdateInfo(data); })
+      .then(data => {
+        if (data && data.hasUpdate) {
+          setUpdateInfo(data);
+          if (!sessionStorage.getItem("update_popup_shown")) {
+            setShowUpdateModal(true);
+            sessionStorage.setItem("update_popup_shown", "1");
+          }
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -243,29 +252,38 @@ export default function Sidebar({ onClose }) {
               </div>
             )}
 
-            {systemItems.map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-1 rounded-lg transition-all group",
-                  isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                )}
-              >
-                <span
+            {systemItems.map((item) => {
+              const isUpdateItem = item.href === "/dashboard/update";
+              const showBadge = isUpdateItem && updateInfo && updateInfo.hasUpdate;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={onClose}
                   className={cn(
-                    "material-symbols-outlined text-[18px]",
-                    isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                    "flex items-center justify-between px-3 py-1 rounded-lg transition-all group",
+                    isActive(item.href)
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                   )}
                 >
-                  {item.icon}
-                </span>
-                <span className="text-[13px] font-medium">{item.label}</span>
-              </Link>
-            ))}
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "material-symbols-outlined text-[18px]",
+                        isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="text-[13px] font-medium">{item.label}</span>
+                  </div>
+                  {showBadge && (
+                    <span className="size-2 rounded-full bg-red-500 animate-pulse mr-1" />
+                  )}
+                </Link>
+              );
+            })}
 
             {/* Debug items (inside System section, before Settings) */}
             {debugItems.map((item) => {
@@ -342,11 +360,14 @@ export default function Sidebar({ onClose }) {
       <ConfirmModal
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
-        onConfirm={handleUpdate}
-        title="Update FSRouter"
-        message={`Show install command for v${updateInfo?.latestVersion || ""}? You can copy it and shutdown to install manually.`}
-        confirmText="Show Command"
-        cancelText="Cancel"
+        onConfirm={() => {
+          setShowUpdateModal(false);
+          globalThis.location.href = "/dashboard/update";
+        }}
+        title="Pembaruan FSRouter Tersedia"
+        message={`Versi baru v${updateInfo?.latestVersion || ""} telah tersedia di GitHub. Apakah Anda ingin pergi ke halaman pembaruan untuk melakukan update otomatis?`}
+        confirmText="Pergi ke Halaman Update"
+        cancelText="Nanti Saja"
         variant="primary"
       />
 

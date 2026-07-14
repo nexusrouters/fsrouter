@@ -37,6 +37,7 @@ const RerankPage         = lazy(() => import("./pages/rerank/page"));
 const OcrPage            = lazy(() => import("./pages/ocr/page"));
 const WebFetchPage       = lazy(() => import("./pages/webfetch/page"));
 const AudioPage          = lazy(() => import("./pages/audio/page"));
+const UpdatePage         = lazy(() => import("./pages/update/page"));
 
 // Auth guard — verifies session with backend on every mount
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -128,6 +129,7 @@ export default function App() {
             <Route path="ocr"              element={<OcrPage />} />
             <Route path="webfetch"         element={<WebFetchPage />} />
             <Route path="audio"            element={<AudioPage />} />
+            <Route path="update"           element={<UpdatePage />} />
           </Route>
 
           {/* Fallback */}

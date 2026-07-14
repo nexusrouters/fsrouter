@@ -39,4 +39,4 @@ Verify: `curl $FSROUTER_URL/api/health` → `{"ok":true}`.
 ## Links
 
 - Source: https://github.com/nexusrouters/fsrouter
-- Dashboard: https://fsrouter.com
+- Dashboard: https://apikey.eu.org
