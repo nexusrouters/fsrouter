@@ -5,21 +5,21 @@ description: Speech-to-text via FSRouter /v1/audio/transcriptions using OpenAI W
 
 # FSRouter — Speech-to-Text
 
-Requires `NINEROUTER_URL` (and `NINEROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/decolua/fsrouter/refs/heads/master/skills/fsrouter/SKILL.md for setup.
+Requires `FSROUTER_URL` (and `FSROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/nexusrouters/fsrouter/refs/heads/main/skills/fsrouter/SKILL.md for setup.
 
 ## Discover
 
 ```bash
-curl $NINEROUTER_URL/v1/models/stt | jq '.data[].id'
+curl $FSROUTER_URL/v1/models/stt | jq '.data[].id'
 # Per-model params (language, response_format, prompt, temperature support)
-curl "$NINEROUTER_URL/v1/models/info?id=openai/whisper-1"
+curl "$FSROUTER_URL/v1/models/info?id=openai/whisper-1"
 ```
 
 `model` = STT model ID (e.g. `openai/whisper-1`, `groq/whisper-large-v3`, `deepgram/nova-3`, `gemini/gemini-2.5-flash`).
 
 ## Endpoint
 
-`POST $NINEROUTER_URL/v1/audio/transcriptions` (OpenAI Whisper compatible, `multipart/form-data`)
+`POST $FSROUTER_URL/v1/audio/transcriptions` (OpenAI Whisper compatible, `multipart/form-data`)
 
 | Field | Required | Notes |
 |---|---|---|
@@ -33,8 +33,8 @@ curl "$NINEROUTER_URL/v1/models/info?id=openai/whisper-1"
 ## Examples
 
 ```bash
-curl -X POST "$NINEROUTER_URL/v1/audio/transcriptions" \
-  -H "Authorization: Bearer $NINEROUTER_KEY" \
+curl -X POST "$FSROUTER_URL/v1/audio/transcriptions" \
+  -H "Authorization: Bearer $FSROUTER_KEY" \
   -F "model=openai/whisper-1" \
   -F "file=@audio.mp3" \
   -F "language=vi"
@@ -47,9 +47,9 @@ import { createReadStream } from "node:fs";
 const form = new FormData();
 form.append("model", "groq/whisper-large-v3-turbo");
 form.append("file", new Blob([await (await import("node:fs/promises")).readFile("audio.mp3")]), "audio.mp3");
-const r = await fetch(`${process.env.NINEROUTER_URL}/v1/audio/transcriptions`, {
+const r = await fetch(`${process.env.FSROUTER_URL}/v1/audio/transcriptions`, {
   method: "POST",
-  headers: { "Authorization": `Bearer ${process.env.NINEROUTER_KEY}` },
+  headers: { "Authorization": `Bearer ${process.env.FSROUTER_KEY}` },
   body: form,
 });
 const { text } = await r.json();

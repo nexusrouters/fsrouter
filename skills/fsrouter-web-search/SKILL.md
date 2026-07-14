@@ -5,21 +5,21 @@ description: Web search via FSRouter /v1/search using Tavily / Exa / Brave / Ser
 
 # FSRouter — Web Search
 
-Requires `NINEROUTER_URL` (and `NINEROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/decolua/fsrouter/refs/heads/master/skills/fsrouter/SKILL.md for setup.
+Requires `FSROUTER_URL` (and `FSROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/nexusrouters/fsrouter/refs/heads/main/skills/fsrouter/SKILL.md for setup.
 
 ## Discover
 
 ```bash
-curl $NINEROUTER_URL/v1/models/web | jq '.data[] | select(.kind=="webSearch") | .id'
+curl $FSROUTER_URL/v1/models/web | jq '.data[] | select(.kind=="webSearch") | .id'
 # Per-provider params (searchTypes, maxResults, required options like cx for google-pse)
-curl "$NINEROUTER_URL/v1/models/info?id=tavily/search"
+curl "$FSROUTER_URL/v1/models/info?id=tavily/search"
 ```
 
 IDs end in `/search` (e.g. `tavily/search`). Combos (`owned_by:"combo"`) chain providers with auto-fallback.
 
 ## Endpoint
 
-`POST $NINEROUTER_URL/v1/search`
+`POST $FSROUTER_URL/v1/search`
 
 | Field | Required | Notes |
 |---|---|---|
@@ -32,8 +32,8 @@ IDs end in `/search` (e.g. `tavily/search`). Combos (`owned_by:"combo"`) chain p
 ## Examples
 
 ```bash
-curl -X POST $NINEROUTER_URL/v1/search \
-  -H "Authorization: Bearer $NINEROUTER_KEY" \
+curl -X POST $FSROUTER_URL/v1/search \
+  -H "Authorization: Bearer $FSROUTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"tavily","query":"FSRouter open source","max_results":5}'
 ```
@@ -41,9 +41,9 @@ curl -X POST $NINEROUTER_URL/v1/search \
 JS:
 
 ```js
-const r = await fetch(`${process.env.NINEROUTER_URL}/v1/search`, {
+const r = await fetch(`${process.env.FSROUTER_URL}/v1/search`, {
   method: "POST",
-  headers: { "Authorization": `Bearer ${process.env.NINEROUTER_KEY}`, "Content-Type": "application/json" },
+  headers: { "Authorization": `Bearer ${process.env.FSROUTER_KEY}`, "Content-Type": "application/json" },
   body: JSON.stringify({ model: "search-combo", query: "latest LLM benchmarks", max_results: 10 }),
 });
 console.log(await r.json());
