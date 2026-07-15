@@ -20,12 +20,22 @@ export async function GET(req, res) {
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
     
+    // Check if the current password matches the default "123456"
+    let isDefaultPassword = false;
+    if (password) {
+      isDefaultPassword = await bcrypt.compare("123456", password).catch(() => false);
+    } else {
+      // If no password exists, it is also unsafe
+      isDefaultPassword = true;
+    }
+
     res.set(SETTINGS_RESPONSE_HEADERS);
     return res.json({ 
       ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
-      hasPassword: !!password
+      hasPassword: !!password,
+      isDefaultPassword
     });
   } catch (error) {
     console.log("Error getting settings:", error);

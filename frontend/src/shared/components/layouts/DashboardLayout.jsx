@@ -1,9 +1,10 @@
 
-import { useState } from "react";
-import { useLocation, Outlet } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
 import Header from "../Header";
+import Button from "../Button";
 
 function getToastStyle(type) {
   if (type === "success") {
@@ -32,9 +33,26 @@ function getToastStyle(type) {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showPasswordWarning, setShowPasswordWarning] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
+
+  // Check default password on every route change
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        // If password matches default (or doesn't exist), enforce warning
+        if (data.isDefaultPassword && pathname !== "/dashboard/profile") {
+          setShowPasswordWarning(true);
+        } else {
+          setShowPasswordWarning(false); // hide if fixed or on profile page
+        }
+      })
+      .catch(() => {});
+  }, [pathname]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
@@ -98,6 +116,34 @@ export default function DashboardLayout() {
           <div className={`${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}><Outlet /></div>
         </div>
       </main>
+
+      {/* Password warning modal */}
+      {showPasswordWarning && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-surface border border-border-subtle p-6 shadow-2xl flex flex-col gap-4 text-text-main animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="size-11 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[24px]">warning</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Ganti Password Default Anda!</h3>
+                <p className="text-xs text-text-muted mt-0.5">Password admin saat ini sangat tidak aman.</p>
+              </div>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              FSRouter mendeteksi bahwa Anda masih menggunakan password default "123456" atau tidak memiliki password pengaman. Harap segera menggantinya di halaman profil untuk melindungi akses dashboard Anda.
+            </p>
+            <div className="flex gap-2 mt-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowPasswordWarning(false)}>
+                Tutup Sementara
+              </Button>
+              <Button variant="primary" size="sm" className="flex-1" onClick={() => { setShowPasswordWarning(false); navigate("/dashboard/profile"); }}>
+                Ganti Password Sekarang
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
