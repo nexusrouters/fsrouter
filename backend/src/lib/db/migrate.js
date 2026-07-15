@@ -212,6 +212,21 @@ function importLegacyDetails(adapter, data) {
   }
 }
 
+async function ensureDefaultApiKey(adapter) {
+  try {
+    const keysCount = adapter.get("SELECT COUNT(*) as c FROM apiKeys")?.c ?? 0;
+    if (keysCount === 0) {
+      const { createApiKey } = await import("./repos/apiKeysRepo.js");
+      const { getMachineId } = await import("../../shared/utils/machine.js");
+      const mId = await getMachineId();
+      await createApiKey("Default Key", mId);
+      console.log("[DB][migrate] Generated default random API Key");
+    }
+  } catch (e) {
+    console.error("[DB][migrate] Failed to generate default API Key:", e);
+  }
+}
+
 // ─── Main entry ──────────────────────────────────────────────────────────
 export async function runMigrationOnce(adapter) {
   if (_migratedAdapters.has(adapter)) return;
@@ -259,12 +274,14 @@ export async function runMigrationOnce(adapter) {
 
     try { fs.writeFileSync(MIGRATED_MARKER, new Date().toISOString()); } catch {}
     pruneOldBackups();
+    await ensureDefaultApiKey(adapter);
     console.log(`[DB][migrate] JSON → SQLite in ${Date.now() - t0}ms | legacy JSON kept at DATA_DIR | backup: ${backupDir}`);
     return;
   }
 
   if (fresh) {
     setMetaSync(adapter, "appVersion", getAppVersion());
+    await ensureDefaultApiKey(adapter);
     return;
   }
 
