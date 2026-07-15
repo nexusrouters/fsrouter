@@ -1,0 +1,7 @@
+# Pinned for camoufox 0.4.11 compatibility.
+# playwright >= 1.41 breaks Camoufox with:
+#   "Browser.setDefaultViewport ... isMobile ... not described in this scheme"
+# which causes the signup scripts to crash with exit code -2.
+camoufox==0.4.11
+playwright==1.40.0
+requests>=2.28.0
