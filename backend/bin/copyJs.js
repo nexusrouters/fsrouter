@@ -19,7 +19,7 @@ function copyFiles(src, dist) {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist") continue;
       copyFiles(srcPath, distPath);
-    } else if (entry.isFile() && entry.name.endsWith(".js")) {
+    } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".json"))) {
       fs.copyFileSync(srcPath, distPath);
     }
   }
