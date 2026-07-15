@@ -1,5 +1,7 @@
+import { handleAudioSpeech } from "../../../open-sse/handlers/audioSpeech.js";
+import { getProviderCredentials } from "../../../sse/services/auth.js";
 
-import { POST_handler as speechHandler } from "../../../../open-sse/handlers/audioSpeech.js";
 export async function POST_handler(req, res) {
-  return speechHandler(req, res);
+  const credentials = await getProviderCredentials(req.body.model?.split("/")?.[0] || "openai");
+  return handleAudioSpeech({ req, res, credentials });
 }

@@ -424,3 +424,146 @@ export function stopXaiProxy() {
   }
 }
 
+// ── Antigravity Proxy ────────────────────────────────────────────────────────
+
+let antigravityProxyServer = null;
+let antigravityProxyTimeout = null;
+const ANTIGRAVITY_PROXY_TIMEOUT_MS = 300000; // 5 minutes
+const ANTIGRAVITY_PROXY_PORT = 56122;
+const antigravityPendingExchanges = new Map();
+
+export function registerAntigravitySession({ state, redirectUri }) {
+  if (!state || !redirectUri) return false;
+  antigravityPendingExchanges.set(state, {
+    redirectUri,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+  return true;
+}
+
+export function getAntigravitySessionStatus(state) {
+  return antigravityPendingExchanges.get(state) || null;
+}
+
+export function clearAntigravitySession(state) {
+  antigravityPendingExchanges.delete(state);
+}
+
+function renderAntigravityResultPage(success, message) {
+  return renderCodexResultPage(success, message);
+}
+
+export function startAntigravityProxy(appPort) {
+  return new Promise((resolve) => {
+    if (antigravityProxyServer) {
+      resolve({ success: true });
+      return;
+    }
+
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, "http://localhost");
+      if (url.pathname !== "/callback" && url.pathname !== "/auth/callback") {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      const errorParam = url.searchParams.get("error");
+      const session = state ? antigravityPendingExchanges.get(state) : null;
+
+      if (session) {
+        try {
+          if (errorParam) {
+            throw new Error(url.searchParams.get("error_description") || errorParam);
+          }
+          if (!code) throw new Error("No authorization code received");
+
+          const { exchangeTokens } = await import("../providers.js");
+          const { createProviderConnection } = await import("@/models");
+
+          const tokenData = await exchangeTokens(
+            "antigravity",
+            code,
+            session.redirectUri,
+            "",
+            state
+          );
+          
+          // Get user info and load Code Assist
+          const { AntigravityService } = await import("../services/antigravity.js");
+          const svc = new AntigravityService();
+          const userInfo = await svc.getUserInfo(tokenData.access_token);
+          const { projectId, tierId } = await svc.loadCodeAssist(tokenData.access_token);
+          
+          let finalProjectId = projectId;
+          if (projectId) {
+            const onboardResult = await svc.completeOnboarding(tokenData.access_token, projectId, tierId);
+            finalProjectId = onboardResult.projectId || projectId;
+          }
+
+          const connection = await createProviderConnection({
+            provider: "antigravity",
+            authType: "oauth",
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            email: userInfo.email,
+            projectId: finalProjectId,
+            expiresAt: tokenData.expires_in
+              ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+              : null,
+            testStatus: "active",
+          });
+
+          session.status = "done";
+          session.connectionId = connection.id;
+          session.email = connection.email;
+
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(renderAntigravityResultPage(true, "You can close this window."));
+        } catch (err) {
+          session.status = "error";
+          session.error = err.message;
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(renderAntigravityResultPage(false, err.message));
+        } finally {
+          stopAntigravityProxy();
+        }
+        return;
+      }
+
+      const redirectUrl = `http://localhost:${appPort}/callback${url.search}`;
+      res.writeHead(302, { Location: redirectUrl });
+      res.end();
+      stopAntigravityProxy();
+    });
+
+    server.listen(ANTIGRAVITY_PROXY_PORT, "127.0.0.1", () => {
+      antigravityProxyServer = server;
+      antigravityProxyTimeout = setTimeout(() => stopAntigravityProxy(), ANTIGRAVITY_PROXY_TIMEOUT_MS);
+      resolve({ success: true });
+    });
+
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        resolve({ success: false, reason: "port_busy" });
+      } else {
+        resolve({ success: false, reason: err.message });
+      }
+    });
+  });
+}
+
+export function stopAntigravityProxy() {
+  if (antigravityProxyTimeout) {
+    clearTimeout(antigravityProxyTimeout);
+    antigravityProxyTimeout = null;
+  }
+  if (antigravityProxyServer) {
+    antigravityProxyServer.close();
+    antigravityProxyServer = null;
+  }
+}
+

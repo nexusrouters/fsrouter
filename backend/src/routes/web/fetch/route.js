@@ -1,5 +1,12 @@
+import { handleWebFetch } from "../../../open-sse/handlers/webFetch.js";
+import { getProviderCredentials } from "../../../sse/services/auth.js";
 
-import { POST_handler as fetchHandler } from "../../../../open-sse/handlers/webFetch.js";
 export async function POST_handler(req, res) {
-  return fetchHandler(req, res);
+  const provider = req.body.provider || "firecrawl";
+  const credentials = await getProviderCredentials(provider);
+  const result = await handleWebFetch(req.body, credentials, provider);
+  if (result.success === false) {
+    return res.status(result.status || 500).json({ error: result.error });
+  }
+  return res.status(200).json(result.data);
 }

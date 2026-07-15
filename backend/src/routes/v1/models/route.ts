@@ -7,8 +7,8 @@ import {
 } from "../../../shared/constants/providers.js";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "../../../lib/localDb.js";
 import { getDisabledModels } from "../../../lib/disabledModelsDb.js";
-import { resolveKiroModels } from "../../../../open-sse/services/kiroModels.js";
-import { resolveQoderModels } from "../../../../open-sse/services/qoderModels.js";
+import { resolveKiroModels } from "../../../open-sse/services/kiroModels.js";
+import { resolveQoderModels } from "../../../open-sse/services/qoderModels.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.

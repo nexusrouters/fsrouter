@@ -42,7 +42,7 @@ At this point, you're ready to make your changes! Feel free to ask for help; eve
 At this point, you should switch back to your master branch and make sure it's up to date with AMRouter's master branch:
 
 ```sh
-git remote add upstream git@github.com:ahwanulm/amrouter.git
+git remote add upstream git@github.com:nexusrouters/fsrouter.git
 git checkout master
 git pull upstream master
 ```

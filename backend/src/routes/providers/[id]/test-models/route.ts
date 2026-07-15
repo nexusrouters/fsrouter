@@ -1,6 +1,6 @@
 
 import { getProviderConnectionById } from "../../../../lib/localDb.js";
-import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "../../../../../open-sse/config/providerModels.js";
+import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "../../../../open-sse/config/providerModels.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "../../../../shared/constants/providers.js";
 import { UPDATER_CONFIG } from "../../../../shared/constants/config.js";
 import { pingModelByKind } from "../../../models/test/ping.js";

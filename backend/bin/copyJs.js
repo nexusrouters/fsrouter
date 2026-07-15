@@ -25,5 +25,24 @@ function copyFiles(src, dist) {
   }
 }
 
+// Copy open-sse directory recursively to dist
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+copyDirRecursive(path.join(process.cwd(), "open-sse"), path.join(distDir, "open-sse"));
+
 copyFiles(srcDir, distDir);
 console.log("Copied all JS files from src/ to dist/ successfully!");

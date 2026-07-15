@@ -1,9 +1,9 @@
 
 import { getProviderNodeById } from "../../../models/index.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, AI_PROVIDERS } from "../../../shared/constants/providers.js";
-import { getDefaultModel } from "../../../../open-sse/config/providerModels.js";
-import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "../../../../open-sse/config/providers.js";
-import { openaiToCommandCode } from "../../../../open-sse/translator/request/openai-to-commandcode.js";
+import { getDefaultModel } from "../../../open-sse/config/providerModels.js";
+import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "../../../open-sse/config/providers.js";
+import { openaiToCommandCode } from "../../../open-sse/translator/request/openai-to-commandcode.js";
 import { PROVIDER_ENDPOINTS } from "../../../shared/constants/config.js";
 import { normalizeProviderId } from "../../../lib/providerNormalization.js";
 

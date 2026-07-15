@@ -32,6 +32,9 @@
     "undici": "^7.10.0",
     "uuid": "^11.1.0"
   },
+  "imports": {
+    "@/*": "./dist/*"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
