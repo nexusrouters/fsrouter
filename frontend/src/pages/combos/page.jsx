@@ -105,11 +105,11 @@ export default function CombosPage() {
     });
   };
 
-  const handleToggleRoundRobin = async (comboName, enabled) => {
+  const handleUpdateStrategy = async (comboName, strategy) => {
     try {
       const updated = { ...comboStrategies };
-      if (enabled) {
-        updated[comboName] = { fallbackStrategy: "round-robin" };
+      if (strategy && strategy !== "fallback") {
+        updated[comboName] = { fallbackStrategy: strategy };
       } else {
         delete updated[comboName];
       }
@@ -174,8 +174,8 @@ export default function CombosPage() {
               onCopy={copy}
               onEdit={() => setEditingCombo(combo)}
               onDelete={() => handleDelete(combo.id)}
-              roundRobinEnabled={comboStrategies[combo.name]?.fallbackStrategy === "round-robin"}
-              onToggleRoundRobin={(enabled) => handleToggleRoundRobin(combo.name, enabled)}
+              currentStrategy={comboStrategies[combo.name]?.fallbackStrategy || "fallback"}
+              onUpdateStrategy={(strategy) => handleUpdateStrategy(combo.name, strategy)}
             />
           ))}
         </div>
@@ -213,7 +213,7 @@ export default function CombosPage() {
   );
 }
 
-function ComboCard({ combo, copied, onCopy, onEdit, onDelete, roundRobinEnabled, onToggleRoundRobin }) {
+function ComboCard({ combo, copied, onCopy, onEdit, onDelete, currentStrategy, onUpdateStrategy }) {
   return (
     <Card padding="sm" className="group">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -242,14 +242,18 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete, roundRobinEnabled,
 
         {/* Actions */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:shrink-0">
-          {/* Round Robin Toggle — always visible */}
-          <div className="flex items-center justify-between gap-1.5 rounded-lg bg-black/[0.02] px-2 py-1.5 dark:bg-white/[0.02] sm:justify-start sm:bg-transparent sm:px-0 sm:py-0 sm:dark:bg-transparent">
-            <span className="text-xs text-text-muted font-medium">Round Robin</span>
-            <Toggle
-              size="sm"
-              checked={roundRobinEnabled}
-              onChange={onToggleRoundRobin}
-            />
+          {/* Strategy Select */}
+          <div className="flex items-center justify-between gap-1.5 rounded-lg bg-black/[0.02] px-2 py-1 dark:bg-white/[0.02] sm:justify-start sm:bg-transparent sm:px-0 sm:py-0 sm:dark:bg-transparent">
+            <span className="text-xs text-text-muted font-medium mr-1">Strategy:</span>
+            <select
+              value={currentStrategy}
+              onChange={(e) => onUpdateStrategy(e.target.value)}
+              className="text-xs font-medium rounded border border-black/10 bg-transparent py-1 px-2 outline-none dark:border-white/10 dark:bg-black/20 text-text-main cursor-pointer"
+            >
+              <option value="fallback" className="dark:bg-zinc-900">Fallback (Priority)</option>
+              <option value="round-robin" className="dark:bg-zinc-900">Round Robin</option>
+              <option value="fusion" className="dark:bg-zinc-900">Fusion (Synthesis)</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-3 gap-1 sm:flex">

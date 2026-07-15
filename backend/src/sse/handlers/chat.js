@@ -14,7 +14,7 @@ import { getModelType } from "open-sse/config/providerModels.js";
 import { handleImageGeneration } from "./imageGeneration.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
-import { handleComboChat } from "open-sse/services/combo.js";
+import { handleComboChat, handleFusionChat } from "open-sse/services/combo.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
@@ -101,6 +101,18 @@ export async function handleChat(request, clientRawRequest = null) {
     
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    
+    if (comboStrategy === "fusion") {
+      return handleFusionChat({
+        body,
+        models: comboModels,
+        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        log,
+        comboName: modelStr,
+        judgeModel: comboModels[0]
+      });
+    }
+
     return handleComboChat({
       body,
       models: comboModels,
@@ -134,6 +146,18 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+      
+      if (comboStrategy === "fusion") {
+        return handleFusionChat({
+          body,
+          models: comboModels,
+          handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+          log,
+          comboName: modelStr,
+          judgeModel: comboModels[0]
+        });
+      }
+
       return handleComboChat({
         body,
         models: comboModels,
