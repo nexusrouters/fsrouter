@@ -33,7 +33,9 @@
     "uuid": "^11.1.0"
   },
   "imports": {
-    "@/*": "./dist/*"
+    "@/*": "./dist/*",
+    "open-sse": "./open-sse/index.js",
+    "open-sse/*": "./open-sse/*"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

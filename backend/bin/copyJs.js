@@ -38,7 +38,10 @@ function copyDirRecursive(src, dest) {
     if (entry.isDirectory()) {
       copyDirRecursive(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      let content = fs.readFileSync(srcPath, 'utf8');
+      // Fix relative paths: ../../../src/lib/ -> ../../../lib/ (for dist/open-sse location)
+      content = content.replace(/\.\.\/\.\.\/\.\.\/src\/lib\//g, '../../../lib/');
+      fs.writeFileSync(destPath, content);
     }
   }
 }
