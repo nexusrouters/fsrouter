@@ -1,5 +1,19 @@
 import https from "https";
-import pkg from "../../../../package.json" with { type: "json" };
+import { readFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function getPackageJson() {
+  let p = join(__dirname, "../../../package.json");
+  if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
+  p = join(__dirname, "../../../../package.json");
+  if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
+  return { version: "0.0.0" };
+}
+
+const pkg = getPackageJson();
 
 // Fetch latest version from NPM registry
 function fetchLatestNPMVersion(): Promise<string | null> {

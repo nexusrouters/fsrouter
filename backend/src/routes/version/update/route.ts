@@ -1,59 +1,106 @@
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 
-const execAsync = promisify(exec);
+let updateLogs: string[] = [];
+let updateProgress = 0;
+let isUpdating = false;
+
+export async function GET(req: any, res: any) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const sendEvent = (data: any) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  if (!isUpdating) {
+    sendEvent({ progress: 100, status: "idle", logs: updateLogs });
+    res.end();
+    return;
+  }
+
+  sendEvent({ progress: updateProgress, status: "updating", logs: updateLogs });
+
+  const interval = setInterval(() => {
+    if (!isUpdating) {
+      sendEvent({ progress: 100, status: "done", logs: updateLogs });
+      clearInterval(interval);
+      res.end();
+    } else {
+      sendEvent({ progress: updateProgress, status: "updating", logs: updateLogs });
+    }
+  }, 1000);
+
+  req.on("close", () => clearInterval(interval));
+}
 
 export async function POST(req: any, res: any) {
   try {
-    const rootDir = "/root/AMRouter";
-    
-    // Check if it's a git repository
-    if (!fs.existsSync(path.join(rootDir, ".git"))) {
-      return res.status(400).json({
-        success: false,
-        message: "Git repository not found in " + rootDir
-      });
+    if (isUpdating) {
+      return res.json({ success: true, message: "Update already in progress." });
     }
 
-    // Return response immediately so the client knows update is starting
-    res.json({
-      success: true,
-      message: "Update process started. Pulling latest code and rebuilding..."
+    isUpdating = true;
+    updateLogs = [];
+    updateProgress = 0;
+
+    const rootDir = path.resolve(process.cwd());
+    const isGit = fs.existsSync(path.join(rootDir, ".git")) || fs.existsSync(path.join("/root/AMRouter", ".git"));
+
+    res.json({ success: true, message: "Update process started." });
+
+    let command = "";
+    let args: string[] = [];
+    let cwd = "";
+
+    if (isGit) {
+      command = /^win/.test(process.platform) ? "cmd.exe" : "sh";
+      args = /^win/.test(process.platform) 
+        ? ["/c", "git pull && npm install && npm run build --workspace=backend && npm run build --workspace=frontend && xcopy /E /Y /I frontend\\dist backend\\public"] 
+        : ["-c", "git pull && npm install && npm run build --workspace=backend && npm run build --workspace=frontend && cp -r frontend/dist/* backend/public/"];
+      cwd = fs.existsSync(path.join("/root/AMRouter", ".git")) ? "/root/AMRouter" : rootDir;
+    } else {
+      command = /^win/.test(process.platform) ? "npm.cmd" : "npm";
+      args = ["install", "-g", "@fudrouter/fsrouter@latest", "--prefer-online"];
+      cwd = process.cwd();
+    }
+
+    updateLogs.push("[Updater] Environment: " + (isGit ? "Git Repository" : "NPM Global Package"));
+    updateLogs.push(`[Updater] Executing: ${command} ${args.join(" ")}`);
+    updateProgress = 10;
+
+    const proc = spawn(command, args, { cwd, shell: true });
+
+    proc.stdout.on("data", (data) => {
+      const text = data.toString();
+      updateLogs.push(text);
+      if (updateProgress < 85) updateProgress += 2;
     });
 
-    // Run the update process in the background
-    (async () => {
-      try {
-        console.log("[Updater] Starting git pull...");
-        await execAsync("git pull", { cwd: rootDir });
-        
-        console.log("[Updater] Running npm install...");
-        await execAsync("npm install", { cwd: rootDir });
-        
-        console.log("[Updater] Building backend...");
-        await execAsync("npm run build --workspace=backend", { cwd: rootDir });
+    proc.stderr.on("data", (data) => {
+      const text = data.toString();
+      updateLogs.push(text);
+      if (updateProgress < 85) updateProgress += 1;
+    });
 
-        console.log("[Updater] Transpiling codebuddy route & server...");
-        await execAsync("npx esbuild src/routes/automation/codebuddy/route.ts --outfile=dist/routes/automation/codebuddy/route.js --platform=node --format=esm --target=node20", { cwd: path.join(rootDir, "backend") });
-        await execAsync("npx esbuild src/routes/version/route.ts --outfile=dist/routes/version/route.js --platform=node --format=esm --target=node20", { cwd: path.join(rootDir, "backend") });
-        await execAsync("npx esbuild src/server.ts --outfile=dist/server.js --platform=node --format=esm --target=node20", { cwd: path.join(rootDir, "backend") });
-        
-        console.log("[Updater] Building frontend...");
-        await execAsync("npm run build --workspace=frontend", { cwd: rootDir });
-        await execAsync("cp -r frontend/dist/* backend/public/", { cwd: rootDir });
-        
-        console.log("[Updater] Restarting PM2 processes...");
-        // Use full path to pm2 or reload
-        await execAsync("/root/.nvm/versions/node/v20.20.2/bin/pm2 restart all");
-        console.log("[Updater] Update completed successfully!");
-      } catch (err: any) {
-        console.error("[Updater] Error during background update:", err);
+    proc.on("close", (code) => {
+      updateProgress = 100;
+      updateLogs.push(`[Updater] Process exited with code ${code}`);
+      isUpdating = false;
+
+      if (!isGit && code === 0) {
+        updateLogs.push("[Updater] Update successful! Restarting server process...");
+        setTimeout(() => {
+          process.exit(0); // Exit process, PM2 or parent runner will restart it
+        }, 3000);
       }
-    })();
+    });
 
   } catch (error: any) {
+    isUpdating = false;
     console.error("Error starting update:", error);
     return res.status(500).json({ success: false, error: error.message });
   }

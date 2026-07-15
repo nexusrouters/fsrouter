@@ -51,6 +51,7 @@ export default function Sidebar({ onClose }) {
   const [showRemoteModal, setShowRemoteModal] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
+  const [currentVersion, setCurrentVersion] = useState(APP_CONFIG.version);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [shutdownCountdown, setShutdownCountdown] = useState(0);
@@ -71,11 +72,16 @@ export default function Sidebar({ onClose }) {
     fetch("/api/version")
       .then(res => res.json())
       .then(data => {
-        if (data && data.hasUpdate) {
-          setUpdateInfo(data);
-          if (!sessionStorage.getItem("update_popup_shown")) {
-            setShowUpdateModal(true);
-            sessionStorage.setItem("update_popup_shown", "1");
+        if (data) {
+          if (data.currentVersion) {
+            setCurrentVersion(data.currentVersion);
+          }
+          if (data.hasUpdate) {
+            setUpdateInfo(data);
+            if (!sessionStorage.getItem("update_popup_shown")) {
+              setShowUpdateModal(true);
+              sessionStorage.setItem("update_popup_shown", "1");
+            }
           }
         }
       })
@@ -140,7 +146,7 @@ export default function Sidebar({ onClose }) {
                 FSRouter
               </h1>
               <span className="text-[10px] text-text-muted mt-0.5 leading-none">By FudOne</span>
-              <span className="text-[10px] text-text-muted opacity-75 mt-0.5 leading-none">v{APP_CONFIG.version}</span>
+              <span className="text-[10px] text-text-muted opacity-75 mt-0.5 leading-none">v{currentVersion}</span>
             </div>
           </Link>
           {updateInfo && (

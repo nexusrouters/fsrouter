@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function UpdatePage() {
   const [versionInfo, setVersionInfo] = useState({
@@ -8,8 +8,11 @@ export default function UpdatePage() {
   });
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [updateStatus, setUpdateStatus] = useState("");
+  const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
+  const logEndRef = useRef(null);
 
   const fetchVersion = async () => {
     try {
@@ -29,12 +32,21 @@ export default function UpdatePage() {
     fetchVersion();
   }, []);
 
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs]);
+
   const handleAutoUpdate = async () => {
-    if (!window.confirm("Apakah Anda yakin ingin memulai update otomatis? Server akan memuat ulang kode dan melakukan build.")) {
+    if (!window.confirm("Apakah Anda yakin ingin memulai update otomatis?")) {
       return;
     }
-    
+
     setUpdating(true);
+    setProgress(0);
+    setLogs([]);
     setUpdateStatus("Menghubungi server untuk memulai update...");
     setError("");
 
@@ -43,31 +55,58 @@ export default function UpdatePage() {
       const data = await res.json();
 
       if (data.success) {
-        setUpdateStatus("Proses update dimulai di latar belakang... Mengunduh kode dari GitHub dan membangun ulang aplikasi. Halaman akan kehilangan koneksi sementara saat PM2 me-restart server.");
-        
-        // Poll backend to check when it comes back online
-        let checkCount = 0;
-        const interval = setInterval(async () => {
-          checkCount++;
-          setUpdateStatus(`Membangun ulang aplikasi dan merestart server... (Mencoba menghubungkan kembali: ${checkCount}s)`);
-          try {
-            const testRes = await fetch("/api/health");
-            if (testRes.ok) {
-              clearInterval(interval);
-              setUpdateStatus("Update selesai! Server kembali online. Memuat ulang halaman...");
-              setTimeout(() => {
-                window.location.reload();
-              }, 2000);
-            }
-          } catch (e) {
-            // normal during restart
+        // Connect to SSE stream
+        const eventSource = new EventSource("/api/version/update");
+
+        eventSource.onmessage = (event) => {
+          const payload = JSON.parse(event.data);
+          setProgress(payload.progress || 0);
+          setLogs(payload.logs || []);
+
+          if (payload.status === "updating") {
+            setUpdateStatus(`Sedang memproses update... (${payload.progress}%)`);
+          } else if (payload.status === "done" || payload.progress === 100) {
+            eventSource.close();
+            setUpdateStatus("Update berhasil diselesaikan! Server sedang merestart...");
+            
+            // Poll for server to come back online
+            let checkCount = 0;
+            const interval = setInterval(async () => {
+              checkCount++;
+              setUpdateStatus(`Menunggu server online kembali... (Mencoba menghubungkan: ${checkCount}s)`);
+              try {
+                const testRes = await fetch("/api/health");
+                if (testRes.ok) {
+                  clearInterval(interval);
+                  setUpdateStatus("Update Selesai! Halaman akan dimuat ulang...");
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1500);
+                }
+              } catch (e) {
+                // Ignore failure during restart
+              }
+              if (checkCount > 90) { // 3 minutes max
+                clearInterval(interval);
+                setUpdating(false);
+                setError("Server memakan waktu terlalu lama untuk online kembali. Silakan periksa status PM2 Anda secara manual.");
+              }
+            }, 2000);
           }
-          if (checkCount > 180) { // 3 minutes timeout
-            clearInterval(interval);
+        };
+
+        eventSource.onerror = (err) => {
+          console.error("EventSource error:", err);
+          // If it disconnects because server went down to restart, that's expected
+          if (progress > 80) {
+            eventSource.close();
+            // Let the health check interval handle it
+          } else {
+            eventSource.close();
+            setError("Koneksi ke server terputus saat proses update berjalan.");
             setUpdating(false);
-            setError("Update memakan waktu terlalu lama. Silakan periksa status PM2 server Anda secara manual.");
           }
-        }, 2000);
+        };
       } else {
         setError(data.message || "Gagal memulai update otomatis.");
         setUpdating(false);
@@ -87,7 +126,7 @@ export default function UpdatePage() {
           FSRouter System Update
         </h1>
         <p className="text-xs text-text-muted">
-          Kelola dan perbarui versi FSRouter Anda langsung dari repositori GitHub.
+          Kelola dan perbarui versi FSRouter Anda langsung dari repositori GitHub atau NPM registry.
         </p>
       </div>
 
@@ -136,8 +175,8 @@ export default function UpdatePage() {
               <h2 className="text-sm font-semibold text-text-main">Aksi Pembaruan</h2>
               <p className="text-xs text-text-muted leading-relaxed">
                 {versionInfo.hasUpdate
-                  ? "Versi baru tersedia di GitHub! Update otomatis akan melakukan 'git pull', menginstal dependensi baru, membangun ulang kode, dan me-restart layanan PM2 Anda secara mulus."
-                  : "FSRouter Anda sudah menggunakan versi terbaru di GitHub. Tidak ada pembaruan yang diperlukan saat ini."}
+                  ? "Versi baru tersedia! Update otomatis akan menginstal versi terbaru, memperbarui dependensi, membangun ulang kode, dan me-restart server FSRouter Anda secara mulus."
+                  : "FSRouter Anda sudah menggunakan versi terbaru. Tidak ada pembaruan yang diperlukan saat ini."}
               </p>
             </div>
 
@@ -145,7 +184,14 @@ export default function UpdatePage() {
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                   <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                  Proses Update Sedang Berjalan
+                  Proses Update Sedang Berjalan: {progress}%
+                </div>
+                {/* Progress bar */}
+                <div className="w-full bg-border-subtle rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full transition-all duration-500" 
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
                 <p className="text-[11px] text-text-muted leading-relaxed">
                   {updateStatus}
@@ -182,6 +228,27 @@ export default function UpdatePage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Real-time console logs when updating */}
+      {updating && logs.length > 0 && (
+        <div className="p-4 rounded-[14px] border border-border-subtle bg-black text-green-400 font-mono text-xs overflow-hidden flex flex-col gap-2">
+          <div className="flex items-center justify-between pb-2 border-b border-green-900/50">
+            <span className="text-green-500 font-semibold flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-green-500 animate-pulse" />
+              Logs Konsol Pembaruan
+            </span>
+            <span className="text-[10px] text-green-600">FSRouter Updater</span>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto space-y-1 custom-scrollbar">
+            {logs.map((log, index) => (
+              <pre key={index} className="whitespace-pre-wrap leading-relaxed break-all font-mono">
+                {log}
+              </pre>
+            ))}
+            <div ref={logEndRef} />
           </div>
         </div>
       )}
