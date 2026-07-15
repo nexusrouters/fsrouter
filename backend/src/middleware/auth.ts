@@ -29,7 +29,7 @@ const PUBLIC_API_PATHS = [
   "/api/auth/status",
   "/api/version",
   "/api/settings/require-login",
-  "/api/automation/ammail/webhook",
+  "/api/automation/fsmail/webhook",
 ];
 
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta"];

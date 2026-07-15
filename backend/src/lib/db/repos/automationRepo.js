@@ -13,16 +13,16 @@ export async function getCodeBuddyAccount(id) {
   return db.get("SELECT * FROM codebuddyAccounts WHERE id = ?", [id]);
 }
 
-export async function insertCodeBuddyAccount(email, password, profileDir, signupMethod = "google", ammailAlias = "", provider = "codebuddy") {
+export async function insertCodeBuddyAccount(email, password, profileDir, signupMethod = "google", fsmailAlias = "", provider = "codebuddy") {
   const db = await getAdapter();
   const now = new Date().toISOString();
   let resultId;
 
   db.transaction(() => {
     db.run(
-      `INSERT INTO codebuddyAccounts (email, password, profileDir, signupMethod, ammailAlias, provider, apiKeyStatus, createdAt)
+      `INSERT INTO codebuddyAccounts (email, password, profileDir, signupMethod, fsmailAlias, provider, apiKeyStatus, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [email, password, profileDir, signupMethod, ammailAlias, provider, now]
+      [email, password, profileDir, signupMethod, fsmailAlias, provider, now]
     );
     const row = db.get("SELECT last_insert_rowid() as id");
     resultId = row ? row.id : null;
@@ -157,13 +157,13 @@ export async function updateCodeBuddyJobResult(jobId, idx, result) {
   });
 }
 
-// --- Ammail received OTPs ---
+// --- Fsmail received OTPs ---
 
-export async function insertAmmailOtp(data) {
+export async function insertFsmailOtp(data) {
   const db = await getAdapter();
   const receivedAt = Math.floor(Date.now() / 1000);
   db.run(
-    `INSERT INTO ammailOtps (address, alias, domain, sender, subject, otpCode, verifyUrl, bodyText, bodyHtml, messageShortId, rawEventJson, receivedAt, usedAt)
+    `INSERT INTO fsmailOtps (address, alias, domain, sender, subject, otpCode, verifyUrl, bodyText, bodyHtml, messageShortId, rawEventJson, receivedAt, usedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
       data.address,
@@ -182,7 +182,7 @@ export async function insertAmmailOtp(data) {
   );
 }
 
-export async function findLatestAmmailOtp(address, sinceTs = 0, onlyUnused = true) {
+export async function findLatestFsmailOtp(address, sinceTs = 0, onlyUnused = true) {
   const db = await getAdapter();
   const where = ["address = ?", "receivedAt >= ?"];
   const params = [address.toLowerCase(), sinceTs];
@@ -191,17 +191,17 @@ export async function findLatestAmmailOtp(address, sinceTs = 0, onlyUnused = tru
     where.push("usedAt = 0");
   }
 
-  const sql = `SELECT * FROM ammailOtps WHERE ${where.join(" AND ")} ORDER BY receivedAt DESC LIMIT 1`;
+  const sql = `SELECT * FROM fsmailOtps WHERE ${where.join(" AND ")} ORDER BY receivedAt DESC LIMIT 1`;
   return db.get(sql, params);
 }
 
-export async function markAmmailOtpUsed(id) {
+export async function markFsmailOtpUsed(id) {
   const db = await getAdapter();
   const nowUnix = Math.floor(Date.now() / 1000);
-  db.run("UPDATE ammailOtps SET usedAt = ? WHERE id = ?", [nowUnix, id]);
+  db.run("UPDATE fsmailOtps SET usedAt = ? WHERE id = ?", [nowUnix, id]);
 }
 
-export async function listAmmailOtps(filter = {}) {
+export async function listFsmailOtps(filter = {}) {
   const db = await getAdapter();
   const where = [];
   const params = [];
@@ -219,21 +219,21 @@ export async function listAmmailOtps(filter = {}) {
     where.push("otpCode IS NOT NULL AND otpCode != ''");
   }
 
-  const sql = `SELECT * FROM ammailOtps ${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY receivedAt DESC`;
+  const sql = `SELECT * FROM fsmailOtps ${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY receivedAt DESC`;
   return db.all(sql, params);
 }
 
-export async function getAmmailOtp(id) {
+export async function getFsmailOtp(id) {
   const db = await getAdapter();
-  return db.get("SELECT * FROM ammailOtps WHERE id = ?", [id]);
+  return db.get("SELECT * FROM fsmailOtps WHERE id = ?", [id]);
 }
 
-export async function deleteAmmailOtp(id) {
+export async function deleteFsmailOtp(id) {
   const db = await getAdapter();
-  db.run("DELETE FROM ammailOtps WHERE id = ?", [id]);
+  db.run("DELETE FROM fsmailOtps WHERE id = ?", [id]);
 }
 
-export async function deleteAmmailOtpsBulk(filter = {}) {
+export async function deleteFsmailOtpsBulk(filter = {}) {
   const db = await getAdapter();
   const where = [];
   const params = [];
@@ -256,6 +256,6 @@ export async function deleteAmmailOtpsBulk(filter = {}) {
     where.push("otpCode IS NOT NULL AND otpCode != ''");
   }
 
-  const sql = `DELETE FROM ammailOtps${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
+  const sql = `DELETE FROM fsmailOtps${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
   db.run(sql, params);
 }

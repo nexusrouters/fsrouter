@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flashloop account auto-signup via Camoufox (anti-fingerprint) + Ammail email verification.
+"""Flashloop account auto-signup via Camoufox (anti-fingerprint) + Fsmail email verification.
 
 Referral code: UWZKVP (hardcoded in URL)
 
@@ -38,8 +38,8 @@ def die(msg):
     emit({"status": "error", "error": msg})
     sys.exit(1)
 
-# ── Ammail helpers ─────────────────────────────────────────────────────────────
-def ammail_request(base_url, api_key, path, method="GET", data=None):
+# ── Fsmail helpers ─────────────────────────────────────────────────────────────
+def fsmail_request(base_url, api_key, path, method="GET", data=None):
     url = base_url.rstrip("/") + "/api" + path
     req = urllib.request.Request(url, method=method)
     req.add_header("Authorization", f"Bearer {api_key}")
@@ -50,7 +50,7 @@ def ammail_request(base_url, api_key, path, method="GET", data=None):
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())
 
-def create_ammail_inbox(base_url, api_key):
+def create_fsmail_inbox(base_url, api_key):
     """Create a random inbox and return (email, alias)."""
     rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
     alias = f"fl{rand}"
@@ -58,7 +58,7 @@ def create_ammail_inbox(base_url, api_key):
 
     # Get available domains
     try:
-        domains_data = ammail_request(base_url, api_key, "/domains")
+        domains_data = fsmail_request(base_url, api_key, "/domains")
         domains = domains_data.get("domains", [])
         if domains:
             domain = domains[0].get("name", domains[0].get("domain", ""))
@@ -66,19 +66,19 @@ def create_ammail_inbox(base_url, api_key):
         pass
 
     if not domain:
-        die("Tidak ada domain tersedia di Ammail")
+        die("Tidak ada domain tersedia di Fsmail")
 
     email = f"{alias}@{domain}"
 
     try:
-        ammail_request(base_url, api_key, "/inboxes", method="POST",
+        fsmail_request(base_url, api_key, "/inboxes", method="POST",
                        data={"alias": alias, "domain": domain})
     except Exception as e:
         log_step(f"Warning: inbox creation: {e}")
 
     return email, alias
 
-def wait_for_flashloop_email(base_url, api_key, alias, timeout=300):
+def wait_for_flashloop_email():
     """Wait for Flashloop verification email and extract OTP code."""
     log_step(f"Menunggu email verifikasi Flashloop...")
     deadline = time.time() + timeout
@@ -86,7 +86,7 @@ def wait_for_flashloop_email(base_url, api_key, alias, timeout=300):
 
     while time.time() < deadline:
         try:
-            data = ammail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
+            data = fsmail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
             messages = data.get("messages", [])
             for msg in messages:
                 msg_id = msg.get("id", "")
@@ -106,7 +106,7 @@ def wait_for_flashloop_email(base_url, api_key, alias, timeout=300):
                 if is_flashloop:
                     # Fetch full message
                     try:
-                        full = ammail_request(base_url, api_key,
+                        full = fsmail_request(base_url, api_key,
                                               f"/inboxes/{urllib.parse.quote(alias)}/messages/{urllib.parse.quote(msg_id)}")
                         body = full.get("body", "") or full.get("text", "") or full.get("html", "")
 
@@ -159,8 +159,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
-    parser.add_argument("--ammail-url", required=True)
-    parser.add_argument("--ammail-key", required=True)
+    parser.add_argument("--fsmail-url", required=True)
+    parser.add_argument("--fsmail-key", required=True)
     parser.add_argument("--profiles-dir", required=True)
     parser.add_argument("--headless", action="store_true", default=True)
     parser.add_argument("--delay", type=float, default=0)
@@ -297,7 +297,7 @@ def main():
 
             if otp_inputs.count() > 0:
                 log_step("Halaman OTP terdeteksi, menunggu kode dari email...")
-                result = wait_for_flashloop_email(args.ammail_url, args.ammail_key, alias, timeout=120)
+                result = wait_for_flashloop_email()
 
                 if isinstance(result, dict) and result.get("type") == "link":
                     log_step("Membuka link verifikasi...")

@@ -171,12 +171,12 @@ export async function initDb() {
   await getAdapter();
 }
 
-// Automation (CodeBuddy & Ammail)
+// Automation (CodeBuddy & Fsmail)
 export {
   listCodeBuddyAccounts, getCodeBuddyAccount, insertCodeBuddyAccount,
   bulkDeleteCodeBuddyAccounts, deleteCodeBuddyAccount, markCodeBuddyRunning,
   markCodeBuddySuccess, markCodeBuddyError, markCanvaEnrolled,
   createCodeBuddyJob, getCodeBuddyJob, updateCodeBuddyJobStatus, updateCodeBuddyJobResult,
-  insertAmmailOtp, findLatestAmmailOtp, markAmmailOtpUsed, listAmmailOtps,
-  getAmmailOtp, deleteAmmailOtp, deleteAmmailOtpsBulk
+  insertFsmailOtp, findLatestFsmailOtp, markFsmailOtpUsed, listFsmailOtps,
+  getFsmailOtp, deleteFsmailOtp, deleteFsmailOtpsBulk
 } from "./repos/automationRepo.js";

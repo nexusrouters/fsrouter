@@ -30,7 +30,7 @@ export class TempMailClient {
 
   async _request(method, path, body = null) {
     if (!this.configured) {
-      throw new TempMailError("ammail_not_configured");
+      throw new TempMailError("fsmail_not_configured");
     }
 
     try {
@@ -38,7 +38,7 @@ export class TempMailClient {
     } catch (e) {
       if (this.fallbackUrl && this.fallbackUrl !== this.baseUrl) {
         try {
-          console.warn(`Ammail Client: Primary URL ${this.baseUrl} failed, retrying with fallback URL ${this.fallbackUrl}:`, e.message);
+          console.warn(`Fsmail Client: Primary URL ${this.baseUrl} failed, retrying with fallback URL ${this.fallbackUrl}:`, e.message);
           return await this._executeRequest(this.fallbackUrl, method, path, body);
         } catch (fallbackErr) {
           throw fallbackErr;
@@ -149,13 +149,13 @@ export class TempMailClient {
   }
 }
 
-export async function getAmmailClientFromSettings(timeout = 20000) {
+export async function getFsmailClientFromSettings(timeout = 20000) {
   const settings = await getSettings();
   return new TempMailClient(
-    settings.ammail_base_url || "",
-    settings.ammail_api_key || "",
-    settings.ammail_default_domain || "",
-    settings.ammail_cf_workers_dev_url || "",
+    settings.fsmail_base_url || "",
+    settings.fsmail_api_key || "",
+    settings.fsmail_default_domain || "",
+    settings.fsmail_cf_workers_dev_url || "",
     timeout
   );
 }

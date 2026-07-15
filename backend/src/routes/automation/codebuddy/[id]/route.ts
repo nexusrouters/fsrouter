@@ -226,14 +226,14 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
           args.push("--leave-canva-team");
         }
       } else if (isCloudflare) {
-        const ammailSettings = settings;
-        const ammailBaseUrl = ammailSettings.ammail_base_url || "";
-        const ammailApiKey = ammailSettings.ammail_api_key || "";
-        const ammailDomain = ammailSettings.ammail_default_domain || "";
-        if (ammailBaseUrl && ammailApiKey && ammailDomain) {
-          args.push(`--ammail-base-url=${ammailBaseUrl}`);
-          args.push(`--ammail-api-key=${ammailApiKey}`);
-          args.push(`--ammail-domain=${ammailDomain}`);
+        const fsmailSettings = settings;
+        const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+        const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+        const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+        if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+          args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+          args.push(`--fsmail-api-key=${fsmailApiKey}`);
+          args.push(`--fsmail-domain=${fsmailDomain}`);
         }
         const captchaKey = settings.codebuddy_2captcha_api_key || "";
         if (captchaKey) {

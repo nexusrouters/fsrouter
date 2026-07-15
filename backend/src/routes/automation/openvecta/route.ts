@@ -54,7 +54,7 @@ export async function POST_handler(req, res) {
 
     // ── Action: Start signup ──────────────────────────────────────────────
     if (action === "start-signup") {
-      const { email, password, ammail_base_url, ammail_api_key, ammail_domain, headless, proxy } = body;
+      const { email, password, fsmail_base_url, fsmail_api_key, fsmail_domain, headless, proxy } = body;
 
       if (!email) {
         return res.status(400).json({ error: "email is required" });
@@ -80,10 +80,10 @@ export async function POST_handler(req, res) {
         `--profiles-dir=${profilesDir}`,
       ];
 
-      if (ammail_base_url && ammail_api_key && ammail_domain) {
-        args.push(`--ammail-base-url=${ammail_base_url}`);
-        args.push(`--ammail-api-key=${ammail_api_key}`);
-        args.push(`--ammail-domain=${ammail_domain}`);
+      if (fsmail_base_url && fsmail_api_key && fsmail_domain) {
+        args.push(`--ammail-base-url=${fsmail_base_url}`);
+        args.push(`--ammail-api-key=${fsmail_api_key}`);
+        args.push(`--ammail-domain=${fsmail_domain}`);
       }
 
       if (headless !== false) {

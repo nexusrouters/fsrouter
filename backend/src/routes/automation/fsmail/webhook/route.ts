@@ -1,12 +1,12 @@
 
 import { getSettings } from "../../../../lib/localDb.js";
-import { getAmmailClientFromSettings, extractOtp } from "../../../../lib/automation/ammailClient.js";
-import { insertAmmailOtp } from "../../../../lib/db/index.js";
+import { getFsmailClientFromSettings, extractOtp } from "../../../../lib/automation/fsmailClient.js";
+import { insertFsmailOtp } from "../../../../lib/db/index.js";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-function verifyAmmailSignature(secret, bodyText, signatureHeader) {
+function verifyFsmailSignature(secret, bodyText, signatureHeader) {
   if (!secret) return true;
   if (!signatureHeader) return false;
 
@@ -31,10 +31,10 @@ export async function POST_handler(req, res) {
   try {
     const rawBody = JSON.stringify(req.body || {});
     const settings = await getSettings();
-    const secret = (settings.ammail_webhook_secret || "").trim();
+    const secret = (settings.fsmail_webhook_secret || "").trim();
     const sig = req.headers["x-tempmail-signature"] || "";
 
-    if (!verifyAmmailSignature(secret, rawBody, sig)) {
+    if (!verifyFsmailSignature(secret, rawBody, sig)) {
       return res.status(401).json({ ok: false, error: "invalid_signature" });
     }
 
@@ -50,15 +50,15 @@ export async function POST_handler(req, res) {
     const domain = address.includes("@") ? address.split("@")[1] : "";
 
     if (event === "webhook.test") {
-      await insertAmmailOtp({
+      await insertFsmailOtp({
         address: address || "test@example.com",
         alias: alias || "test",
         domain,
-        sender: "ammail-worker",
+        sender: "fsmail-worker",
         subject: "Webhook test",
         otpCode: "000000",
         verifyUrl: "",
-        bodyText: "Webhook test from ammail worker.",
+        bodyText: "Webhook test from fsmail worker.",
         bodyHtml: "",
         messageShortId: "test",
         rawEventJson: JSON.stringify(payload).substring(0, 32000),
@@ -80,21 +80,21 @@ export async function POST_handler(req, res) {
 
     // Pull full body via REST Client
     if (shortId) {
-      const client = await getAmmailClientFromSettings();
+      const client = await getFsmailClientFromSettings();
       if (client.configured) {
         try {
           const full = await client.getMessage(shortId);
           textBody = String(full.text || textBody || "");
           htmlBody = String(full.html || "");
         } catch (e) {
-          console.warn(`Failed to pull full Ammail message ${shortId}:`, e);
+          console.warn(`Failed to pull full Fsmail message ${shortId}:`, e);
         }
       }
     }
 
     const { code, verifyUrl } = extractOtp(textBody, htmlBody, subject);
 
-    await insertAmmailOtp({
+    await insertFsmailOtp({
       address,
       alias,
       domain,
@@ -108,11 +108,11 @@ export async function POST_handler(req, res) {
       rawEventJson: JSON.stringify(payload).substring(0, 32000),
     });
 
-    console.log(`Ammail OTP stored for ${address} code=${code || "-"} url=${verifyUrl ? "yes" : "-"}`);
+    console.log(`Fsmail OTP stored for ${address} code=${code || "-"} url=${verifyUrl ? "yes" : "-"}`);
     return res.json({ ok: true, otp: !!code, verify_url: !!verifyUrl });
 
   } catch (error) {
-    console.error("Error in POST /api/automation/ammail/webhook:", error);
+    console.error("Error in POST /api/automation/fsmail/webhook:", error);
     return res.status(500).json({ error: error.message });
   }
 }

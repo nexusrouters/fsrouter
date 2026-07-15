@@ -14,7 +14,7 @@ export async function GET(req: any, res: any) {
     if (db && typeof db.exec === "function") {
       try {
         const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        db.run("DELETE FROM ammailOtps WHERE receivedAt < ?", [threeDaysAgo]);
+        db.run("DELETE FROM fsmailOtps WHERE receivedAt < ?", [threeDaysAgo]);
         // Vacuum to compress and physically shrink the .sqlite file
         db.exec("VACUUM");
       } catch (e) {

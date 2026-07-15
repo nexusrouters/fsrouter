@@ -1,7 +1,7 @@
 
 import { getSettings, updateSettings } from "../../../lib/localDb.js";
-import { getAmmailClientFromSettings } from "../../../lib/automation/ammailClient.js";
-import { listAmmailOtps, deleteAmmailOtpsBulk } from "../../../lib/db/index.js";
+import { getFsmailClientFromSettings } from "../../../lib/automation/fsmailClient.js";
+import { listFsmailOtps, deleteFsmailOtpsBulk } from "../../../lib/db/index.js";
 import crypto from "crypto";
 import fs from "fs";
 import { exec } from "child_process";
@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 export async function GET_handler(req, res) {
   try {
     const settings = await getSettings();
-    const client = await getAmmailClientFromSettings();
-    const otps = await listAmmailOtps();
+    const client = await getFsmailClientFromSettings();
+    const otps = await listFsmailOtps();
 
     let configured = client.configured;
     let connectionOk = false;
@@ -49,11 +49,11 @@ export async function GET_handler(req, res) {
     let tunnelUrl = (settings.tunnelEnabled && settings.tunnelUrl) ? settings.tunnelUrl : "";
     let webhookUrl = "";
     if (tunnelUrl) {
-      webhookUrl = `${tunnelUrl.replace(/\/+$/, "")}/api/automation/ammail/webhook`;
+      webhookUrl = `${tunnelUrl.replace(/\/+$/, "")}/api/automation/fsmail/webhook`;
     } else {
       const scheme = req.headers["x-forwarded-proto"] || "http";
       const host = req.headers["host"];
-      webhookUrl = `${scheme}://${host}/api/automation/ammail/webhook`;
+      webhookUrl = `${scheme}://${host}/api/automation/fsmail/webhook`;
     }
 
     if (connectionOk && inboxes.length > 0) {
@@ -77,11 +77,11 @@ export async function GET_handler(req, res) {
                     const alias = inbox.alias;
                     const domain = inbox.domain;
 
-                    const { extractOtp } = await import("../../../lib/automation/ammailClient");
+                    const { extractOtp } = await import("../../../lib/automation/fsmailClient");
                     const { code, verifyUrl } = extractOtp(textBody, htmlBody, subject);
 
-                    const { insertAmmailOtp } = await import("../../../lib/db");
-                    await insertAmmailOtp({
+                    const { insertFsmailOtp } = await import("../../../lib/db");
+                    await insertFsmailOtp({
                       address,
                       alias,
                       domain,
@@ -124,15 +124,15 @@ export async function GET_handler(req, res) {
       webhook,
       webhook_url: webhookUrl,
       settings: {
-        base_url: settings.ammail_base_url || "",
-        api_key: settings.ammail_api_key || "",
-        default_domain: settings.ammail_default_domain || "",
-        webhook_secret: settings.ammail_webhook_secret || "",
-        cf_account_id: settings.ammail_cf_account_id || "",
-        cf_api_token: settings.ammail_cf_api_token || "",
-        cf_domain: settings.ammail_cf_domain || "",
-        cf_telegram_bot_token: settings.ammail_cf_telegram_bot_token || "",
-        cf_workers_dev_url: settings.ammail_cf_workers_dev_url || "",
+        base_url: settings.fsmail_base_url || "",
+        api_key: settings.fsmail_api_key || "",
+        default_domain: settings.fsmail_default_domain || "",
+        webhook_secret: settings.fsmail_webhook_secret || "",
+        cf_account_id: settings.fsmail_cf_account_id || "",
+        cf_api_token: settings.fsmail_cf_api_token || "",
+        cf_domain: settings.fsmail_cf_domain || "",
+        cf_telegram_bot_token: settings.fsmail_cf_telegram_bot_token || "",
+        cf_workers_dev_url: settings.fsmail_cf_workers_dev_url || "",
       },
       otps: otps.map(o => ({
         id: o.id,
@@ -147,7 +147,7 @@ export async function GET_handler(req, res) {
       }))
     });
   } catch (error) {
-    console.error("Error in GET /api/automation/ammail:", error);
+    console.error("Error in GET /api/automation/fsmail:", error);
     return res.status(500).json({ error: error.message });
   }
 }
@@ -160,7 +160,7 @@ export async function POST_handler(req, res) {
     // ── Action: List Domains ─────────────────────────────────────────
     if (action === "list-domains") {
       const settings = await getSettings();
-      const client = await getAmmailClientFromSettings();
+      const client = await getFsmailClientFromSettings();
       let domains = [];
       if (client.configured) {
         try {
@@ -170,13 +170,13 @@ export async function POST_handler(req, res) {
           // fallback to default domain from settings
         }
       }
-      if (domains.length === 0 && settings.ammail_default_domain) {
-        domains = [settings.ammail_default_domain];
+      if (domains.length === 0 && settings.fsmail_default_domain) {
+        domains = [settings.fsmail_default_domain];
       }
       return res.json({
         ok: true,
         domains,
-        default_domain: settings.ammail_default_domain || domains[0] || ""
+        default_domain: settings.fsmail_default_domain || domains[0] || ""
       });
     }
 
@@ -185,24 +185,24 @@ export async function POST_handler(req, res) {
 
       const { base_url, api_key, default_domain, webhook_secret, cf_account_id, cf_api_token, cf_domain, cf_telegram_bot_token, cf_workers_dev_url } = body;
       const updates = {};
-      if (base_url !== undefined) updates.ammail_base_url = base_url;
-      if (api_key !== undefined) updates.ammail_api_key = api_key;
-      if (default_domain !== undefined) updates.ammail_default_domain = default_domain;
-      if (cf_account_id !== undefined) updates.ammail_cf_account_id = cf_account_id;
-      if (cf_api_token !== undefined) updates.ammail_cf_api_token = cf_api_token;
-      if (cf_domain !== undefined) updates.ammail_cf_domain = cf_domain;
-      if (cf_telegram_bot_token !== undefined) updates.ammail_cf_telegram_bot_token = cf_telegram_bot_token;
-      if (cf_workers_dev_url !== undefined) updates.ammail_cf_workers_dev_url = cf_workers_dev_url;
+      if (base_url !== undefined) updates.fsmail_base_url = base_url;
+      if (api_key !== undefined) updates.fsmail_api_key = api_key;
+      if (default_domain !== undefined) updates.fsmail_default_domain = default_domain;
+      if (cf_account_id !== undefined) updates.fsmail_cf_account_id = cf_account_id;
+      if (cf_api_token !== undefined) updates.fsmail_cf_api_token = cf_api_token;
+      if (cf_domain !== undefined) updates.fsmail_cf_domain = cf_domain;
+      if (cf_telegram_bot_token !== undefined) updates.fsmail_cf_telegram_bot_token = cf_telegram_bot_token;
+      if (cf_workers_dev_url !== undefined) updates.fsmail_cf_workers_dev_url = cf_workers_dev_url;
       
       let secret = webhook_secret;
       if (secret === undefined || secret === "") {
         // Auto-generate webhook secret if empty
         const settings = await getSettings();
-        if (!settings.ammail_webhook_secret) {
+        if (!settings.fsmail_webhook_secret) {
           secret = crypto.randomBytes(32).toString("hex");
         }
       }
-      if (secret !== undefined) updates.ammail_webhook_secret = secret;
+      if (secret !== undefined) updates.fsmail_webhook_secret = secret;
 
       await updateSettings(updates);
       return res.json({ ok: true });
@@ -214,12 +214,12 @@ export async function POST_handler(req, res) {
       try {
         let testClient;
         if (base_url && api_key) {
-          const { TempMailClient } = await import("../../../lib/automation/ammailClient");
+          const { TempMailClient } = await import("../../../lib/automation/fsmailClient");
           testClient = new TempMailClient(base_url, api_key);
         } else {
-          const client = await getAmmailClientFromSettings();
+          const client = await getFsmailClientFromSettings();
           if (!client.configured) {
-            return res.status(400).json({ error: "Ammail belum dikonfigurasi." });
+            return res.status(400).json({ error: "Fsmail belum dikonfigurasi." });
           }
           testClient = client;
         }
@@ -395,24 +395,24 @@ export async function POST_handler(req, res) {
 
         // 8. Simpan setelan ke database lokal 9router
         const updates = {
-          ammail_base_url: `https://${cf_domain}`,
-          ammail_api_key: generatedApiKey,
-          ammail_default_domain: emailDomain,
-          ammail_webhook_secret: webhookSecretToken,
-          ammail_cf_account_id: cf_account_id,
-          ammail_cf_api_token: cf_api_token,
-          ammail_cf_domain: cf_domain,
-          ammail_cf_telegram_bot_token: telegram_bot_token || "",
-          ammail_cf_workers_dev_url: workersDevUrl
+          fsmail_base_url: `https://${cf_domain}`,
+          fsmail_api_key: generatedApiKey,
+          fsmail_default_domain: emailDomain,
+          fsmail_webhook_secret: webhookSecretToken,
+          fsmail_cf_account_id: cf_account_id,
+          fsmail_cf_api_token: cf_api_token,
+          fsmail_cf_domain: cf_domain,
+          fsmail_cf_telegram_bot_token: telegram_bot_token || "",
+          fsmail_cf_workers_dev_url: workersDevUrl
         };
         await updateSettings(updates);
 
         return res.json({
           ok: true,
-          base_url: updates.ammail_base_url,
-          api_key: updates.ammail_api_key,
-          default_domain: updates.ammail_default_domain,
-          webhook_secret: updates.ammail_webhook_secret,
+          base_url: updates.fsmail_base_url,
+          api_key: updates.fsmail_api_key,
+          default_domain: updates.fsmail_default_domain,
+          webhook_secret: updates.fsmail_webhook_secret,
           cf_workers_dev_url: workersDevUrl
         });
       } catch (err) {
@@ -421,9 +421,9 @@ export async function POST_handler(req, res) {
       }
     }
 
-    const client = await getAmmailClientFromSettings();
+    const client = await getFsmailClientFromSettings();
     if (!client.configured) {
-      return res.status(400).json({ error: "Ammail belum dikonfigurasi." });
+      return res.status(400).json({ error: "Fsmail belum dikonfigurasi." });
     }
 
     // ── Action: Test Connection ──────────────────────────────────────
@@ -450,20 +450,20 @@ export async function POST_handler(req, res) {
     // ── Action: Register Webhook ─────────────────────────────────────
     if (action === "webhook-register") {
       const settings = await getSettings();
-      let secret = settings.ammail_webhook_secret;
+      let secret = settings.fsmail_webhook_secret;
       if (!secret) {
         secret = crypto.randomBytes(32).toString("hex");
-        await updateSettings({ ammail_webhook_secret: secret });
+        await updateSettings({ fsmail_webhook_secret: secret });
       }
 
       let tunnelUrl = (settings.tunnelEnabled && settings.tunnelUrl) ? settings.tunnelUrl : "";
       let webhookUrl = "";
       if (tunnelUrl) {
-        webhookUrl = `${tunnelUrl.replace(/\/+$/, "")}/api/automation/ammail/webhook`;
+        webhookUrl = `${tunnelUrl.replace(/\/+$/, "")}/api/automation/fsmail/webhook`;
       } else {
         const scheme = req.headers["x-forwarded-proto"] || "http";
         const host = req.headers["host"];
-        webhookUrl = `${scheme}://${host}/api/automation/ammail/webhook`;
+        webhookUrl = `${scheme}://${host}/api/automation/fsmail/webhook`;
       }
 
       try {
@@ -490,7 +490,7 @@ export async function POST_handler(req, res) {
       try {
         const ok = await client.deleteInbox(alias);
         try {
-          await deleteAmmailOtpsBulk({ alias });
+          await deleteFsmailOtpsBulk({ alias });
         } catch (dbErr) {
           console.error("Failed to delete local emails for alias:", alias, dbErr);
         }
@@ -504,7 +504,7 @@ export async function POST_handler(req, res) {
     if (action === "otps-delete-bulk") {
       const { folder, address } = body;
       try {
-        await deleteAmmailOtpsBulk({ folder, address });
+        await deleteFsmailOtpsBulk({ folder, address });
         return res.json({ ok: true });
       } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
@@ -513,7 +513,7 @@ export async function POST_handler(req, res) {
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (error) {
-    console.error("Error in POST /api/automation/ammail:", error);
+    console.error("Error in POST /api/automation/fsmail:", error);
     return res.status(500).json({ error: error.message });
   }
 }

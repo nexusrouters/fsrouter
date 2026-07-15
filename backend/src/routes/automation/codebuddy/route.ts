@@ -41,7 +41,7 @@ import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { getSettings, updateSettings } from "../../../lib/localDb.js";
-import { getAmmailClientFromSettings } from "../../../lib/automation/ammailClient.js";
+import { getFsmailClientFromSettings } from "../../../lib/automation/fsmailClient.js";
 import { 
   listCodeBuddyAccounts, getCodeBuddyAccount, insertCodeBuddyAccount,
   bulkDeleteCodeBuddyAccounts, deleteCodeBuddyAccount, markCodeBuddyRunning, markCodeBuddySuccess, markCodeBuddyError, markCanvaEnrolled,
@@ -254,9 +254,9 @@ export async function POST_handler(req, res) {
       console.log(`[AUTO-GEN-EMAIL] provider from body: "${provider}", targetProvider: "${targetProvider}"`);
       const numCount = parseInt(count) || 1;
 
-      const client = await getAmmailClientFromSettings();
+      const client = await getFsmailClientFromSettings();
       if (!client.configured) {
-        return res.status(400).json({ error: "Ammail belum dikonfigurasi di Settings." });
+        return res.status(400).json({ error: "Fsmail belum dikonfigurasi di Settings." });
       }
 
       const createdAccounts = [];
@@ -283,7 +283,7 @@ export async function POST_handler(req, res) {
             }
           }
           if (!res || !res.inbox || !res.inbox.address) {
-            throw lastErr || new Error("Gagal membuat inbox dari Ammail");
+            throw lastErr || new Error("Gagal membuat inbox dari Fsmail");
           }
 
           const email = res.inbox.address;
@@ -890,15 +890,15 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
           args.push("--leave-canva-team");
         }
       } else if (isCloudflare) {
-        // Inject Ammail credentials so the script can generate + verify email
-        const ammailSettings = settings;
-        const ammailBaseUrl = ammailSettings.ammail_base_url || "";
-        const ammailApiKey = ammailSettings.ammail_api_key || "";
-        const ammailDomain = ammailSettings.ammail_default_domain || "";
-        if (ammailBaseUrl && ammailApiKey && ammailDomain) {
-          args.push(`--ammail-base-url=${ammailBaseUrl}`);
-          args.push(`--ammail-api-key=${ammailApiKey}`);
-          args.push(`--ammail-domain=${ammailDomain}`);
+        // Inject Fsmail credentials so the script can generate + verify email
+        const fsmailSettings = settings;
+        const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+        const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+        const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+        if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+          args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+          args.push(`--fsmail-api-key=${fsmailApiKey}`);
+          args.push(`--fsmail-domain=${fsmailDomain}`);
         }
         // 2Captcha for Turnstile
         const captchaKey = settings.codebuddy_2captcha_api_key || "";
@@ -917,15 +917,15 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         }
         args.push("--clean");
       } else if (isOpenVecta) {
-        // Inject Ammail credentials so the script can verify email
-        const ammailSettings = settings;
-        const ammailBaseUrl = ammailSettings.ammail_base_url || "";
-        const ammailApiKey = ammailSettings.ammail_api_key || "";
-        const ammailDomain = ammailSettings.ammail_default_domain || "";
-        if (ammailBaseUrl && ammailApiKey && ammailDomain) {
-          args.push(`--ammail-base-url=${ammailBaseUrl}`);
-          args.push(`--ammail-api-key=${ammailApiKey}`);
-          args.push(`--ammail-domain=${ammailDomain}`);
+        // Inject Fsmail credentials so the script can verify email
+        const fsmailSettings = settings;
+        const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+        const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+        const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+        if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+          args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+          args.push(`--fsmail-api-key=${fsmailApiKey}`);
+          args.push(`--fsmail-domain=${fsmailDomain}`);
         }
         // Stagger browser launches
         const slotDelay = (idx % 3) * 5;

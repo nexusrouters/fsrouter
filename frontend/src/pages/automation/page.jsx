@@ -4,7 +4,7 @@ import { Card, Button, Badge, Toggle, Loading } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 export default function AutomationDashboard() {
-  const [activeTab, setActiveTab] = useState("codebuddy"); // codebuddy | ammail
+  const [activeTab, setActiveTab] = useState("codebuddy"); // codebuddy | fsmail
 
   const tabBtn = (id, icon, label) => (
     <button
@@ -25,11 +25,11 @@ export default function AutomationDashboard() {
       {/* Tab Switcher */}
       <div className="flex border-b border-border-subtle pb-px gap-6 flex-wrap">
         {tabBtn("codebuddy", "smart_toy", "Automation")}
-        {tabBtn("ammail", "mail", "FSMail Temp Mail")}
+        {tabBtn("fsmail", "mail", "FSMail Temp Mail")}
       </div>
 
       {activeTab === "codebuddy" && <CodeBuddyTab />}
-      {activeTab === "ammail" && <FSMailTab />}
+      {activeTab === "fsmail" && <FSMailTab />}
     </div>
   );
 }
@@ -112,7 +112,7 @@ function CodeBuddyTab() {
 
   const [autoGenerateEmail, setAutoGenerateEmail] = useState(false);
   const [generateCount, setGenerateCount] = useState(5);
-  const [ammailDomains, setFSMailDomains] = useState([]);
+  const [fsmailDomains, setFSMailDomains] = useState([]);
   const [selectedFSMailDomain, setSelectedFSMailDomain] = useState("");
 
   // Load from localStorage on mount
@@ -160,7 +160,7 @@ function CodeBuddyTab() {
 
   // Fetch available FSMail domains
   useEffect(() => {
-    fetch("/api/automation/ammail", {
+    fetch("/api/automation/fsmail", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "list-domains" })
@@ -601,7 +601,7 @@ function CodeBuddyTab() {
                   className="w-16 text-xs p-1.5 rounded-lg border border-border-subtle bg-surface text-center text-text-main"
                 />
               </div>
-              {ammailDomains.length >= 1 && (
+              {fsmailDomains.length >= 1 && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-text-muted">Email domain:</span>
                   <select
@@ -609,7 +609,7 @@ function CodeBuddyTab() {
                     onChange={(e) => setSelectedFSMailDomain(e.target.value)}
                     className="flex-1 text-xs p-1.5 rounded-lg border border-border-subtle bg-surface text-text-main ml-2 max-w-[180px]"
                   >
-                    {ammailDomains.map(d => (
+                    {fsmailDomains.map(d => (
                       <option key={d} value={d}>@{d}</option>
                     ))}
                   </select>
@@ -1368,7 +1368,7 @@ function FSMailTab() {
 
   const loadState = async () => {
     try {
-      const res = await fetch("/api/automation/ammail");
+      const res = await fetch("/api/automation/fsmail");
       const data = await res.json();
       if (res.ok) {
         setConfigured(data.configured);
@@ -1415,7 +1415,7 @@ function FSMailTab() {
 
   const handleSaveSettings = async () => {
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1444,7 +1444,7 @@ function FSMailTab() {
     setLoading(true);
     setTestResult(null);
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1475,7 +1475,7 @@ function FSMailTab() {
     setLoading(true);
     setTestResult(null);
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1507,7 +1507,7 @@ function FSMailTab() {
 
   const handleRegisterWebhook = async () => {
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "webhook-register" })
@@ -1527,7 +1527,7 @@ function FSMailTab() {
   const handleCreateInbox = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1555,7 +1555,7 @@ function FSMailTab() {
   const handleDeleteInbox = async (alias) => {
     if (!confirm(`Hapus inbox ${alias}?`)) return;
     try {
-      const res = await fetch("/api/automation/ammail", {
+      const res = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "inbox-delete", alias })
@@ -1580,7 +1580,7 @@ function FSMailTab() {
     setSelectedOtpDetails(null);
     setHtmlZoom(1.0);
     try {
-      const res = await fetch(`/api/automation/ammail/otps/${id}`);
+      const res = await fetch(`/api/automation/fsmail/otps/${id}`);
       const data = await res.json();
       if (res.ok) {
         setSelectedOtpDetails(data.otp);
@@ -1595,7 +1595,7 @@ function FSMailTab() {
     e.stopPropagation();
     if (!confirm("Delete this email?")) return;
     try {
-      await fetch(`/api/automation/ammail/otps/${id}`, {
+      await fetch(`/api/automation/fsmail/otps/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete" })
@@ -1613,7 +1613,7 @@ function FSMailTab() {
   const handleEmptyFolder = async () => {
     if (!confirm(`Delete all emails in folder ${activeFolder}?`)) return;
     try {
-      await fetch("/api/automation/ammail", {
+      await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -245,7 +245,7 @@ export async function runMigrationOnce(adapter) {
   // Prune old OTPs to prevent database bloat
   try {
     const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-    adapter.run("DELETE FROM ammailOtps WHERE receivedAt < ?", [threeDaysAgo]);
+    adapter.run("DELETE FROM fsmailOtps WHERE receivedAt < ?", [threeDaysAgo]);
   } catch (e) {}
 
   // 3. One-time legacy JSON import (only if DB was fresh on entry)

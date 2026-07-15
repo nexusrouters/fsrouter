@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""OpenVecta account auto-signup via Camoufox (anti-fingerprint) + Ammail email verification.
+"""OpenVecta account auto-signup via Camoufox (anti-fingerprint) + Fsmail email verification.
 
 Flow:
   1. Navigate to openvecta.com → click "Get started"
-  2. Privy modal opens → enter email → receive verification code via Ammail
+  2. Privy modal opens → enter email → receive verification code via Fsmail
   3. Enter verification code → account created (Privy auto-creates Solana wallet)
   4. Navigate to dashboard → API keys tab → create new key
   5. Copy the ov_sk_live_... key
@@ -45,8 +45,8 @@ def die(msg):
     sys.exit(1)
 
 
-# ── Ammail helpers ─────────────────────────────────────────────────────────────
-def ammail_request(base_url, api_key, path, method="GET", data=None, host_header=None):
+# ── Fsmail helpers ─────────────────────────────────────────────────────────────
+def fsmail_request(base_url, api_key, path, method="GET", data=None, host_header=None):
     url = base_url.rstrip("/") + "/api" + path
     req = urllib.request.Request(url, method=method)
     req.add_header("Authorization", f"Bearer {api_key}")
@@ -57,18 +57,18 @@ def ammail_request(base_url, api_key, path, method="GET", data=None, host_header
     if host_header:
         req.add_header("Host", host_header)
     elif "localhost" in base_url or "127.0.0.1" in base_url:
-        req.add_header("Host", "ammail.klipers.site")
+        req.add_header("Host", "fsmail.klipers.site")
     if data:
         req.data = json.dumps(data).encode()
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())
 
 
-def create_ammail_inbox(base_url, api_key, email):
+def create_fsmail_inbox(base_url, api_key, email):
     """Create inbox by splitting email into alias + domain."""
     try:
         alias, domain = email.split("@", 1)
-        ammail_request(base_url, api_key, "/inboxes", method="POST",
+        fsmail_request(base_url, api_key, "/inboxes", method="POST",
                        data={"alias": alias, "domain": domain})
     except Exception:
         pass  # might already exist
@@ -82,7 +82,7 @@ def wait_for_openvecta_verify_email(base_url, api_key, email, timeout=300):
     seen_ids = set()
     while time.time() < deadline:
         try:
-            data = ammail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
+            data = fsmail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
             messages = data.get("messages", [])
             for msg in messages:
                 msg_id = msg.get("id", "")
@@ -105,7 +105,7 @@ def wait_for_openvecta_verify_email(base_url, api_key, email, timeout=300):
                 if is_ov_email:
                     # Fetch full message body
                     try:
-                        full = ammail_request(base_url, api_key, f"/messages/{urllib.parse.quote(msg_id)}")
+                        full = fsmail_request(base_url, api_key, f"/messages/{urllib.parse.quote(msg_id)}")
                         msg_body = full.get("message", full)
                         body = msg_body.get("body", msg_body.get("html", msg_body.get("text", "")))
                     except Exception:
@@ -147,7 +147,7 @@ def wait_for_openvecta_verify_email(base_url, api_key, email, timeout=300):
                     log_step(f"Email ditemukan tapi tidak ada link/kode yang bisa diekstrak")
                     return {"type": "unknown", "value": body[:500]}
         except Exception as e:
-            log_step(f"Ammail poll error: {e}")
+            log_step(f"Fsmail poll error: {e}")
         time.sleep(5)
     return None
 
@@ -196,9 +196,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True, help="Used as placeholder, not for OpenVecta login")
-    parser.add_argument("--ammail-base-url", default="")
-    parser.add_argument("--ammail-api-key", default="")
-    parser.add_argument("--ammail-domain", default="")
+    parser.add_argument("--fsmail-base-url", default="")
+    parser.add_argument("--fsmail-api-key", default="")
+    parser.add_argument("--fsmail-domain", default="")
     parser.add_argument("--profiles-dir", default="profiles/openvecta")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--proxy-server")
@@ -218,14 +218,14 @@ def main():
     profiles_dir = Path(args.profiles_dir)
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
-    # Pre-create Ammail inbox if we have credentials
-    ammail_ok = bool(args.ammail_base_url and args.ammail_api_key and args.ammail_domain)
-    if ammail_ok:
-        log_step(f"Membuat inbox Ammail untuk {email}...")
+    # Pre-create Fsmail inbox if we have credentials
+    fsmail_ok = bool(args.fsmail_base_url and args.fsmail_api_key and args.fsmail_domain)
+    if fsmail_ok:
+        log_step(f"Membuat inbox Fsmail untuk {email}...")
         try:
-            create_ammail_inbox(args.ammail_base_url, args.ammail_api_key, email)
+            create_fsmail_inbox(args.fsmail_base_url, args.fsmail_api_key, email)
         except Exception as e:
-            log_step(f"Ammail inbox warning: {e}")
+            log_step(f"Fsmail inbox warning: {e}")
 
     log_step("Meluncurkan browser Camoufox (anti-fingerprint)...")
 
@@ -373,12 +373,12 @@ def main():
 
             time.sleep(3)
 
-            # ── Step 5: Wait for verification code/link via Ammail ────────────
-            if not ammail_ok:
-                die("Ammail credentials not provided. Cannot verify email.")
+            # ── Step 5: Wait for verification code/link via Fsmail ────────────
+            if not fsmail_ok:
+                die("Fsmail credentials not provided. Cannot verify email.")
 
             verify_result = wait_for_openvecta_verify_email(
-                args.ammail_base_url, args.ammail_api_key, email, timeout=300
+                args.fsmail_base_url, args.fsmail_api_key, email, timeout=300
             )
 
             if not verify_result:

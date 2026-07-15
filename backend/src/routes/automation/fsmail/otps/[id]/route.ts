@@ -1,5 +1,5 @@
 
-import { getAmmailOtp, markAmmailOtpUsed, deleteAmmailOtp } from "../../../../../lib/db/index.js";
+import { getFsmailOtp, markFsmailOtpUsed, deleteFsmailOtp } from "../../../../../lib/db/index.js";
 
 export const dynamic = "force-dynamic";
 
@@ -7,14 +7,14 @@ export async function GET_handler(req, res, { params }) {
   try {
     const resolvedParams = await params;
     const otpId = parseInt(resolvedParams.id);
-    const otp = await getAmmailOtp(otpId);
+    const otp = await getFsmailOtp(otpId);
     if (!otp) {
       return res.status(404).json({ error: "OTP not found" });
     }
 
     // Mark as read/used
     if (!otp.usedAt) {
-      await markAmmailOtpUsed(otpId);
+      await markFsmailOtpUsed(otpId);
       otp.usedAt = Math.floor(Date.now() / 1000);
     }
 
@@ -36,7 +36,7 @@ export async function GET_handler(req, res, { params }) {
       }
     });
   } catch (error) {
-    console.error("Error in GET /api/automation/ammail/otps/[id]:", error);
+    console.error("Error in GET /api/automation/fsmail/otps/[id]:", error);
     return res.status(500).json({ error: error.message });
   }
 }
@@ -49,13 +49,13 @@ export async function POST_handler(req, res, { params }) {
     const { action } = body;
 
     if (action === "delete") {
-      await deleteAmmailOtp(otpId);
+      await deleteFsmailOtp(otpId);
       return res.json({ ok: true });
     }
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (error) {
-    console.error("Error in POST /api/automation/ammail/otps/[id]:", error);
+    console.error("Error in POST /api/automation/fsmail/otps/[id]:", error);
     return res.status(500).json({ error: error.message });
   }
 }

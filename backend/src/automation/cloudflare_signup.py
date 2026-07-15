@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cloudflare account auto-signup via Camoufox (anti-fingerprint) + Ammail email verification.
+"""Cloudflare account auto-signup via Camoufox (anti-fingerprint) + Fsmail email verification.
 
 Outputs JSON lines to stdout:
   {"step": "..."} — progress update
@@ -42,8 +42,8 @@ def die(msg):
     emit({"status": "error", "error": msg})
     sys.exit(1)
 
-# ── Ammail helpers ─────────────────────────────────────────────────────────────
-def ammail_request(base_url, api_key, path, method="GET", data=None, host_header=None):
+# ── Fsmail helpers ─────────────────────────────────────────────────────────────
+def fsmail_request(base_url, api_key, path, method="GET", data=None, host_header=None):
     url = base_url.rstrip("/") + "/api" + path
     req = urllib.request.Request(url, method=method)
     req.add_header("Authorization", f"Bearer {api_key}")
@@ -55,17 +55,17 @@ def ammail_request(base_url, api_key, path, method="GET", data=None, host_header
     if host_header:
         req.add_header("Host", host_header)
     elif "localhost" in base_url or "127.0.0.1" in base_url:
-        req.add_header("Host", "ammail.klipers.site")
+        req.add_header("Host", "fsmail.klipers.site")
     if data:
         req.data = json.dumps(data).encode()
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read())
 
-def create_ammail_inbox(base_url, api_key, email):
+def create_fsmail_inbox(base_url, api_key, email):
     """Create inbox by splitting email into alias + domain."""
     try:
         alias, domain = email.split("@", 1)
-        ammail_request(base_url, api_key, "/inboxes", method="POST",
+        fsmail_request(base_url, api_key, "/inboxes", method="POST",
                        data={"alias": alias, "domain": domain})
     except Exception:
         pass  # might already exist
@@ -77,7 +77,7 @@ def wait_for_cf_verify_email(base_url, api_key, email, timeout=600):
     seen_ids = set()
     while time.time() < deadline:
         try:
-            data = ammail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
+            data = fsmail_request(base_url, api_key, f"/inboxes/{urllib.parse.quote(alias)}/messages")
             messages = data.get("messages", [])
             for msg in messages:
                 msg_id = msg.get("id", "")
@@ -98,7 +98,7 @@ def wait_for_cf_verify_email(base_url, api_key, email, timeout=600):
                 if is_cf_email:
                     # Fetch full message body
                     try:
-                        full = ammail_request(base_url, api_key, f"/messages/{urllib.parse.quote(msg_id)}")
+                        full = fsmail_request(base_url, api_key, f"/messages/{urllib.parse.quote(msg_id)}")
                         msg_body = full.get("message", full)
                         body = msg_body.get("body", msg_body.get("html", msg_body.get("text", "")))
                     except Exception:
@@ -116,7 +116,7 @@ def wait_for_cf_verify_email(base_url, api_key, email, timeout=600):
                             log_step(f"Link verifikasi ditemukan!")
                             return link
         except Exception as e:
-            log_step(f"Ammail poll error: {e}")
+            log_step(f"Fsmail poll error: {e}")
         time.sleep(5)
     return None
 
@@ -429,8 +429,8 @@ def create_workers_ai_token(global_key, email, account_id, token_name="9router W
     return None
 
 # ── Handle "Verify Your Identity" popup ────────────────────────────────────────
-def handle_identity_verification(page, ammail_base_url, ammail_api_key, email):
-    """Detect CF identity verification popup, send OTP, fetch from Ammail, submit."""
+def handle_identity_verification(page, fsmail_base_url, fsmail_api_key, email):
+    """Detect CF identity verification popup, send OTP, fetch from Fsmail, submit."""
     try:
         # Use multiple selectors to detect the popup
         popup_visible = False
@@ -466,20 +466,20 @@ def handle_identity_verification(page, ammail_base_url, ammail_api_key, email):
                 cancel.click()
             return False
 
-        # Fetch OTP from Ammail
-        if not ammail_base_url or not ammail_api_key:
-            log_step("Ammail tidak dikonfigurasi, tidak bisa ambil OTP")
+        # Fetch OTP from Fsmail
+        if not fsmail_base_url or not fsmail_api_key:
+            log_step("Fsmail tidak dikonfigurasi, tidak bisa ambil OTP")
             return False
 
-        log_step("Menunggu OTP di Ammail...")
+        log_step("Menunggu OTP di Fsmail...")
         otp_code = None
         for attempt in range(20):  # 60 seconds
             time.sleep(3)
             try:
-                msgs = ammail_request(ammail_base_url, ammail_api_key, f"/inboxes/{email.split('@')[0]}/messages")
+                msgs = fsmail_request(fsmail_base_url, fsmail_api_key, f"/inboxes/{email.split('@')[0]}/messages")
                 for msg in msgs.get("messages", []):
                     # Get full body
-                    msg_detail = ammail_request(ammail_base_url, ammail_api_key, f"/messages/{msg['id']}")
+                    msg_detail = fsmail_request(fsmail_base_url, fsmail_api_key, f"/messages/{msg['id']}")
                     body = msg_detail.get("body", "") or msg_detail.get("html", "") or msg.get("snippet", "")
                     # CF OTP is typically 6 digits
                     import re as _re
@@ -489,7 +489,7 @@ def handle_identity_verification(page, ammail_base_url, ammail_api_key, email):
                         log_step(f"OTP ditemukan: {otp_code}")
                         break
             except Exception as e:
-                log_step(f"Ammail OTP fetch error: {e}")
+                log_step(f"Fsmail OTP fetch error: {e}")
             if otp_code:
                 break
 
@@ -522,7 +522,7 @@ def handle_identity_verification(page, ammail_base_url, ammail_api_key, email):
     return False
 
 # ── Extract Global API Key from dashboard page ─────────────────────────────────
-def extract_global_api_key(page, password, ammail_base_url="", ammail_api_key="", email=""):
+def extract_global_api_key(page, password, fsmail_base_url="", fsmail_api_key="", email=""):
     """Navigate to API tokens page and extract Global API Key."""
     log_step("Membuka halaman API Tokens...")
     try:
@@ -531,7 +531,7 @@ def extract_global_api_key(page, password, ammail_base_url="", ammail_api_key=""
         time.sleep(3)
 
         # ── Handle "Verify Your Identity" popup ─────────────────────────────
-        handle_identity_verification(page, ammail_base_url, ammail_api_key, email)
+        handle_identity_verification(page, fsmail_base_url, fsmail_api_key, email)
         time.sleep(1)
 
         # Find "View" button for Global API Key
@@ -610,9 +610,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
-    parser.add_argument("--ammail-base-url", default="")
-    parser.add_argument("--ammail-api-key", default="")
-    parser.add_argument("--ammail-domain", default="")
+    parser.add_argument("--fsmail-base-url", default="")
+    parser.add_argument("--fsmail-api-key", default="")
+    parser.add_argument("--fsmail-domain", default="")
     parser.add_argument("--profiles-dir", default="profiles/cloudflare")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--proxy-server")
@@ -645,14 +645,14 @@ def main():
     profiles_dir = Path(args.profiles_dir)
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
-    # Pre-create Ammail inbox if we have credentials
-    ammail_ok = bool(args.ammail_base_url and args.ammail_api_key and args.ammail_domain)
-    if ammail_ok:
-        log_step(f"Membuat inbox Ammail untuk {args.email}...")
+    # Pre-create Fsmail inbox if we have credentials
+    fsmail_ok = bool(args.fsmail_base_url and args.fsmail_api_key and args.fsmail_domain)
+    if fsmail_ok:
+        log_step(f"Membuat inbox Fsmail untuk {args.email}...")
         try:
-            create_ammail_inbox(args.ammail_base_url, args.ammail_api_key, args.email)
+            create_fsmail_inbox(args.fsmail_base_url, args.fsmail_api_key, args.email)
         except Exception as e:
-            log_step(f"Ammail inbox warning: {e}")
+            log_step(f"Fsmail inbox warning: {e}")
 
     log_step("Meluncurkan browser Camoufox (anti-fingerprint)...")
 
@@ -1051,10 +1051,10 @@ def main():
 
 
         # ── Step 6: Email verification ────────────────────────────────────────
-        if ammail_ok and not email_already_registered:
+        if fsmail_ok and not email_already_registered:
             verify_link = wait_for_cf_verify_email(
-                args.ammail_base_url,
-                args.ammail_api_key,
+                args.fsmail_base_url,
+                args.fsmail_api_key,
                 args.email,
                 timeout=240,
             )
@@ -1084,7 +1084,7 @@ def main():
         elif email_already_registered:
             log_step("Email sudah terdaftar — skip verifikasi, langsung ke login form")
         else:
-            log_step("Ammail tidak dikonfigurasi — skip email verification, lanjut login manual...")
+            log_step("Fsmail tidak dikonfigurasi — skip email verification, lanjut login manual...")
             time.sleep(5)
 
 
@@ -1782,9 +1782,9 @@ def main():
         log_step("Membuat Workers AI API Token...")
 
         # ── Strategy A: Get Global API Key → create token via CF API ────────────
-        # Capture ammail vars into local scope for nested function closure
-        _ammail_base_url = args.ammail_base_url or ""
-        _ammail_api_key = args.ammail_api_key or ""
+        # Capture fsmail vars into local scope for nested function closure
+        _fsmail_base_url = args.fsmail_base_url or ""
+        _fsmail_api_key = args.fsmail_api_key or ""
 
         def create_token_via_global_key(page):
             """Navigate to API Keys page, get Global API Key, use CF API to create token."""
@@ -1903,23 +1903,23 @@ def main():
                         # Record existing message IDs before sending to skip stale OTPs
                         seen_msg_ids = set()
                         try:
-                            pre_msgs = ammail_request(_ammail_base_url, _ammail_api_key,
+                            pre_msgs = fsmail_request(_fsmail_base_url, _fsmail_api_key,
                                 f"/inboxes/{urllib.parse.quote(args.email.split('@')[0])}/messages")
                             pre_list = pre_msgs.get("messages", []) if isinstance(pre_msgs, dict) else (pre_msgs if isinstance(pre_msgs, list) else [])
                             seen_msg_ids = {str(m.get('id', '')) for m in pre_list}
                             log_step(f"Pre-existing msgs: {len(seen_msg_ids)}")
                         except Exception: pass
 
-                        # Poll ammail for the OTP (36 × 5s = 3 minutes)
+                        # Poll fsmail for the OTP (36 × 5s = 3 minutes)
                         otp_code = None
                         for _poll_i in range(36):
                             time.sleep(5)
                             log_step(f"OTP poll {_poll_i+1}/36...")
 
                             try:
-                                msgs_resp = ammail_request(_ammail_base_url, _ammail_api_key,
+                                msgs_resp = fsmail_request(_fsmail_base_url, _fsmail_api_key,
                                                       f"/inboxes/{urllib.parse.quote(args.email.split('@')[0])}/messages")
-                                # ammail_request returns dict {"messages": [...]} not a list directly
+                                # fsmail_request returns dict {"messages": [...]} not a list directly
                                 msgs_list = msgs_resp.get("messages", []) if isinstance(msgs_resp, dict) else (msgs_resp if isinstance(msgs_resp, list) else [])
                                 for msg in msgs_list:
                                     mid = str(msg.get('id', ''))
@@ -1937,7 +1937,7 @@ def main():
                                         else:
                                             # Strategy 2: fetch body
                                             try:
-                                                full = ammail_request(_ammail_base_url, _ammail_api_key, f"/messages/{urllib.parse.quote(mid)}")
+                                                full = fsmail_request(_fsmail_base_url, _fsmail_api_key, f"/messages/{urllib.parse.quote(mid)}")
                                                 msg_body = full.get("message", full) if isinstance(full, dict) else {}
                                                 body = str(msg_body.get('body','') or msg_body.get('html','') or msg_body.get('text','') or full.get('body','') or msg.get('snippet',''))
                                                 ctx_m = _re_otp.search(r'(?:token|verify|code)[^\d]{0,30}(\d{5,9})', body, _re_otp.I)
@@ -2455,12 +2455,12 @@ def main():
         except Exception as e:
             log_step(f"Session API token failed: {e}")
 
-        # ── EARLY GAK ATTEMPT: Try Global API Key first if ammail available ─────
+        # ── EARLY GAK ATTEMPT: Try Global API Key first if fsmail available ─────
         # NOTE: Do NOT reset workers_ai_token if create_token_via_session already succeeded
         if not workers_ai_token:
             workers_ai_token = None  # only reset if still empty
         token_from_route = []  # always init — used later regardless of GAK success
-        if ammail_ok:
+        if fsmail_ok:
             log_step("Mencoba GAK dulu (skip UI form yang sering gagal)...")
             try:
                 workers_ai_token = create_token_via_global_key(page)
@@ -3320,7 +3320,7 @@ def main():
             log_step(f"Token from route: {workers_ai_token[:10]}...")
 
         # Strategy A: Global API Key from dashboard UI (last resort — needs OTP from email)
-        if not workers_ai_token and ammail_ok:
+        if not workers_ai_token and fsmail_ok:
             log_step("Fallback: mencoba Global API Key dari dashboard UI...")
             try:
                 global_key_token = create_token_via_global_key(page)

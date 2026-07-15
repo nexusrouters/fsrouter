@@ -154,7 +154,7 @@ export const TABLES = {
       email: "TEXT NOT NULL",
       password: "TEXT NOT NULL",
       profileDir: "TEXT",
-      ammailAlias: "TEXT",
+      fsmailAlias: "TEXT",
       signupMethod: "TEXT DEFAULT 'google'",
       apiKey: "TEXT",
       apiKeyStatus: "TEXT DEFAULT 'pending'",
@@ -183,7 +183,7 @@ export const TABLES = {
       finishedAt: "INTEGER",
     },
   },
-  ammailOtps: {
+  fsmailOtps: {
     columns: {
       id: "INTEGER PRIMARY KEY AUTOINCREMENT",
       address: "TEXT NOT NULL",
@@ -198,11 +198,11 @@ export const TABLES = {
       messageShortId: "TEXT",
       rawEventJson: "TEXT",
       receivedAt: "INTEGER NOT NULL",
-      usedAt: "INTEGER DEFAULT 0",
+      usedAt: "INTEGER",
     },
     indexes: [
-      "CREATE INDEX IF NOT EXISTS idx_ammail_otps_address_received ON ammailOtps(address, receivedAt DESC)",
-      "CREATE INDEX IF NOT EXISTS idx_ammail_otps_used ON ammailOtps(usedAt, receivedAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_fsmail_otps_address_received ON fsmailOtps(address, receivedAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_fsmail_otps_used ON fsmailOtps(usedAt, receivedAt DESC)",
     ],
   },
 };

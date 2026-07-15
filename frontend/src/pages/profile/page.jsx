@@ -66,15 +66,15 @@ export default function ProfilePage() {
     codebuddy_proxy_server: "",
     codebuddy_proxy_username: "",
     codebuddy_proxy_password: "",
-    ammail_base_url: "",
-    ammail_api_key: "",
-    ammail_default_domain: "",
-    ammail_webhook_secret: "",
+    fsmail_base_url: "",
+    fsmail_api_key: "",
+    fsmail_default_domain: "",
+    fsmail_webhook_secret: "",
   });
   const [automationStatus, setAutomationStatus] = useState({ type: "", message: "" });
   const [automationLoading, setAutomationLoading] = useState(false);
-  const [ammailTestLoading, setFSMailTestLoading] = useState(false);
-  const [ammailWebhookLoading, setFSMailWebhookLoading] = useState(false);
+  const [fsmailTestLoading, setFSMailTestLoading] = useState(false);
+  const [fsmailWebhookLoading, setFSMailWebhookLoading] = useState(false);
   const [automationExpanded, setAutomationExpanded] = useState(false);
 
   useEffect(() => {
@@ -108,10 +108,10 @@ export default function ProfilePage() {
           codebuddy_proxy_server: data?.codebuddy_proxy_server || "",
           codebuddy_proxy_username: data?.codebuddy_proxy_username || "",
           codebuddy_proxy_password: data?.codebuddy_proxy_password || "",
-          ammail_base_url: data?.ammail_base_url || "",
-          ammail_api_key: data?.ammail_api_key || "",
-          ammail_default_domain: data?.ammail_default_domain || "",
-          ammail_webhook_secret: data?.ammail_webhook_secret || "",
+          fsmail_base_url: data?.fsmail_base_url || "",
+          fsmail_api_key: data?.fsmail_api_key || "",
+          fsmail_default_domain: data?.fsmail_default_domain || "",
+          fsmail_webhook_secret: data?.fsmail_webhook_secret || "",
         });
         setLoading(false);
       })
@@ -144,10 +144,10 @@ export default function ProfilePage() {
           codebuddy_proxy_server: automationForm.codebuddy_proxy_server,
           codebuddy_proxy_username: automationForm.codebuddy_proxy_username,
           codebuddy_proxy_password: automationForm.codebuddy_proxy_password,
-          ammail_base_url: automationForm.ammail_base_url,
-          ammail_api_key: automationForm.ammail_api_key,
-          ammail_default_domain: automationForm.ammail_default_domain,
-          ammail_webhook_secret: automationForm.ammail_webhook_secret,
+          fsmail_base_url: automationForm.fsmail_base_url,
+          fsmail_api_key: automationForm.fsmail_api_key,
+          fsmail_default_domain: automationForm.fsmail_default_domain,
+          fsmail_webhook_secret: automationForm.fsmail_webhook_secret,
         }),
       });
 
@@ -174,10 +174,10 @@ export default function ProfilePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ammail_base_url: automationForm.ammail_base_url,
-          ammail_api_key: automationForm.ammail_api_key,
-          ammail_default_domain: automationForm.ammail_default_domain,
-          ammail_webhook_secret: automationForm.ammail_webhook_secret,
+          fsmail_base_url: automationForm.fsmail_base_url,
+          fsmail_api_key: automationForm.fsmail_api_key,
+          fsmail_default_domain: automationForm.fsmail_default_domain,
+          fsmail_webhook_secret: automationForm.fsmail_webhook_secret,
         }),
       });
       if (!saveRes.ok) {
@@ -187,7 +187,7 @@ export default function ProfilePage() {
       }
 
       // Then test connection
-      const testRes = await fetch("/api/automation/ammail", {
+      const testRes = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "test-connection" }),
@@ -214,10 +214,10 @@ export default function ProfilePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ammail_base_url: automationForm.ammail_base_url,
-          ammail_api_key: automationForm.ammail_api_key,
-          ammail_default_domain: automationForm.ammail_default_domain,
-          ammail_webhook_secret: automationForm.ammail_webhook_secret,
+          fsmail_base_url: automationForm.fsmail_base_url,
+          fsmail_api_key: automationForm.fsmail_api_key,
+          fsmail_default_domain: automationForm.fsmail_default_domain,
+          fsmail_webhook_secret: automationForm.fsmail_webhook_secret,
         }),
       });
       if (!saveRes.ok) {
@@ -227,7 +227,7 @@ export default function ProfilePage() {
       }
 
       // Then register webhook
-      const webhookRes = await fetch("/api/automation/ammail", {
+      const webhookRes = await fetch("/api/automation/fsmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "webhook-register" }),
@@ -236,7 +236,7 @@ export default function ProfilePage() {
       if (webhookRes.ok) {
         setAutomationStatus({ type: "success", message: "FSMail Webhook Registered Successfully!" });
         if (webhookData.webhook?.secret) {
-          setAutomationForm(prev => ({ ...prev, ammail_webhook_secret: webhookData.webhook.secret }));
+          setAutomationForm(prev => ({ ...prev, fsmail_webhook_secret: webhookData.webhook.secret }));
         }
       } else {
         setAutomationStatus({ type: "error", message: webhookData.error || "FSMail Webhook Registration Failed." });
@@ -1327,9 +1327,9 @@ export default function ProfilePage() {
                 <div className="flex flex-col gap-2">
                   <label className="font-medium text-sm sm:text-base">Base URL</label>
                   <Input
-                    placeholder="https://ammail.example.com"
-                    value={automationForm.ammail_base_url}
-                    onChange={(e) => setAutomationForm(prev => ({ ...prev, ammail_base_url: e.target.value }))}
+                    placeholder="https://fsmail.example.com"
+                    value={automationForm.fsmail_base_url}
+                    onChange={(e) => setAutomationForm(prev => ({ ...prev, fsmail_base_url: e.target.value }))}
                     disabled={loading || automationLoading}
                   />
                 </div>
@@ -1339,8 +1339,8 @@ export default function ProfilePage() {
                   <Input
                     type="password"
                     placeholder="FSMail API Key"
-                    value={automationForm.ammail_api_key}
-                    onChange={(e) => setAutomationForm(prev => ({ ...prev, ammail_api_key: e.target.value }))}
+                    value={automationForm.fsmail_api_key}
+                    onChange={(e) => setAutomationForm(prev => ({ ...prev, fsmail_api_key: e.target.value }))}
                     disabled={loading || automationLoading}
                   />
                 </div>
@@ -1349,8 +1349,8 @@ export default function ProfilePage() {
                   <label className="font-medium text-sm sm:text-base">Default Domain</label>
                   <Input
                     placeholder="example.com"
-                    value={automationForm.ammail_default_domain}
-                    onChange={(e) => setAutomationForm(prev => ({ ...prev, ammail_default_domain: e.target.value }))}
+                    value={automationForm.fsmail_default_domain}
+                    onChange={(e) => setAutomationForm(prev => ({ ...prev, fsmail_default_domain: e.target.value }))}
                     disabled={loading || automationLoading}
                   />
                 </div>
@@ -1360,8 +1360,8 @@ export default function ProfilePage() {
                   <Input
                     type="password"
                     placeholder="Leave empty to auto-generate"
-                    value={automationForm.ammail_webhook_secret}
-                    onChange={(e) => setAutomationForm(prev => ({ ...prev, ammail_webhook_secret: e.target.value }))}
+                    value={automationForm.fsmail_webhook_secret}
+                    onChange={(e) => setAutomationForm(prev => ({ ...prev, fsmail_webhook_secret: e.target.value }))}
                     disabled={loading || automationLoading}
                   />
                 </div>
@@ -1381,7 +1381,7 @@ export default function ProfilePage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  loading={ammailTestLoading}
+                  loading={fsmailTestLoading}
                   onClick={testFSMailConnection}
                   className="w-full sm:w-auto"
                 >
@@ -1390,7 +1390,7 @@ export default function ProfilePage() {
                 <Button
                   type="button"
                   variant="outline"
-                  loading={ammailWebhookLoading}
+                  loading={fsmailWebhookLoading}
                   onClick={registerFSMailWebhook}
                   className="w-full sm:w-auto"
                 >
