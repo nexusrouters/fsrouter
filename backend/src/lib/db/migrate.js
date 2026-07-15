@@ -242,6 +242,12 @@ export async function runMigrationOnce(adapter) {
   // 2. Additive sync (auto add missing columns/indexes declared in TABLES)
   syncSchemaFromTables(adapter);
 
+  // Prune old OTPs to prevent database bloat
+  try {
+    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    adapter.run("DELETE FROM ammailOtps WHERE receivedAt < ?", [threeDaysAgo]);
+  } catch (e) {}
+
   // 3. One-time legacy JSON import (only if DB was fresh on entry)
   const alreadyImported = fs.existsSync(MIGRATED_MARKER);
   const legacyMain = readJsonSafe(LEGACY_FILES.main);
