@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { BaseExecutor } from "./base.ts";
-import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.ts";
+import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.js";
 const BASE_URL = "https://www.dola.com";
 const CHAT_URL = `${BASE_URL}/chat/completion`;
 const DEFAULT_MODEL = "dola-speed";

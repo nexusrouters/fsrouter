@@ -4,7 +4,7 @@ import { BaseExecutor } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { prepareToolMessages, buildToolAwareResult } from "../translator/webTools.ts";
 import { tryBackedChat } from "../services/browserBackedChat.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const DUCKDUCKGO_BASE = "https://duckduckgo.com";
 const AUTH_TOKEN_URL = `${DUCKDUCKGO_BASE}/duckchat/v1/auth/token`;
 const COUNTRY_URL = `${DUCKDUCKGO_BASE}/country.json`;

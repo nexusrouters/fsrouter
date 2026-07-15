@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { BaseExecutor } from "./base.ts";
 import { prepareToolMessages, buildToolAwareResult } from "../translator/webTools.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const INNER_AI_CHAT_URL = "https://chatapi.innerai.com/chat";
 const INNER_AI_PROFILE_URL = "https://platformapi.innerai.com/api/v1/users/profile";
 const INNER_AI_MODELS_URL = "https://platformapi.innerai.com/api/v1/ai_models";

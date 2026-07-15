@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { BaseExecutor } from "./base.ts";
-import { makeExecutorErrorResult as makeErrorResult } from "../utils/error.ts";
+import { makeExecutorErrorResult as makeErrorResult } from "../utils/error.js";
 const GEMINI_BUSINESS_FETCH_TIMEOUT_MS = 6e4;
 const GEMINI_BUSINESS_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
 const DEFAULT_ENTRY_URL = "https://business.gemini.google/home";

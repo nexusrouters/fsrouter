@@ -4,7 +4,7 @@ import {
   mergeUpstreamExtraHeaders
 } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
-import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.ts";
+import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.js";
 import { normalizeSessionCookieHeader } from "@/lib/providers/webCookieAuth";
 import { streamJsonlToOpenAi, readJsonlResponse } from "./huggingchat/jsonlStream.ts";
 const HUGGINGFACE_BASE = "https://huggingface.co";

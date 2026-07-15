@@ -4,7 +4,7 @@ import {
   mergeUpstreamExtraHeaders
 } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
-import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.ts";
+import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.js";
 import { extractCookieValue, stripCookieInputPrefix } from "@/lib/providers/webCookieAuth";
 const YUANBAO_BASE = "https://yuanbao.tencent.com";
 const CREATE_URL = `${YUANBAO_BASE}/api/user/agent/conversation/create`;

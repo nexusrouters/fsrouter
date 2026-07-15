@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { BaseExecutor } from "./base.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const BASE_URL = "https://amelia.chipotle.com";
 const DOMAIN_CODE = "chipotle";
 const DOMAIN_ID = "23700760-e1e5-4c3c-931d-8804e29a6775";

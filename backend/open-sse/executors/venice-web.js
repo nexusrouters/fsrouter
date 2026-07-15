@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.ts";
+import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.js";
 const BASE_URL = "https://venice.ai";
 const CHAT_URL = `${BASE_URL}/api/chat`;
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";

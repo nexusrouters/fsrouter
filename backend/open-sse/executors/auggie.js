@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { BaseExecutor } from "./base.ts";
-import { buildErrorBody, errorResponse, sanitizeErrorMessage } from "../utils/error.ts";
+import { buildErrorBody, errorResponse, sanitizeErrorMessage } from "../utils/error.js";
 import { auggieProvider } from "../config/providers/registry/auggie/index.ts";
 const AUGGIE_URL = "auggie://cli/stdio";
 const AUGGIE_MODEL_ALLOWLIST = new Set(auggieProvider.models.map((m) => m.id));

@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const GEMINI_URL = "https://gemini.google.com/app";
 function isMissingBrowserExecutable(message) {
   if (!message) return false;

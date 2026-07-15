@@ -1,7 +1,7 @@
 import { getSearchProvider } from "../config/searchRegistry.js";
 import { freeWebSearch } from "../services/freeWebSearch.js";
 import { saveCallLog } from "../services/usageDb.js";
-import { safeOutboundFetch } from "../utils/proxyFetch.js";
+import { proxyAwareFetch as safeOutboundFetch } from "../utils/proxyFetch.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { z } from "zod";

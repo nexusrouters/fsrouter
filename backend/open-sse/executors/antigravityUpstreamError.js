@@ -1,4 +1,4 @@
-import { buildErrorBody } from "../utils/error.ts";
+import { buildErrorBody } from "../utils/error.js";
 function buildAntigravityUpstreamError(status, statusText, rawBody) {
   let upstreamDetails;
   try {

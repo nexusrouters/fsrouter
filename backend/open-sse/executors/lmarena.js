@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const LMARENA_API_BASE = "https://arena.ai";
 const LMARENA_STREAM_URL = `${LMARENA_API_BASE}/nextjs-api/stream`;
 const LMARENA_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";

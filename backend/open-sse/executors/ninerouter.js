@@ -4,7 +4,7 @@ import {
   mergeAbortSignals
 } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
-import { buildErrorBody } from "../utils/error.ts";
+import { buildErrorBody } from "../utils/error.js";
 import { getSupervisor } from "@/lib/services/registry";
 import { getOrCreateApiKey } from "@/lib/services/apiKey";
 const DEFAULT_PORT = 20130;

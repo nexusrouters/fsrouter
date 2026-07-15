@@ -84,14 +84,14 @@ export async function buildAutoRouter(): Promise<Router> {
   const router = Router();
   const routeFiles = findRouteFiles(ROUTES_DIR);
   routeFiles.sort((a, b) => {
-    const relA = relative(ROUTES_DIR, a);
-    const relB = relative(ROUTES_DIR, b);
+    const relA = relative(ROUTES_DIR, a).replace(/\\/g, '/');
+    const relB = relative(ROUTES_DIR, b).replace(/\\/g, '/');
     return compareRoutePaths(relA, relB);
   });
   let mounted = 0;
 
   for (const file of routeFiles) {
-    const rel = relative(ROUTES_DIR, file);
+    const rel = relative(ROUTES_DIR, file).replace(/\\/g, '/');
     const pathPart = rel.replace(/\/route\.[jt]s$/, "");
     const isCatchAll = hasCatchAll(pathPart);
     const expressPath: string | RegExp = isCatchAll

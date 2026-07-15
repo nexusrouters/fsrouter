@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { makeExecutorErrorResult as makeErrorResult, sanitizeErrorMessage } from "../utils/error.ts";
+import { makeExecutorErrorResult as makeErrorResult, sanitizeErrorMessage } from "../utils/error.js";
 import { extractKimiJwt } from "@/lib/providers/webCookieAuth";
 const BASE_URL = "https://www.kimi.com";
 const CHAT_URL = `${BASE_URL}/apiv2/kimi.gateway.chat.v1.ChatService/Chat`;

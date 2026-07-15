@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 import { BaseExecutor } from "./base.ts";
 import {
   buildPrompt,

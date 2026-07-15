@@ -5,7 +5,7 @@ import {
   parseDeepSeekToolCalls,
   buildToolConversationPrompt
 } from "../translator/deepseekWebTools.ts";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 import {
   isThinkingModel,
   isSearchModel,

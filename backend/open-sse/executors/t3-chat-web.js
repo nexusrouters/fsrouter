@@ -1,5 +1,5 @@
 import { BaseExecutor } from "./base.ts";
-import { errorResponse } from "../utils/error.ts";
+import { errorResponse } from "../utils/error.js";
 import { prepareToolMessages, buildToolAwareResult } from "../translator/webTools.ts";
 const T3_CHAT_BASE = "https://t3.chat";
 const SERVER_FN_PREFIX = `${T3_CHAT_BASE}/_serverFn/`;

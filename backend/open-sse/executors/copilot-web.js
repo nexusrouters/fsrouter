@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { createHash } from "node:crypto";
-import { sanitizeErrorMessage } from "../utils/error.ts";
+import { sanitizeErrorMessage } from "../utils/error.js";
 const COPILOT_BASE = "https://copilot.microsoft.com";
 const COPILOT_START_URL = `${COPILOT_BASE}/c/api/start`;
 const COPILOT_WS_URL = "wss://copilot.microsoft.com/c/api/chat?api-version=2";

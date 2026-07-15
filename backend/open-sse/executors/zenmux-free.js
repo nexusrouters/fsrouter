@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { BaseExecutor } from "./base.ts";
-import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.ts";
+import { makeExecutorErrorResult as makeErrorResult, normalizeCookie } from "../utils/error.js";
 const CHAT_URL = "https://zenmux.ai/api/anthropic/v1/messages";
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
 function extractCtoken(cookieStr) {
