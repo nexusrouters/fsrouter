@@ -7,7 +7,19 @@ export const dynamic = "force-dynamic";
 // GET /api/keys - List API keys
 export async function GET(req, res) {
   try {
-    const keys = await getApiKeys();
+    let keys = await getApiKeys();
+    if (keys.length === 0) {
+      const machineId = await getConsistentMachineId();
+      const defaultKey = await createApiKey("Default Key", machineId);
+      keys = [{
+        id: defaultKey.id,
+        key: defaultKey.key,
+        name: defaultKey.name,
+        machineId: defaultKey.machineId,
+        isActive: true,
+        createdAt: defaultKey.createdAt
+      }];
+    }
     return res.json({ keys });
   } catch (error) {
     console.log("Error fetching keys:", error);
