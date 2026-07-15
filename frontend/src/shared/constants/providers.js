@@ -56,6 +56,7 @@ const MINIMAX_TTS_MODELS = [
 
 // OAuth Providers
 export const OAUTH_PROVIDERS = {
+  "ibm-bob": { id: "ibm-bob", alias: "ib", name: "IBM Bob", icon: "psychology", color: "#0F62FE", textIcon: "IB", deprecated: true, deprecationNotice: "⚠️ Risk Notice: Experimental local auth interceptor. Use at your own risk.", website: "https://bob.ibm.com", notice: { text: "Use your IBM Cloud IAM API Key, or use the 'Auto Import' button if you have the Bob IDE extension logged in locally.", signupUrl: "https://bob.ibm.com", apiKeyUrl: "https://cloud.ibm.com/iam/apikeys" }, authModes: ["oauth", "apikey"], hasOAuth: true },
   claude: { id: "claude", alias: "cc", name: "Claude Code", icon: "smart_toy", color: "#D97757", deprecated: true, deprecationNotice: RISK_NOTICE, website: "https://claude.ai", notice: { signupUrl: "https://claude.ai" } },
   antigravity: { id: "antigravity", alias: "ag", name: "Antigravity", format: "gemini", icon: "rocket_launch", color: "#F59E0B", deprecated: true, deprecationNotice: "⚠️ Risk Notice: This provider uses a subscription/OAuth session not officially licensed for proxy/router use. Account may be restricted or banned. Use at your own risk.", website: "https://antigravity.google", notice: { signupUrl: "https://antigravity.google" } },
   codex: { id: "codex", alias: "cx", name: "OpenAI Codex", icon: "code", color: "#3B82F6", deprecated: true, deprecationNotice: RISK_NOTICE, thinkingConfig: THINKING_CONFIG.effort, serviceKinds: ["llm", "image"], kindNotice: { image: "Requires a ChatGPT Plus (or higher) account. Free accounts are not supported for image generation." }, website: "https://chatgpt.com/codex", notice: { signupUrl: "https://chatgpt.com/codex" } },
@@ -275,6 +276,7 @@ export function getProvidersByKind(kind) {
 export const USAGE_SUPPORTED_PROVIDERS = [
   "claude",
   "antigravity",
+  "ibm-bob",
   "kiro",
   "qoder",
   "github",

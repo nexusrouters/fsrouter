@@ -207,6 +207,9 @@ export class DefaultExecutor extends BaseExecutor {
         headers["Authorization"] = `Bearer ${credentials.apiKey || credentials.accessToken}`;
         headers["User-Agent"] = `kimchi/${getKimchiVersionSync()}`;
         break;
+      case "ibm-bob":
+        headers["Authorization"] = `apikey ${credentials.apiKey || credentials.accessToken}`;
+        break;
       default:
         if (this.provider?.startsWith?.("anthropic-compatible-")) {
           if (credentials.apiKey) {
