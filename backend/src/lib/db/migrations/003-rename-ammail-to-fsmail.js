@@ -38,7 +38,7 @@ export default {
             newSettings[key] = value;
           }
         }
-        db.prepare("UPDATE settings SET data = ? WHERE id = 1").run(JSON.stringify(newSettings));
+        db.run("UPDATE settings SET data = ? WHERE id = 1", [JSON.stringify(newSettings)]);
         console.log("[Migration 003] Migrated settings keys from ammail_* to fsmail_*");
       }
     } catch (e) {
