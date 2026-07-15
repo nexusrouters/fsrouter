@@ -49,6 +49,7 @@ export async function POST(req: any, res: any) {
 
     const rootDir = path.resolve(process.cwd());
     const isGit = fs.existsSync(path.join(rootDir, ".git")) || fs.existsSync(path.join("/root/AMRouter", ".git"));
+    const isWindows = /^win/.test(process.platform);
 
     res.json({ success: true, message: "Update process started." });
 
@@ -57,47 +58,117 @@ export async function POST(req: any, res: any) {
     let cwd = "";
 
     if (isGit) {
-      command = /^win/.test(process.platform) ? "cmd.exe" : "sh";
-      args = /^win/.test(process.platform) 
+      command = isWindows ? "cmd.exe" : "sh";
+      args = isWindows 
         ? ["/c", "git pull && npm install && npm run build --workspace=backend && npm run build --workspace=frontend && xcopy /E /Y /I frontend\\dist backend\\public"] 
         : ["-c", "git pull && npm install && npm run build --workspace=backend && npm run build --workspace=frontend && cp -r frontend/dist/* backend/public/"];
       cwd = fs.existsSync(path.join("/root/AMRouter", ".git")) ? "/root/AMRouter" : rootDir;
+      
+      updateLogs.push("[Updater] Environment: Git Repository");
+      updateLogs.push(`[Updater] Executing: ${command} ${args.join(" ")}`);
+      updateProgress = 10;
+
+      const proc = spawn(command, args, { cwd, shell: true });
+
+      proc.stdout.on("data", (data) => {
+        const text = data.toString();
+        updateLogs.push(text);
+        if (updateProgress < 85) updateProgress += 2;
+      });
+
+      proc.stderr.on("data", (data) => {
+        const text = data.toString();
+        updateLogs.push(text);
+        if (updateProgress < 85) updateProgress += 1;
+      });
+
+      proc.on("close", (code) => {
+        updateProgress = 100;
+        updateLogs.push(`[Updater] Process exited with code ${code}`);
+        isUpdating = false;
+      });
+
     } else {
-      command = /^win/.test(process.platform) ? "npm.cmd" : "npm";
-      args = ["install", "-g", "@fudrouter/fsrouter@latest", "--prefer-online"];
-      cwd = process.cwd();
-    }
+      // Global npm update
+      updateLogs.push("[Updater] Environment: NPM Global Package");
+      
+      if (isWindows) {
+        updateLogs.push("[Updater] Windows OS Detected! EBUSY protection active.");
+        updateLogs.push("[Updater] Server is safely detaching to perform npm install...");
+        
+        // Buat file update.bat untuk melepaskan file lock
+        const tmpDir = process.env.TEMP || process.env.TMP || "C:\\Windows\\Temp";
+        const batPath = path.join(tmpDir, "fsrouter_updater.bat");
+        
+        // Script update: tunggu 3 detik biar nodejs mati, lalu npm install, lalu restart PM2
+        const batContent = `
+@echo off
+echo Menunggu FSRouter tertutup untuk mencegah EBUSY file lock...
+timeout /t 3 /nobreak >nul
+echo Mengunduh dan menginstal FSRouter versi terbaru...
+call npm install -g @fudrouter/fsrouter@latest --prefer-online
+echo Update selesai. Me-restart layanan FSRouter...
+call pm2 restart fsrouter
+del "%~f0"
+`;
+        fs.writeFileSync(batPath, batContent);
+        
+        updateLogs.push(`[Updater] Created detached script at ${batPath}`);
+        updateProgress = 50;
+        
+        // Spawn detached
+        const proc = spawn("cmd.exe", ["/c", batPath], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true
+        });
+        proc.unref();
 
-    updateLogs.push("[Updater] Environment: " + (isGit ? "Git Repository" : "NPM Global Package"));
-    updateLogs.push(`[Updater] Executing: ${command} ${args.join(" ")}`);
-    updateProgress = 10;
-
-    const proc = spawn(command, args, { cwd, shell: true });
-
-    proc.stdout.on("data", (data) => {
-      const text = data.toString();
-      updateLogs.push(text);
-      if (updateProgress < 85) updateProgress += 2;
-    });
-
-    proc.stderr.on("data", (data) => {
-      const text = data.toString();
-      updateLogs.push(text);
-      if (updateProgress < 85) updateProgress += 1;
-    });
-
-    proc.on("close", (code) => {
-      updateProgress = 100;
-      updateLogs.push(`[Updater] Process exited with code ${code}`);
-      isUpdating = false;
-
-      if (!isGit && code === 0) {
-        updateLogs.push("[Updater] Update successful! Restarting server process...");
+        updateLogs.push("[Updater] Handing over to detached updater. Server shutting down NOW...");
+        updateProgress = 100;
+        
         setTimeout(() => {
-          process.exit(0); // Exit process, PM2 or parent runner will restart it
-        }, 3000);
+          isUpdating = false;
+          process.exit(0);
+        }, 1500);
+
+      } else {
+        // Linux Global NPM Update (Tidak ada EBUSY issue)
+        command = "npm";
+        args = ["install", "-g", "@fudrouter/fsrouter@latest", "--prefer-online"];
+        cwd = process.cwd();
+
+        updateLogs.push(`[Updater] Executing: ${command} ${args.join(" ")}`);
+        updateProgress = 10;
+
+        const proc = spawn(command, args, { cwd, shell: true });
+
+        proc.stdout.on("data", (data) => {
+          const text = data.toString();
+          updateLogs.push(text);
+          if (updateProgress < 85) updateProgress += 2;
+        });
+
+        proc.stderr.on("data", (data) => {
+          const text = data.toString();
+          updateLogs.push(text);
+          if (updateProgress < 85) updateProgress += 1;
+        });
+
+        proc.on("close", (code) => {
+          updateProgress = 100;
+          updateLogs.push(`[Updater] Process exited with code ${code}`);
+          isUpdating = false;
+
+          if (code === 0) {
+            updateLogs.push("[Updater] Update successful! Restarting server process...");
+            setTimeout(() => {
+              process.exit(0);
+            }, 3000);
+          }
+        });
       }
-    });
+    }
 
   } catch (error: any) {
     isUpdating = false;
