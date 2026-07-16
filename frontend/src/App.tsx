@@ -15,6 +15,7 @@ const Quota           = lazy(() => import("./pages/quota/page"));
 const ProxyPools      = lazy(() => import("./pages/proxy-pools/page"));
 const Combos          = lazy(() => import("./pages/combos/page"));
 const Endpoint        = lazy(() => import("./pages/endpoint/page"));
+const TokenSaver      = lazy(() => import("./pages/token-saver/page"));
 const Translator      = lazy(() => import("./pages/translator/page"));
 const CliTools        = lazy(() => import("./pages/cli-tools/page"));
 const CliToolDetail   = lazy(() => import("./pages/cli-tools/[toolId]/page"));
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="proxy-pools"     element={<ProxyPools />} />
             <Route path="combos"          element={<Combos />} />
             <Route path="endpoint"        element={<Endpoint />} />
+            <Route path="token-saver"     element={<TokenSaver />} />
             <Route path="translator"      element={<Translator />} />
             <Route path="cli-tools"       element={<CliTools />} />
             <Route path="cli-tools/:toolId" element={<CliToolDetail />} />
