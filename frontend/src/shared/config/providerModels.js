@@ -259,6 +259,12 @@ export const PROVIDER_MODELS = {
   ],
 
   // API Key Providers (alias = id)
+  "ibm-bob": [
+    { id: "granite-8b-code-instruct", name: "Granite 8B Code Instruct" },
+    { id: "granite-3-3-8b-instruct", name: "Granite 3.3 8B Instruct" },
+    { id: "openai/gpt-oss-20b", name: "GPT OSS 20B" },
+    { id: "rnj-1-test", name: "RNJ 1 Test" },
+  ],
   openai: [
     // Flagship models
     { id: "gpt-5.4", name: "GPT-5.4" },
