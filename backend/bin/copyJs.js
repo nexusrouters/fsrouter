@@ -13,12 +13,24 @@ function rewriteImports(content, filePath, isJsCopy = false) {
 
   // 1. Fix @/ shared/lib/store/etc -> relative imports
   // If we are copying JS/TS files to dist, they need to resolve relative to dist root
-  updated = updated.replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/lib/${impPath}'`);
+  updated = updated.replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, impPath) => {
+    let resolved = impPath;
+    if (!resolved.endsWith('.js') && !resolved.endsWith('.ts') && !resolved.endsWith('.json')) {
+      resolved += '.js';
+    }
+    return `from '${relToDist}/lib/${resolved}'`;
+  });
   updated = updated.replace(/from\s+['"]@\/lib['"]/g, `from '${relToDist}/lib'`);
   updated = updated.replace(/require\(['"]@\/lib\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/lib/${impPath}')`);
   updated = updated.replace(/require\(['"]@\/lib['"]\)/g, `require('${relToDist}/lib')`);
 
-  updated = updated.replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/shared/${impPath}'`);
+  updated = updated.replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, impPath) => {
+    let resolved = impPath;
+    if (!resolved.endsWith('.js') && !resolved.endsWith('.ts') && !resolved.endsWith('.json')) {
+      resolved += '.js';
+    }
+    return `from '${relToDist}/shared/${resolved}'`;
+  });
   updated = updated.replace(/require\(['"]@\/shared\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/shared/${impPath}')`);
 
   updated = updated.replace(/from\s+['"]@\/store\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/store/${impPath}'`);
@@ -69,10 +81,12 @@ function copyFiles(src, dist) {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist") continue;
       copyFiles(srcPath, distPath);
-    } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".json"))) {
+    } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".json") || entry.name.endsWith(".ts"))) {
       let content = fs.readFileSync(srcPath, 'utf8');
       content = rewriteImports(content, distPath, true);
-      fs.writeFileSync(distPath, content);
+      // Change .ts to .js on the dest file, NextJS routes use .ts and tsc preserves the extension sometimes depending on config
+      const finalDistPath = distPath.replace(/\.ts$/, '.js');
+      fs.writeFileSync(finalDistPath, content);
     }
   }
 }

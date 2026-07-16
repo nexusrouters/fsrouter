@@ -65,6 +65,7 @@ export const OAUTH_PROVIDERS = {
   kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai" } },
   cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL", website: "https://cline.bot", notice: { signupUrl: "https://cline.bot" } },
   // opencode: { id: "opencode", alias: "oc", name: "OpenCode", icon: "terminal", color: "#E87040", textIcon: "OC" },
+  "ibm-bob": { id: "ibm-bob", alias: "ib", name: "IBM Bob", icon: "psychology", color: "#0F62FE", textIcon: "IB", deprecated: true, deprecationNotice: "⚠️ Risk Notice: Experimental local auth interceptor. Use at your own risk.", website: "https://bob.ibm.com", notice: { text: "Use your IBM Cloud IAM API Key, or use the 'Auto Import' button if you have the Bob IDE extension logged in locally.", signupUrl: "https://bob.ibm.com", apiKeyUrl: "https://cloud.ibm.com/iam/apikeys" }, authModes: ["oauth", "apikey"], hasOAuth: true },
 };
 
 export const APIKEY_PROVIDERS = {

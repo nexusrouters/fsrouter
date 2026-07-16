@@ -178,5 +178,6 @@ export {
   markCodeBuddySuccess, markCodeBuddyError, markCanvaEnrolled,
   createCodeBuddyJob, getCodeBuddyJob, updateCodeBuddyJobStatus, updateCodeBuddyJobResult,
   insertFsmailOtp, findLatestFsmailOtp, markFsmailOtpUsed, listFsmailOtps,
-  getFsmailOtp, deleteFsmailOtp, deleteFsmailOtpsBulk
+  getFsmailOtp, deleteFsmailOtp, deleteFsmailOtpsBulk,
+  insertAmmailOtp, getAmmailOtp, markAmmailOtpUsed, listAmmailOtps, deleteAmmailOtp, deleteAmmailOtpsBulk
 } from "./repos/automationRepo.js";

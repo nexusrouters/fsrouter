@@ -133,10 +133,6 @@ export async function POST_handler(req, res) {
       if (!node) {
         return res.status(404).json({ error: "OpenAI Compatible node not found" });
       }
-      const existingConnections = await getProviderConnections({ provider });
-      if (existingConnections.length > 0) {
-        return res.status(400).json({ error: "Only one connection is allowed for this OpenAI Compatible node" });
-      }
       providerSpecificData = {
         prefix: node.prefix,
         apiType: node.apiType,
@@ -148,10 +144,6 @@ export async function POST_handler(req, res) {
       if (!node) {
         return res.status(404).json({ error: "Anthropic Compatible node not found" });
       }
-      const existingConnections = await getProviderConnections({ provider });
-      if (existingConnections.length > 0) {
-        return res.status(400).json({ error: "Only one connection is allowed for this Anthropic Compatible node" });
-      }
       providerSpecificData = {
         prefix: node.prefix,
         baseUrl: node.baseUrl,
@@ -161,10 +153,6 @@ export async function POST_handler(req, res) {
       const node = await getProviderNodeById(provider);
       if (!node) {
         return res.status(404).json({ error: "Custom Embedding node not found" });
-      }
-      const existingConnections = await getProviderConnections({ provider });
-      if (existingConnections.length > 0) {
-        return res.status(400).json({ error: "Only one connection is allowed for this Custom Embedding node" });
       }
       providerSpecificData = {
         prefix: node.prefix,

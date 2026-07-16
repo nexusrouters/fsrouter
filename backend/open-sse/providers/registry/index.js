@@ -206,3 +206,5 @@ export const REGISTRY = [
   p100,
   p101
 ];
+
+export default REGISTRY;

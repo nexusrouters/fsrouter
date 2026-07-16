@@ -259,3 +259,25 @@ export async function deleteFsmailOtpsBulk(filter = {}) {
   const sql = `DELETE FROM fsmailOtps${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
   db.run(sql, params);
 }
+
+// Aliases to fix import paths for Ammail that were renamed to Fsmail
+
+export async function insertAmmailOtp(data) {
+  return insertFsmailOtp(data);
+}
+export async function getAmmailOtp(id) {
+  return getFsmailOtp(id);
+}
+export async function markAmmailOtpUsed(id) {
+  return markFsmailOtpUsed(id);
+}
+export async function listAmmailOtps(filter = {}) {
+  return listFsmailOtps(filter);
+}
+export async function deleteAmmailOtp(id) {
+  return deleteFsmailOtp(id);
+}
+export async function deleteAmmailOtpsBulk(filter = {}) {
+  return deleteFsmailOtpsBulk(filter);
+}
+
