@@ -72,6 +72,20 @@ export default function APIPageClient({ machineId }) {
   const [requireLogin, setRequireLogin] = useState(true);
   const [hasPassword, setHasPassword] = useState(true);
   const [tunnelDashboardAccess, setTunnelDashboardAccess] = useState(false);
+  const [rtkEnabled, setRtkEnabledState] = useState(true);
+  const [cavemanEnabled, setCavemanEnabled] = useState(false);
+  const [cavemanLevel, setCavemanLevel] = useState("full");
+  const [headroomEnabled, setHeadroomEnabled] = useState(false);
+  const [headroomUrl, setHeadroomUrl] = useState("");
+  const [headroomCompressUserMessages, setHeadroomCompressUserMessages] = useState(false);
+  const [headroomStatus, setHeadroomStatus] = useState({ installed: false, running: false, python: null, loading: true });
+  const [showHeadroomInstallModal, setShowHeadroomInstallModal] = useState(false);
+  const [headroomActionLoading, setHeadroomActionLoading] = useState(false);
+  const [headroomActionError, setHeadroomActionError] = useState("");
+  const [ponytailEnabled, setPonytailEnabled] = useState(false);
+  const [ponytailLevel, setPonytailLevel] = useState("full");
+  const [paleoEnabled, setPaleoEnabled] = useState(false);
+  const [paleoLevel, setPaleoLevel] = useState("full");
   const [locale, setLocale] = useState("en");
 
   // Cloudflare Tunnel state
