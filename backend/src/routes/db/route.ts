@@ -1,4 +1,5 @@
 import { getAdapter } from "../../lib/db/driver.js";
+import { exportDb, importDb } from "../../lib/db/index.js";
 import { DATA_DIR } from "../../lib/dataDir.js";
 import path from "path";
 import fs from "fs";
@@ -31,6 +32,9 @@ export async function GET(req: any, res: any) {
       signature: "FUDROUTER_BACKUP",
       version: 1,
       timestamp: new Date().toISOString(),
+      // Logical export is portable across SQLite drivers/versions; raw DB remains
+      // below for backward compatibility with older .fud files.
+      database: await exportDb(),
       files: {}
     };
 
@@ -68,10 +72,13 @@ export async function POST_handler(req: any, res: any) {
       return res.status(400).json({ error: "Invalid backup file signature." });
     }
 
-    // 1. Close current DB connection gracefully
-    const db = await getAdapter();
-    if (db && typeof db.close === "function") {
-      db.close();
+    // Prefer logical import: raw SQLite replacement can lose rows when WAL/driver
+    // state differs between machines. Keep raw-file restore below for old backups.
+    if (body.database) {
+      await importDb(body.database);
+    } else {
+      const db = await getAdapter();
+      if (db && typeof db.close === "function") db.close();
     }
 
     // 2. Remove active -wal and -shm files to prevent corruption/mismatch
@@ -80,7 +87,8 @@ export async function POST_handler(req: any, res: any) {
     if (fs.existsSync(walFile)) fs.unlinkSync(walFile);
     if (fs.existsSync(shmFile)) fs.unlinkSync(shmFile);
 
-    // 3. Restore files
+    // 3. Restore secrets/raw DB only for legacy backups. Do not overwrite the
+    // logical import with a stale/incompatible SQLite file.
     const filesToRestore = [
       { key: "db/data.sqlite", path: path.join(DATA_DIR, "db", "data.sqlite") },
       { key: "machine-id", path: path.join(DATA_DIR, "machine-id") },
@@ -89,7 +97,8 @@ export async function POST_handler(req: any, res: any) {
     ];
 
     for (const item of filesToRestore) {
-      const b64Data = body.files[item.key];
+      if (body.database && item.key === "db/data.sqlite") continue;
+      const b64Data = body.files?.[item.key];
       if (b64Data) {
         // Ensure directory exists
         const dir = path.dirname(item.path);
