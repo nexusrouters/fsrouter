@@ -1504,7 +1504,7 @@ const PROVIDERS = {
       };
     },
   },
-  iflow: iflowProvider,
+  iflow: { flowType: "none" },
   "ibm-bob": { flowType: "none" }
 };
 

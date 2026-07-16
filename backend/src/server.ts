@@ -72,7 +72,7 @@ async function start() {
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
   // ─── Error Handler ─────────────────────────────────────────────────────────
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((err, _req, res, _next) => {
     console.error("[server] unhandled error:", err);
     if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
   });

@@ -112,8 +112,9 @@ Options:
   }
 }
 
-// Auto-relaunch after update: detached process has no TTY → fallback to tray
-if (skipUpdate && !trayMode && !process.stdin.isTTY) {
+// Auto-relaunch after update: detached process has no TTY → fallback to tray (only if desktop display is available)
+const hasDisplay = process.platform === "win32" || process.platform === "darwin" || process.env.DISPLAY;
+if (skipUpdate && !trayMode && !process.stdin.isTTY && hasDisplay) {
   trayMode = true;
   process.env.TRAY_MODE = "1";
 }
