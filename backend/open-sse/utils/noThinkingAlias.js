@@ -1,4 +1,4 @@
-import { getModelSpec } from "@/shared/constants/modelSpecs";
+import { getModelSpec } from '../../dist/shared/constants/modelSpecs.js';
 const NO_THINKING_PREFIX = "no-think/";
 function isNoThinkingAlias(modelId) {
   return typeof modelId === "string" && modelId.startsWith(NO_THINKING_PREFIX);

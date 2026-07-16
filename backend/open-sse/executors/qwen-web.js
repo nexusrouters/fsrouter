@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.ts";
 import { makeExecutorErrorResult as makeErrorResult } from "../utils/error.js";
 import { prepareToolMessages, buildToolAwareResult } from "../translator/webTools.ts";
-import { buildQwenCookieHeader, extractQwenToken } from "@/lib/providers/webCookieAuth";
+import { buildQwenCookieHeader, extractQwenToken } from '../../dist/lib/providers/webCookieAuth.js';
 const BASE_URL = "https://chat.qwen.ai";
 const CHATS_NEW_URL = `${BASE_URL}/api/v2/chats/new`;
 const CHAT_COMPLETIONS_URL = `${BASE_URL}/api/v2/chat/completions`;

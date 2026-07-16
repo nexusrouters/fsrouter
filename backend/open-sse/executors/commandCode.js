@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isVisionModelId } from "@/shared/constants/visionModels";
+import { isVisionModelId } from '../../dist/shared/constants/visionModels.js';
 import { REGISTRY } from "../config/providerRegistry.ts";
 import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
 const COMMAND_CODE_VERSION = process.env.COMMAND_CODE_VERSION?.trim() || "0.33.2";

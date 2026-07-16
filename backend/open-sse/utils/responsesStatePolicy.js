@@ -1,8 +1,8 @@
-import { isOpenAIResponsesStoreEnabled } from "@/lib/providers/requestDefaults";
+import { isOpenAIResponsesStoreEnabled } from '../../dist/lib/providers/requestDefaults.js';
 import {
   DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE,
   RESPONSES_PREVIOUS_RESPONSE_ID_MODES
-} from "@/shared/constants/responsesPreviousResponseId";
+} from '../../dist/shared/constants/responsesPreviousResponseId.js';
 import { FORMATS } from "../translator/formats.ts";
 const MODE_SET = new Set(RESPONSES_PREVIOUS_RESPONSE_ID_MODES);
 function toRecord(value) {

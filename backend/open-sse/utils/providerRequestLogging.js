@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { updatePendingScope } from "@/lib/usage/pendingRequestScope";
+import { updatePendingScope } from '../../dist/lib/usage/pendingRequestScope.js';
 
 const CAPTURE_STATE_KEY = Symbol.for("omniroute.providerRequestCapture.state");
 

@@ -1,7 +1,7 @@
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { updateProviderConnection } from "@/lib/localDb";
+import { updateProviderConnection } from '../../../dist/lib/localDb.js';
 
 // 10 MB buffer — video polling can produce large stderr logs
 const MAX_BUFFER = 10 * 1024 * 1024;

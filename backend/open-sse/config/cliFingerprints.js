@@ -4,7 +4,7 @@ import {
   GITHUB_COPILOT_CHAT_USER_AGENT,
   getQwenOauthHeaders
 } from "./providerHeaderProfiles.ts";
-import { normalizeCliCompatProviderId } from "@/shared/utils/cliCompat";
+import { normalizeCliCompatProviderId } from '../../dist/shared/utils/cliCompat.js';
 const CLI_FINGERPRINTS = {
   codex: {
     headerOrder: [

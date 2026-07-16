@@ -4,7 +4,7 @@ import { createSSETransformStreamWithLogger, createPassthroughStreamWithLogger }
 import { pipeWithDisconnect } from "../../utils/streamHandler.js";
 import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamHelpers.js";
 import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./requestDetail.js";
-import { saveRequestDetail } from "@/lib/usageDb.js";
+import { saveRequestDetail } from '../../../dist/lib/usageDb.js';
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",

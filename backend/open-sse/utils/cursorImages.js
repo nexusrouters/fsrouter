@@ -5,7 +5,7 @@ import {
   parseAndValidatePublicUrl,
   isPrivateHost,
   OutboundUrlGuardError
-} from "@/shared/network/outboundUrlGuard";
+} from '../../dist/shared/network/outboundUrlGuard.js';
 const MAX_CURSOR_IMAGE_BYTES = 1024 * 1024;
 const MAX_CURSOR_IMAGES = 12;
 const IMAGE_FETCH_TIMEOUT_MS = (() => {

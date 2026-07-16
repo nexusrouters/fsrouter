@@ -5,7 +5,7 @@ import {
 } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { buildErrorBody, sanitizeErrorMessage } from "../utils/error.js";
-import { normalizeSessionCookieHeader } from "@/lib/providers/webCookieAuth";
+import { normalizeSessionCookieHeader } from '../../dist/lib/providers/webCookieAuth.js';
 import { streamJsonlToOpenAi, readJsonlResponse } from "./huggingchat/jsonlStream.ts";
 const HUGGINGFACE_BASE = "https://huggingface.co";
 const CONVERSATION_URL = `${HUGGINGFACE_BASE}/chat/conversation`;

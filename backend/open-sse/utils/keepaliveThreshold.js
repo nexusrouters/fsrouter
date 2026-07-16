@@ -1,7 +1,7 @@
-import { NOAUTH_PROVIDERS } from "@/shared/constants/providers";
-import { APIKEY_PROVIDERS } from "@/shared/constants/providers";
-import { WEB_COOKIE_PROVIDERS } from "@/shared/constants/providers";
-import { WEB_SESSION_CREDENTIAL_REQUIREMENTS } from "@/shared/providers/webSessionCredentials";
+import { NOAUTH_PROVIDERS } from '../../dist/shared/constants/providers.js';
+import { APIKEY_PROVIDERS } from '../../dist/shared/constants/providers.js';
+import { WEB_COOKIE_PROVIDERS } from '../../dist/shared/constants/providers.js';
+import { WEB_SESSION_CREDENTIAL_REQUIREMENTS } from '../../dist/shared/providers/webSessionCredentials.js';
 const DEFAULT_THRESHOLD_MS = 2e3;
 const SLOW_THRESHOLD_MS = 15e3;
 const SLOW_PROVIDER_IDS = /* @__PURE__ */ new Set();

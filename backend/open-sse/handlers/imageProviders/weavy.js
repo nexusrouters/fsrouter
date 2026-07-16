@@ -39,7 +39,7 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { PROVIDER_MODELS } from "../../config/providerModels.js";
-import { updateProviderConnection } from "@/lib/localDb";
+import { updateProviderConnection } from '../../../dist/lib/localDb.js';
 
 const TEMPLATE_ID = "SZXXYN7L9PN2SCTVYAlt";
 

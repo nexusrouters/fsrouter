@@ -1,4 +1,4 @@
-import { isFeatureFlagEnabled } from "@/shared/utils/featureFlags";
+import { isFeatureFlagEnabled } from '../../dist/shared/utils/featureFlags.js';
 const EMERGENCY_FALLBACK_FLAG_KEY = "OMNIROUTE_EMERGENCY_FALLBACK";
 const EMERGENCY_FALLBACK_FLAG_CACHE_MS = 500;
 let emergencyFallbackFlagCache = null;

@@ -6,7 +6,7 @@ import {
   GitHubSkillsSearchSchema,
   GitHubSkillsScanSchema,
   GitHubSkillsInstallSchema
-} from "@/lib/skills/githubCollector";
+} from '../../../dist/lib/skills/githubCollector.js';
 async function handleSearch(args) {
   const { repos, errors } = await searchGitHubSkills({
     minStars: args.minStars,

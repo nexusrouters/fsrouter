@@ -2,7 +2,7 @@ import {
   findWorkingProxy,
   clearProxyFallbackCache
 } from "@omniroute/open-sse/utils/proxyFallback.ts";
-import { isFeatureFlagEnabled } from "@/shared/utils/featureFlags";
+import { isFeatureFlagEnabled } from '../../dist/shared/utils/featureFlags.js';
 async function selectProxyForValidation(targetUrl) {
   if (!isFeatureFlagEnabled("PROXY_AUTO_SELECT_ENABLED")) return null;
   if (!targetUrl) return null;
