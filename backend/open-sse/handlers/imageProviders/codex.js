@@ -1,27 +1,9 @@
-/**
- * OpenAI Codex (Responses API) image generation adapter.
- *
- * Providers: codex (ChatGPT Plus/Pro accounts via OAuth session)
- * Auth: Bearer session token + chatgpt-account-id header
- * Format: JSON body → SSE stream (parses image_generation_call delta events)
- * Polling: None (streaming SSE)
- *
- * Supported request params:
- * @param {string}  prompt                        - (required) Image description
- * @param {string}  [model="gpt-4o"]              - Model ID ("-image" suffix is stripped automatically)
- * @param {string}  [size="1024x1024"]            - Dimensions: "1024x1024"|"1792x1024"|"1024x1792"|"1536x1024"|"1024x1536"
- * @param {string}  [quality="auto"]              - "low"|"medium"|"high"|"auto"
- * @param {string}  [output_format="png"]         - "png"|"jpeg"|"webp"
- * @param {string}  [background="auto"]           - "auto"|"transparent"|"opaque"
- * @param {string}  [image_detail="high"]         - "low"|"high"|"auto"
- * @param {string}  [image]                       - Reference image URL or base64 data URI
- * @param {string[]} [images]                     - Multiple reference images
- */
 // Codex (ChatGPT Plus/Pro) image generation via Responses API + SSE
 import { randomUUID } from "node:crypto";
 import { nowSec } from "./_base.js";
+import { PROVIDERS } from "../../config/providers.js";
 
-const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
+const CODEX_RESPONSES_URL = PROVIDERS["codex"].baseUrl;
 const CODEX_USER_AGENT = "codex_cli_rs/0.136.0";
 const CODEX_VERSION = "0.136.0";
 const CODEX_ORIGINATOR = "codex_cli_rs";

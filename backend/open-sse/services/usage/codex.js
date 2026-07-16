@@ -1,267 +1,201 @@
 /**
- * Codex (OpenAI / ChatGPT backend) usage handler
- * Updated from OmniRoute — supports dual-window quota, code_review, spark, bankedResetCredits
+ * Codex (OpenAI) usage handler
  */
 
 import { proxyAwareFetch } from "../../utils/proxyFetch.js";
+import { U, parseResetTime, toFiniteNumber } from "./shared.js";
 
-// Codex (OpenAI) API config — uses /wham/usage (newer endpoint)
+// Codex (OpenAI) API config
 const CODEX_CONFIG = {
-  usageUrl: "https://chatgpt.com/backend-api/wham/usage",
+  usageUrl: U("codex").url,
+  resetCreditsUrl: U("codex").resetCreditsUrl,
+  resetCreditsConsumeUrl: U("codex").resetCreditsConsumeUrl,
 };
 
-function getFieldValue(record, ...keys) {
-  if (!record || typeof record !== "object") return null;
-  for (const key of keys) {
-    if (record[key] !== undefined && record[key] !== null) return record[key];
-  }
-  return null;
+function toIsoDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date
+    ? value
+    : new Date(typeof value === "number" && value < 1e12 ? value * 1000 : value);
+  const time = date.getTime();
+  return Number.isFinite(time) ? date.toISOString() : null;
 }
 
-function toRecord(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+function getCodexAccountId(providerSpecificData) {
+  return providerSpecificData?.workspaceId || providerSpecificData?.accountId || providerSpecificData?.chatgptAccountId || null;
 }
 
-function toNumber(value, fallback = 0) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  return fallback;
+function getCodexRateLimitBody(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  return snapshot.rate_limit && typeof snapshot.rate_limit === "object"
+    ? snapshot.rate_limit
+    : snapshot;
 }
 
-function parseResetTime(resetValue) {
-  if (!resetValue) return null;
-  try {
-    let date = null;
-    if (resetValue instanceof Date) {
-      date = resetValue;
-    } else if (typeof resetValue === "number") {
-      date = new Date(resetValue < 1e12 ? resetValue * 1000 : resetValue);
-    } else if (typeof resetValue === "string") {
-      if (/^\d+$/.test(resetValue)) {
-        const ts = Number(resetValue);
-        date = new Date(ts < 1e12 ? ts * 1000 : ts);
-      } else {
-        date = new Date(resetValue);
-      }
-    }
-    if (!date || date.getTime() <= 0) return null;
-    return date.toISOString();
-  } catch {
-    return null;
-  }
-}
-
-function parseWindowReset(window) {
-  const resetAt = toNumber(getFieldValue(window, "reset_at", "resetAt"), 0);
-  const resetAfterSeconds = toNumber(getFieldValue(window, "reset_after_seconds", "resetAfterSeconds"), 0);
-  if (resetAt > 0) return parseResetTime(resetAt * 1000);
-  if (resetAfterSeconds > 0) return parseResetTime(Date.now() + resetAfterSeconds * 1000);
-  return null;
-}
-
-function buildPercentageQuota(window, displayName) {
-  const usedPercent = toNumber(getFieldValue(window, "used_percent", "usedPercent"), 0);
+function formatCodexWindow(window) {
+  const used = Math.max(0, Math.min(100, toFiniteNumber(window?.used_percent ?? window?.percent_used, 0)));
   return {
-    used: usedPercent,
+    used,
     total: 100,
-    remaining: 100 - usedPercent,
-    resetAt: parseWindowReset(window),
+    remaining: Math.max(0, 100 - used),
+    resetAt: parseResetTime(window?.reset_at ?? window?.resets_at ?? window?.resetAt ?? null),
     unlimited: false,
-    ...(displayName ? { displayName } : {}),
   };
 }
 
-function isCodexReviewLimitDescriptor(...values) {
-  return values.some((value) => {
-    if (typeof value !== "string") return false;
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return false;
-    return (
-      normalized === "code_review" ||
-      normalized === "codex_review" ||
-      normalized === "review" ||
-      normalized.includes("code_review") ||
-      normalized.includes("codex_review") ||
-      normalized.includes("code review")
-    );
-  });
-}
+function appendCodexQuotaWindows(quotas, prefix, snapshot) {
+  const rateLimit = getCodexRateLimitBody(snapshot);
+  if (!rateLimit) return false;
 
-function findCodexReviewRateLimit(data) {
-  const additionalRateLimits = getFieldValue(data, "additional_rate_limits", "additionalRateLimits");
-  if (!Array.isArray(additionalRateLimits)) return {};
-  for (const entry of additionalRateLimits) {
-    const rec = toRecord(entry);
-    if (
-      isCodexReviewLimitDescriptor(
-        getFieldValue(rec, "limit_name", "limitName"),
-        getFieldValue(rec, "metered_feature", "meteredFeature"),
-        getFieldValue(rec, "limit_id", "limitId"),
-        rec["id"], rec["name"]
-      )
-    ) {
-      return toRecord(getFieldValue(rec, "rate_limit", "rateLimit"));
-    }
+  const primary = rateLimit.primary_window || rateLimit.primary || snapshot.primary_window || snapshot.primary;
+  const secondary = rateLimit.secondary_window || rateLimit.secondary || snapshot.secondary_window || snapshot.secondary;
+  let added = false;
+
+  if (primary) {
+    quotas[prefix ? `${prefix}_session` : "session"] = formatCodexWindow(primary);
+    added = true;
   }
-  return {};
-}
-
-function isCodexSparkLimitDescriptor(...values) {
-  return values.some((value) => {
-    if (typeof value !== "string") return false;
-    const normalized = value.trim().toLowerCase();
-    return normalized === "spark" || normalized.includes("spark");
-  });
-}
-
-function findCodexSparkRateLimit(data) {
-  const additionalRateLimits = getFieldValue(data, "additional_rate_limits", "additionalRateLimits");
-  if (!Array.isArray(additionalRateLimits)) return {};
-  for (const entry of additionalRateLimits) {
-    const rec = toRecord(entry);
-    if (
-      isCodexSparkLimitDescriptor(
-        getFieldValue(rec, "limit_name", "limitName"),
-        getFieldValue(rec, "metered_feature", "meteredFeature"),
-        getFieldValue(rec, "limit_id", "limitId"),
-        rec["id"], rec["name"], rec["model"],
-        getFieldValue(rec, "model_id", "modelId")
-      )
-    ) {
-      return toRecord(getFieldValue(rec, "rate_limit", "rateLimit"));
-    }
-  }
-  return {};
-}
-
-function parseBankedResetCredits(data) {
-  const resetCredits = toRecord(getFieldValue(data, "rate_limit_reset_credits", "rateLimitResetCredits"));
-  const availableCount = getFieldValue(resetCredits, "available_count", "availableCount");
-  const count = toNumber(availableCount, NaN);
-  return Number.isFinite(count) ? count : undefined;
-}
-
-function parseRateLimitReachedType(data) {
-  const reachedType = getFieldValue(data, "rate_limit_reached_type", "rateLimitReachedType");
-  if (typeof reachedType === "string" && reachedType.trim().length > 0) return reachedType.trim();
-  const reachedTypeObj = toRecord(reachedType);
-  const type = getFieldValue(reachedTypeObj, "type");
-  return typeof type === "string" && type.trim().length > 0 ? type.trim() : undefined;
-}
-
-/**
- * Build Codex usage quotas from /wham/usage response.
- * Supports: session (5h), weekly (7d), code_review, code_review_weekly, spark, spark_weekly
- */
-function buildCodexUsageQuotas(dataValue) {
-  const data = toRecord(dataValue);
-  const rateLimit = toRecord(getFieldValue(data, "rate_limit", "rateLimit"));
-  const quotas = {};
-  const bankedResetCredits = parseBankedResetCredits(data);
-  const rateLimitReachedType = parseRateLimitReachedType(data);
-
-  // Primary window (5h session)
-  const primaryWindow = toRecord(getFieldValue(rateLimit, "primary_window", "primaryWindow"));
-  if (Object.keys(primaryWindow).length > 0) quotas.session = buildPercentageQuota(primaryWindow);
-
-  // Secondary window (7d weekly)
-  const secondaryWindow = toRecord(getFieldValue(rateLimit, "secondary_window", "secondaryWindow"));
-  if (Object.keys(secondaryWindow).length > 0) quotas.weekly = buildPercentageQuota(secondaryWindow);
-
-  // Code review rate limit (dedicated block or additional_rate_limits fallback)
-  const dedicatedReviewRateLimit = toRecord(getFieldValue(data, "code_review_rate_limit", "codeReviewRateLimit"));
-  const reviewRateLimit = Object.keys(dedicatedReviewRateLimit).length > 0
-    ? dedicatedReviewRateLimit
-    : findCodexReviewRateLimit(data);
-
-  const codeReviewWindow = toRecord(getFieldValue(reviewRateLimit, "primary_window", "primaryWindow"));
-  if (getFieldValue(codeReviewWindow, "used_percent", "usedPercent") !== null ||
-      getFieldValue(codeReviewWindow, "remaining_count", "remainingCount") !== null) {
-    quotas.code_review = buildPercentageQuota(codeReviewWindow);
+  if (secondary) {
+    quotas[prefix ? `${prefix}_weekly` : "weekly"] = formatCodexWindow(secondary);
+    added = true;
   }
 
-  const codeReviewSecondaryWindow = toRecord(getFieldValue(reviewRateLimit, "secondary_window", "secondaryWindow"));
-  if (getFieldValue(codeReviewSecondaryWindow, "used_percent", "usedPercent") !== null ||
-      getFieldValue(codeReviewSecondaryWindow, "remaining_count", "remainingCount") !== null) {
-    quotas.code_review_weekly = buildPercentageQuota(codeReviewSecondaryWindow);
-  }
-
-  // Spark quota (additional_rate_limits)
-  const sparkRateLimit = findCodexSparkRateLimit(data);
-  const sparkPrimaryWindow = toRecord(getFieldValue(sparkRateLimit, "primary_window", "primaryWindow"));
-  if (Object.keys(sparkPrimaryWindow).length > 0) {
-    quotas.spark = buildPercentageQuota(sparkPrimaryWindow, "Spark");
-  }
-  const sparkSecondaryWindow = toRecord(getFieldValue(sparkRateLimit, "secondary_window", "secondaryWindow"));
-  if (Object.keys(sparkSecondaryWindow).length > 0) {
-    quotas.spark_weekly = buildPercentageQuota(sparkSecondaryWindow, "Spark Weekly");
-  }
-
-  return { rateLimit, quotas, bankedResetCredits, rateLimitReachedType };
+  return added;
 }
 
-/**
- * Codex (OpenAI) Usage - Fetch from ChatGPT /wham/usage API
- * Uses persisted workspaceId from OAuth for correct workspace binding.
- */
-export async function getCodexUsage(accessToken, providerSpecificData = {}) {
+function getCodexReviewRateLimit(data) {
+  if (data.code_review_rate_limit || data.review_rate_limit) {
+    return data.code_review_rate_limit || data.review_rate_limit;
+  }
+
+  const byLimitId = data.rate_limits_by_limit_id;
+  if (byLimitId && typeof byLimitId === "object" && !Array.isArray(byLimitId)) {
+    return byLimitId.code_review || byLimitId.codex_review || byLimitId.review || null;
+  }
+
+  const additional = Array.isArray(data.additional_rate_limits) ? data.additional_rate_limits : [];
+  return additional.find((entry) => {
+    const id = String(entry?.limit_name || entry?.metered_feature || entry?.id || "").toLowerCase();
+    return id === "code_review" || id === "codex_review" || id === "review" || id.includes("review");
+  }) || null;
+}
+
+export async function getCodexUsage(accessToken, proxyOptions = null) {
   try {
-    const accountId = typeof providerSpecificData?.workspaceId === "string"
-      ? providerSpecificData.workspaceId
-      : null;
-
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
-    if (accountId) {
-      headers["chatgpt-account-id"] = accountId;
-    }
-
     const response = await proxyAwareFetch(CODEX_CONFIG.usageUrl, {
       method: "GET",
-      headers,
-    });
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json",
+      },
+    }, proxyOptions);
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        return {
-          message: "Codex token expired or access denied. Please re-authenticate the connection.",
-        };
-      }
-      throw new Error(`Codex API error: ${response.status}`);
+      return { message: `Codex connected. Usage API temporarily unavailable (${response.status}).` };
     }
 
     const data = await response.json();
-    const { rateLimit, quotas, bankedResetCredits, rateLimitReachedType } = buildCodexUsageQuotas(data);
+    const normalRateLimit = data.rate_limit || data.rate_limits || data.rate_limits_by_limit_id?.codex || {};
+    const reviewRateLimit = getCodexReviewRateLimit(data);
+    const availableResetCredits = Math.max(0, toFiniteNumber(data.rate_limit_reset_credits?.available_count, 0));
+    const quotas = {};
+
+    appendCodexQuotaWindows(quotas, "", normalRateLimit);
+    appendCodexQuotaWindows(quotas, "review", reviewRateLimit);
 
     return {
-      plan: String(getFieldValue(data, "plan_type", "planType") || "unknown"),
-      limitReached: Boolean(getFieldValue(rateLimit, "limit_reached", "limitReached")),
+      plan: data.plan_type || data.summary?.plan || "unknown",
+      limitReached: getCodexRateLimitBody(normalRateLimit)?.limit_reached || false,
+      reviewLimitReached: getCodexRateLimitBody(reviewRateLimit)?.limit_reached || false,
+      resetCredits: { availableCount: availableResetCredits },
       quotas,
-      ...(bankedResetCredits !== undefined ? { bankedResetCredits } : {}),
-      ...(rateLimitReachedType !== undefined ? { rateLimitReachedType } : {}),
     };
   } catch (error) {
-    return { message: `Failed to fetch Codex usage: ${error.message}` };
+    throw new Error(`Failed to fetch Codex usage: ${error.message}`);
   }
 }
 
-// Stub: consume a banked reset credit (display-only, not implemented in AMRouter)
-export async function consumeCodexRateLimitResetCredit(accessToken, providerSpecificData = {}) {
-  return { success: false, message: "Reset credit consumption not supported" };
-}
+export async function getCodexRateLimitResetCredits(accessToken, proxyOptions = null, providerSpecificData = null) {
+  if (!accessToken) {
+    throw new Error("No Codex access token available. Please re-authorize the connection.");
+  }
 
-// Stub: get banked reset credits
-export async function getCodexRateLimitResetCredits(accessToken, providerSpecificData = {}) {
+  const accountId = getCodexAccountId(providerSpecificData);
+  const headers = {
+    "Authorization": `Bearer ${accessToken}`,
+    "Accept": "application/json",
+    "OpenAI-Beta": "codex-1",
+    "originator": "codex_cli_rs",
+  };
+  if (accountId) headers["ChatGPT-Account-ID"] = accountId;
+
+  const response = await proxyAwareFetch(CODEX_CONFIG.resetCreditsUrl, {
+    method: "GET",
+    headers,
+  }, proxyOptions);
+
+  let data = null;
   try {
-    const result = await getCodexUsage(accessToken, providerSpecificData);
-    return { credits: result.bankedResetCredits || 0 };
+    data = await response.json();
   } catch {
-    return { credits: 0 };
+    data = null;
   }
+
+  if (!response.ok) {
+    const message = data?.message || data?.error || data?.detail || `Codex reset credits API unavailable (${response.status}).`;
+    throw new Error(message);
+  }
+
+  const credits = Array.isArray(data?.credits) ? data.credits : [];
+  return {
+    availableCount: Math.max(0, toFiniteNumber(data?.available_count ?? data?.availableCount, 0)),
+    credits: credits.map((credit) => ({
+      status: String(credit?.status || "unknown"),
+      grantedAt: toIsoDate(credit?.granted_at ?? credit?.grantedAt),
+      expiresAt: toIsoDate(credit?.expires_at ?? credit?.expiresAt),
+    })),
+  };
+}
+
+// Consume one Codex rate-limit reset credit (irreversible, spends 1 credit)
+export async function consumeCodexRateLimitResetCredit(accessToken, redeemRequestId, proxyOptions = null) {
+  if (!accessToken) {
+    throw new Error("No Codex access token available. Please re-authorize the connection.");
+  }
+  if (!redeemRequestId || typeof redeemRequestId !== "string") {
+    throw new Error("A redeem request id is required to consume a Codex reset credit.");
+  }
+
+  let response;
+  let data = null;
+  try {
+    response = await proxyAwareFetch(CODEX_CONFIG.resetCreditsConsumeUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ redeem_request_id: redeemRequestId }),
+    }, proxyOptions);
+
+    const text = await response.text();
+    data = text ? JSON.parse(text) : null;
+  } catch (error) {
+    throw new Error(`Failed to consume Codex reset credit: ${error.message}`);
+  }
+
+  const code = data?.code || null;
+  const windowsReset = toFiniteNumber(data?.windows_reset, 0);
+  const success = response.ok && (code === "reset" || windowsReset > 0);
+
+  return {
+    ok: success,
+    noCredit: response.ok && code === "no_credit",
+    status: response.status,
+    code,
+    windowsReset,
+    message: data?.message || null,
+    raw: data,
+  };
 }

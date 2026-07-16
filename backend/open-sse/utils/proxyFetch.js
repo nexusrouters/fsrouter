@@ -106,7 +106,6 @@ const MITM_BYPASS_HOSTS = [
   "q.us-east-1.amazonaws.com",
   "codewhisperer.us-east-1.amazonaws.com",
   "api2.cursor.sh",
-  "leonardo.ai",
 ];
 const GOOGLE_DNS_SERVERS = ["8.8.8.8", "8.8.4.4"];
 const HTTPS_PORT = 443;

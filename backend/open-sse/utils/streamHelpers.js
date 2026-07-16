@@ -17,19 +17,6 @@ export function parseSSELine(line, format = null) {
     return null;
   }
 
-  // Handle raw JSON errors disguised as SSE
-  if (line.charCodeAt(0) === 123) { // '{' = 123
-    try {
-      const parsedJson = JSON.parse(line.trim());
-      // Check if it looks like an error payload
-      if (parsedJson && (parsedJson.error || parsedJson.code !== undefined || parsedJson.msg)) {
-        return { _isRawError: true, raw: parsedJson };
-      }
-    } catch (e) {
-      // Ignore parse errors, continue to normal SSE check
-    }
-  }
-
   // Standard SSE format: "data: {...}"
   if (line.charCodeAt(0) !== 100) return null; // 'd' = 100
 
@@ -51,13 +38,11 @@ export function hasValuableContent(chunk, format) {
   // OpenAI format
   if (format === FORMATS.OPENAI && chunk.choices?.[0]?.delta) {
     const delta = chunk.choices[0].delta;
-    return !!(delta.content && delta.content !== "" ||
+    return delta.content && delta.content !== "" ||
            delta.reasoning_content && delta.reasoning_content !== "" ||
            delta.tool_calls && delta.tool_calls.length > 0 ||
-           delta.refusal && delta.refusal !== "" ||
            chunk.choices[0].finish_reason ||
-           delta.role ||
-           chunk.usage);
+           delta.role;
   }
 
   // Claude format

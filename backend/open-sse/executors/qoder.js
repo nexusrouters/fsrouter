@@ -20,18 +20,20 @@
  *     different model upstream, so a missing entry is a hard error.
  */
 
-import { qoderEncodeBody } from '../../dist/lib/qoder/encoding.js';
-import { buildCosyHeaders } from '../../dist/lib/qoder/cosy.js';
+import { qoderEncodeBody } from "../shared/qoder/encoding.js";
+import { buildCosyHeaders } from "../shared/qoder/cosy.js";
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
 
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { SSE_DONE } from "../utils/sseConstants.js";
+import { FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import {
   QODER_CHAT_URL_ENCODED,
   QODER_MODEL_MAP,
-} from '../../dist/lib/qoder/constants.js';
+} from "../shared/qoder/constants.js";
 import { getQoderModelConfig, resolveQoderModels } from "../services/qoderModels.js";
 
 /**
@@ -124,7 +126,7 @@ function truncate(s, n) {
  * Map the OpenAI-style request body into the exact shape Qoder expects.
  */
 async function buildQoderRequestBody({ model, body, credentials, log, proxyOptions, signal }) {
-  const qoderKey = String(model || "").replace(/^(qoder|qd)\//, "");
+  const qoderKey = String(model || "").replace(/^qoder\//, "");
   
   // Fetch model config from dynamic API instead of relying on static QODER_MODEL_MAP.
   // This allows support for new Qoder models (e.g., qmodel_latest) without code changes.
@@ -240,9 +242,8 @@ function wrapQoderSSE(response, model) {
 
     const data = trimmed.slice(5).trimStart();
     if (data === "[DONE]") {
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.enqueue(encoder.encode(SSE_DONE));
       doneEmitted = true;
-      try { controller.terminate(); } catch {}
       return;
     }
 
@@ -260,16 +261,14 @@ function wrapQoderSSE(response, model) {
         choices: [{ index: 0, delta: { content: `\n[qoder error ${statusVal}: ${truncate(msg, 200)}]` }, finish_reason: "stop" }],
       });
       controller.enqueue(encoder.encode(`data: ${errChunk}\n\n`));
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.enqueue(encoder.encode(SSE_DONE));
       doneEmitted = true;
-      try { controller.terminate(); } catch {}
       return;
     }
     if (!inner) return;
     if (inner === "[DONE]") {
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.enqueue(encoder.encode(SSE_DONE));
       doneEmitted = true;
-      try { controller.terminate(); } catch {}
       return;
     }
     // Inner is an OpenAI-shaped chunk. Strip any embedded newlines so the
@@ -303,7 +302,7 @@ function wrapQoderSSE(response, model) {
         buffer = "";
       }
       if (!doneEmitted) {
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.enqueue(encoder.encode(SSE_DONE));
         doneEmitted = true;
       }
     },
@@ -410,15 +409,21 @@ export class QoderExecutor extends BaseExecutor {
       ...cosyHeaders,
     };
 
+    // Abort if upstream doesn't return response headers within connect timeout.
+    const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
+    const connectCtrl = new AbortController();
+    const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
+    const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
+
     let response;
     try {
       response = await proxyAwareFetch(
         url,
-        { method: "POST", headers, body: encodedBodyBuf, signal },
+        { method: "POST", headers, body: encodedBodyBuf, signal: mergedSignal },
         proxyOptions,
       );
-    } catch (err) {
-      throw err;
+    } finally {
+      clearTimeout(connectTimer);
     }
 
     if (!response.ok) {
@@ -430,10 +435,15 @@ export class QoderExecutor extends BaseExecutor {
     return { response: wrapped, url, headers, transformedBody: payload };
   }
 
-  // Refresh Qoder device tokens using openapi.qoder.sh/api/v1/deviceToken/refresh.
-  async refreshCredentials(credentials, log, proxyOptions = null) {
-    const { refreshQoderToken } = await import("../services/tokenRefresh.js");
-    return refreshQoderToken(credentials.refreshToken, log, proxyOptions);
+  // Qoder device tokens don't refresh through OAuth — the upstream returns
+  // 403 for our flow. Surfacing failure via 401-on-chat is enough; the
+  // dashboard tells users to re-login when their token expires (~30 days).
+  async refreshCredentials() {
+    return null;
+  }
+
+  needsRefresh() {
+    return false;
   }
 }
 

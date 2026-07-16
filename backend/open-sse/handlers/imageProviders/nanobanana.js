@@ -1,29 +1,10 @@
-/**
- * NanoBanana image generation adapter.
- *
- * Providers: nanobanana
- * Auth: Bearer token (apiKey or accessToken)
- * Format: JSON body → async polling via task status endpoint
- * Polling: Yes — polls until resultImageUrl is available
- *
- * Supported request params:
- * @param {string}  prompt               - (required) Image description
- * @param {number}  [n=1]                - Number of images (numImages)
- * @param {string}  [size="1024x1024"]   - Maps to aspect ratio: "1:1"|"9:16"|"16:9"|"4:3"|"3:2"|"2:3"
- * @param {string}  [image]              - Reference image URL → enables IMAGETOIAMGE mode
- * @param {string[]} [images]            - Multiple reference image URLs
- *
- * Request type:
- * - No image → type: "TEXTTOIAMGE"
- * - image/images provided → type: "IMAGETOIAMGE"
- *
- * Response normalize: extracts resultImageUrl (falls back to originImageUrl).
- */
 // NanoBanana API — async submit + poll record-info
 import { sleep, nowSec, sizeToAspectRatio, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const SUBMIT_URL = "https://api.nanobananaapi.ai/api/v1/nanobanana/generate";
-const POLL_BASE = "https://api.nanobananaapi.ai/api/v1/nanobanana/record-info";
+const IMG_CFG = PROVIDER_MEDIA["nanobanana"]?.imageConfig || {};
+const SUBMIT_URL = IMG_CFG.baseUrl;
+const POLL_BASE = IMG_CFG.pollUrl;
 
 export default {
   async: true,

@@ -1,28 +1,8 @@
-/**
- * Fal.ai asynchronous image generation adapter.
- *
- * Providers: fal-ai
- * Auth: Key {apiKey} via Authorization header (uses "Key" prefix, not "Bearer")
- * Format: JSON body → async queue submission + polling
- * Polling: Yes — submits to /runs, polls /requests/{id}/status, fetches /requests/{id}
- *
- * Supported request params:
- * @param {string}  prompt               - (required) Image description
- * @param {string}  [model]              - Model path (e.g. "fal-ai/flux/schnell")
- * @param {number}  [n=1]                - Number of images (num_images)
- * @param {string}  [size="1024x1024"]   - Maps to image_size aspect ratio: "1:1"|"16:9"|"9:16" etc.
- * @param {number}  [seed]               - Fixed seed for reproducibility
- * @param {number}  [guidance]           - Guidance scale (model-dependent)
- * @param {number}  [num_steps]          - Diffusion sampling steps
- * @param {string}  [style]              - Style preset (Recraft/Ideogram only)
- * @param {string}  [image]              - Reference image URL (img2img conditioning)
- *
- * Response normalize: maps images[] or image{} to { created, data: [{ url }] }.
- */
 // Fal.ai — async submit + queue polling
 import { sleep, nowSec, sizeToAspectRatio, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const BASE_URL = "https://queue.fal.run";
+const BASE_URL = PROVIDER_MEDIA["fal-ai"]?.imageConfig?.baseUrl;
 
 export default {
   async: true,

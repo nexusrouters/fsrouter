@@ -1,35 +1,7 @@
-/**
- * Cloudflare AI Workers image generation adapter.
- *
- * Providers: cloudflare-ai
- * Auth: Bearer token via Authorization header
- *       Requires providerSpecificData.accountId for endpoint construction.
- * Format: JSON body OR FormData (model-dependent) → sync base64 response
- * Polling: None (synchronous)
- *
- * Endpoint: https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/run/{model}
- *
- * Supported request params:
- * @param {string}  prompt               - (required) Image description
- * @param {string}  [size]               - Parsed to width/height integers (e.g. "1024x1024")
- * @param {number}  [seed]               - Fixed seed
- * @param {number}  [num_steps]          - Diffusion steps
- * @param {number}  [guidance]           - CFG guidance scale
- * @param {string}  [negative_prompt]    - Elements to exclude
- * @param {string}  [image_url]          - Reference image for img2img (SD v1.5-img2img)
- * @param {string}  [mask_image]         - Mask image for inpainting (SD v1.5-inpainting)
- *
- * Body format:
- * - FLUX.2 Dev and similar multipart-only models → FormData
- * - All other models → JSON { prompt, width, height, ... }
- *
- * Response normalize:
- * - string → { data: [{ b64_json: result }] }
- * - { image: b64 } → { data: [{ b64_json: image }] }
- */
 import { nowSec, urlToBase64 } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const BASE_URL = "https://api.cloudflare.com/client/v4/accounts";
+const BASE_URL = PROVIDER_MEDIA["cloudflare-ai"]?.imageConfig?.baseUrl;
 
 const MULTIPART_MODELS = new Set([
   "@cf/black-forest-labs/flux-2-dev",

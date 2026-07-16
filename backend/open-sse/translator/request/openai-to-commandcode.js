@@ -170,7 +170,3 @@ export function openaiToCommandCodeRequest(model, body, stream /* , credentials 
 }
 
 register(FORMATS.OPENAI, FORMATS.COMMANDCODE, openaiToCommandCodeRequest, null);
-
-// Backwards-compatible alias
-export const openaiToCommandCode = openaiToCommandCodeRequest;
-

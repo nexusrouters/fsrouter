@@ -1,32 +1,8 @@
-/**
- * RunwayML image and video generation adapter.
- *
- * Providers: runwayml
- * Auth: Bearer token + X-Runway-Version header
- * Format: JSON body → async polling
- * Polling: Yes — polls task ID until status == "SUCCEEDED"
- *
- * Model routing:
- * - "*_image*" model IDs → POST /text_to_image (image generation)
- * - all others           → POST /image_to_video (video generation)
- *
- * Image model params:
- * @param {string}  prompt         - (required) Image description (sent as promptText)
- * @param {string}  [size]         - Maps to ratio: "1:1"|"16:9"|"9:16" etc.
- * @param {string}  [image]        - Reference image URL (referenceImages[])
- *
- * Video model params:
- * @param {string}  prompt         - (required) Video description (promptText)
- * @param {string}  [image]        - Start frame URL (promptImage)
- * @param {number}  [duration=5]   - Video duration in seconds
- * @param {string}  [resolution]   - "720p"|"1080p"
- *
- * Response normalize: output[] → { created, data: [{ url }] }.
- */
 // Runway ML — async submit + /tasks/{id} polling
 import { sleep, nowSec, sizeToAspectRatio, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const BASE_URL = "https://api.dev.runwayml.com/v1";
+const BASE_URL = PROVIDER_MEDIA["runwayml"]?.imageConfig?.baseUrl;
 
 export default {
   async: true,

@@ -145,20 +145,3 @@ export function formatProviderError(error, provider, model, statusCode) {
   const causeStr = causeCode || causeMsg ? ` (cause: ${[causeCode, causeMsg].filter(Boolean).join(": ")})` : "";
   return `[${code}]: ${message}${causeStr}`;
 }
-
-
-/**
- * Safely escape HTML characters from error strings to prevent XSS in clients that poorly render error JSON.
- * Note: Only intended for string values. Non-string inputs will be returned as-is or cast to strings based on usage.
- * @param {string} message The raw error message
- * @returns {string} The HTML-escaped error message
- */
-export function sanitizeErrorMessage(message) {
-  if (typeof message !== 'string') return String(message);
-  return message
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}

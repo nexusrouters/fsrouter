@@ -182,7 +182,3 @@ export function commandCodeToOpenAIResponse(chunk, state) {
 }
 
 register(FORMATS.COMMANDCODE, FORMATS.OPENAI, null, commandCodeToOpenAIResponse);
-
-// Backwards-compatible alias (executor expects this name)
-export const convertCommandCodeToOpenAI = commandCodeToOpenAIResponse;
-

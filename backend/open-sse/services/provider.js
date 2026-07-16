@@ -105,7 +105,7 @@ export function detectFormat(body) {
 }
 
 // Get provider config (internal — no external runtime consumer)
-export function getProviderConfig(provider) {
+function getProviderConfig(provider) {
   if (isOpenAICompatible(provider)) {
     const apiType = getOpenAICompatibleType(provider);
     return {

@@ -1,27 +1,8 @@
-/**
- * Black Forest Labs FLUX API adapter.
- *
- * Providers: black-forest-labs
- * Auth: x-key header (not Authorization Bearer) — uses apiKey or accessToken
- * Format: JSON body → async polling via task result URL
- * Polling: Yes — polls until status == "Ready"
- *
- * Supported request params:
- * @param {string}  prompt                  - (required) Image description
- * @param {string}  [model]                 - Model ID (e.g. "flux-pro-1.1", "flux-kontext-pro")
- * @param {string}  [size]                  - Dimensions → parsed to width/height integers
- * @param {number}  [seed]                  - Fixed seed
- * @param {number}  [guidance]              - Guidance scale
- * @param {number}  [num_steps]             - Diffusion steps
- * @param {string}  [output_format="jpeg"]  - "jpeg"|"png"|"webp"
- * @param {string}  [image_url]             - Reference image (Kontext edit models only)
- *
- * Response normalize: result.sample → { created, data: [{ url }] }.
- */
 // Black Forest Labs (FLUX) — async submit + polling_url
 import { sleep, nowSec, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const BASE_URL = "https://api.bfl.ai/v1";
+const BASE_URL = PROVIDER_MEDIA["black-forest-labs"]?.imageConfig?.baseUrl;
 
 export default {
   async: true,

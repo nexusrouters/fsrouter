@@ -267,22 +267,3 @@ export async function getQoderUsage(accessToken, proxyOptions = null) {
     return { message: `Qoder connected. Unable to fetch usage: ${error.message}` };
   }
 }
-
-/**
- * Cloudflare Workers AI Usage
- * Free tier: 10,000 neurons/day. No public usage API — returns free tier info.
- */
-export async function getCloudflareAiUsage(apiKey, providerSpecificData) {
-  return {
-    plan: "Workers AI Free",
-    quotas: {
-      neurons: {
-        used: 0,
-        total: 10000,
-        resetAt: null,
-        unlimited: false,
-        displayName: "Neurons (daily free)",
-      },
-    },
-  };
-}

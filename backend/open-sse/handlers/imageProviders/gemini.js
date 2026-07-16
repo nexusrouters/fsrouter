@@ -1,22 +1,8 @@
-/**
- * Google Gemini multimodal image generation adapter.
- *
- * Providers: gemini (via NanoBanana tier routing)
- * Auth: API key appended as ?key= query param
- * Format: JSON body → sync JSON response (generateContent / generateImage)
- * Polling: None (synchronous)
- *
- * Supported request params:
- * @param {string} prompt  - (required) Image description text
- *
- * Notes:
- * - No size, quality, or style params are supported by the Gemini image endpoint.
- * - Response is normalized to { created, data: [{ b64_json, revised_prompt }] }.
- */
 // Google Gemini adapter (Nano Banana models)
 import { nowSec } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
 
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const BASE_URL = PROVIDER_MEDIA["gemini"]?.imageConfig?.baseUrl;
 
 export default {
   buildUrl: (model, creds) => {

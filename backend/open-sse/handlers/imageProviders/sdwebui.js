@@ -1,28 +1,12 @@
-/**
- * Stable Diffusion WebUI (Automatic1111) local adapter.
- *
- * Providers: sdwebui (self-hosted instance)
- * Auth: Optional HTTP Basic auth (username/password)
- * Format: JSON body → sync JSON response
- * Polling: None (synchronous, but can be slow)
- *
- * Supported request params:
- * @param {string}  prompt              - (required) Positive prompt
- * @param {number}  [n=1]               - Number of images (batch_size)
- * @param {string}  [size="512x512"]    - Dimensions e.g. "512x512", "768x768" → width/height
- * @param {string}  [negative_prompt]   - Tokens to exclude
- * @param {number}  [seed]              - Fixed seed (-1 = random)
- * @param {number}  [guidance=7]        - CFG scale
- * @param {number}  [num_steps=20]      - Sampling steps
- *
- * Response normalize: extracts images[0] → { created, data: [{ b64_json }] }.
- */
 // SD WebUI (AUTOMATIC1111) — local, noAuth
 import { nowSec } from "./_base.js";
+import { PROVIDER_MEDIA } from "../../providers/index.js";
+
+const BASE_URL = PROVIDER_MEDIA["sdwebui"]?.imageConfig?.baseUrl;
 
 export default {
   noAuth: true,
-  buildUrl: () => "http://localhost:7860/sdapi/v1/txt2img",
+  buildUrl: () => BASE_URL,
   buildHeaders: () => ({ "Content-Type": "application/json" }),
   buildBody: (_model, body) => {
     const { prompt, n = 1, size = "1024x1024" } = body;
