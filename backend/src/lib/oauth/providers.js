@@ -28,6 +28,7 @@ import {
   CODEBUDDY_CONFIG,
   KIMCHI_CONFIG,
   GROK_CLI_CONFIG,
+  NOUS_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth.js";
 import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai.js";
@@ -367,6 +368,77 @@ const PROVIDERS = {
           userId,
           hasGrokCodeAccess: extra?.user?.hasGrokCodeAccess ?? null,
           subscriptionTier: extra?.user?.subscriptionTier ?? null,
+        },
+      };
+    },
+  },
+
+  // Nous Research (Nous Portal) — OAuth device code flow.
+  // Portal has no manual API-key page; auth is device-code only (client_id hermes-cli).
+  "nous-research": {
+    config: NOUS_CONFIG,
+    flowType: "device_code",
+    requestDeviceCode: async (config) => {
+      const body = new URLSearchParams({ client_id: config.clientId });
+      if (config.scope) body.set("scope", config.scope);
+      const response = await fetch(config.deviceCodeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body,
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Nous device code request failed: ${error}`);
+      }
+      return await response.json();
+    },
+    pollToken: async (config, deviceCode) => {
+      const response = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          device_code: deviceCode,
+          client_id: config.clientId,
+        }),
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        data = { error: "invalid_response", error_description: text };
+      }
+      const pending =
+        data?.error === "authorization_pending" || data?.error === "slow_down";
+      return { ok: response.ok || pending, data };
+    },
+    mapTokens: (tokens) => {
+      let email = null;
+      try {
+        const parts = String(tokens.access_token || "").split(".");
+        if (parts.length >= 2) {
+          const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+          const claims = JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+          email = claims.email || claims.sub || null;
+        }
+      } catch { /* ignore */ }
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresIn: tokens.expires_in,
+        scope: tokens.scope,
+        email: email || undefined,
+        providerSpecificData: {
+          authMethod: "device_code",
+          email: email || null,
         },
       };
     },

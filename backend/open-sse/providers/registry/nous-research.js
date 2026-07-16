@@ -14,8 +14,16 @@ export default {
       apiKeyUrl: "https://portal.nousresearch.com",
     },
   },
-  category: "apikey",
-  authModes: ["apikey"],
+  category: "oauth",
+  authModes: ["oauth"],
+  oauth: {
+    clientId: "hermes-cli",
+    deviceCodeUrl: "https://portal.nousresearch.com/api/oauth/device/code",
+    tokenUrl: "https://portal.nousresearch.com/api/oauth/token",
+    refreshUrl: "https://portal.nousresearch.com/api/oauth/token",
+    scope: "inference:invoke",
+    refreshLeadMs: 5 * 60 * 1000,
+  },
   transport: {
     baseUrl: "https://inference-api.nousresearch.com/v1/chat/completions",
     format: "openai",

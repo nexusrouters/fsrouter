@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { retrieveMemories } from '../../dist/lib/memory/retrieval.js';
-import { createMemory, deleteMemory, listMemories } from '../../dist/lib/memory/store.js';
+import { retrieveMemories } from '../../../dist/lib/memory/retrieval.js';
+import { createMemory, deleteMemory, listMemories } from '../../../dist/lib/memory/store.js';
 import {
   getMemorySettings,
   toMemoryRetrievalConfig,
   DEFAULT_MEMORY_SETTINGS
-} from '../../dist/lib/memory/settings.js';
+} from '../../../dist/lib/memory/settings.js';
 const MemorySearchSchema = z.object({
   apiKeyId: z.string(),
   query: z.string().optional(),

@@ -100,7 +100,7 @@ async function resolveAutoStrategyOrder(deps) {
   }
   let lastKnownGoodProvider;
   try {
-    const { getLKGP } = await import('../../dist/lib/localDb.js');
+    const { getLKGP } = await import('../../../dist/lib/localDb.js');
     const lkgp = await getLKGP(combo.name, combo.id || combo.name);
     if (lkgp) lastKnownGoodProvider = lkgp.provider;
   } catch (err) {

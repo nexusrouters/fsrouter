@@ -6,7 +6,7 @@ import { PROVIDERS } from "../../config/providers.js";
 import { STREAM_STALL_TIMEOUT_MS } from "../../config/runtimeConfig.js";
 import { buildAbortedResponsesTerminalBytes } from "../../utils/responsesStreamHelpers.js";
 import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLine } from "./requestDetail.js";
-import { saveRequestDetail } from '../../dist/lib/usageDb.js';
+import { saveRequestDetail } from '../../../dist/lib/usageDb.js';
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.

@@ -6,7 +6,7 @@ import {
   getComboModelProvider,
   getComboModelString,
   getComboStepTarget
-} from '../../dist/lib/combos/steps.ts.js';
+} from '../../../dist/lib/combos/steps.ts.js';
 import { normalizeRoutingStrategy } from "../../../src/shared/constants/routingStrategies.ts";
 const OMNIROUTE_BASE_URL = resolveOmniRouteBaseUrl();
 const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
@@ -684,7 +684,7 @@ async function handleDbHealthCheck(args) {
   const start = Date.now();
   const autoRepair = args.autoRepair === true;
   try {
-    const { runManagedDbHealthCheck } = await import('../../dist/lib/db/core.ts.js');
+    const { runManagedDbHealthCheck } = await import('../../../dist/lib/db/core.ts.js');
     const result = runManagedDbHealthCheck({ autoRepair });
     await logToolCall(
       "omniroute_db_health_check",

@@ -19,23 +19,23 @@ function rewrite(file) {
   const prefix = "../".repeat(depth) + "dist/";
 
   content = content
-    .replace(/from\s+['\"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}lib/${resolved}'`;
     })
-    .replace(/from\s+['\"]@\/shared\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}shared/${resolved}'`;
     })
-    .replace(/from\s+['\"]@\/store\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['"]@\/store\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}store/${resolved}'`;
     })
-    .replace(/from\s+['\"]@\/utils\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}utils/${resolved}'`;
     })
-    .replace(/from\s+['\"]@\/services\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['"]@\/services\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}services/${resolved}'`;
     })
@@ -47,25 +47,23 @@ function rewrite(file) {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `import('${prefix}lib/${resolved}')`;
     })
-    // Fix relative imports pointing to ../../../src/lib → ../../dist/lib
-    // For open-sse/services/*.js (depth=2): ../../../src/lib/ = open-sse/src/lib/ (wrong)
-    //   correct: ../../dist/lib/
+    // Fix relative imports pointing to ../../../src/lib → dist/lib (depth-aware)
     .replace(/['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `'../../dist/lib/${resolved}'`;
+      return `'${prefix}lib/${resolved}'`;
     })
     .replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `import('../../dist/lib/${resolved}')`;
+      return `import('${prefix}lib/${resolved}')`;
     })
-    // Also catch any existing ../../../dist/lib (wrong, should be ../../dist/lib for depth=2)
-    .replace(/['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, (m, imp) => {
+    // Normalize any ../-chain pointing at dist/lib to the depth-correct prefix
+    .replace(/['"](?:\.\.\/)+dist\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `'../../dist/lib/${resolved}'`;
+      return `'${prefix}lib/${resolved}'`;
     })
-    .replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+    .replace(/import\(\s*['"](?:\.\.\/)+dist\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `import('../../dist/lib/${resolved}')`;
+      return `import('${prefix}lib/${resolved}')`;
     })
     .replace(/['"]\.\.\/\.\.\/src\/shared\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";

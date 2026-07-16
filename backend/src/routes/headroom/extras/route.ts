@@ -18,7 +18,7 @@ export async function GET(req, res) {
 
 export async function POST(req, res) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = req.body || {};
     const extras = Array.isArray(body.extras) ? body.extras : [];
     if (extras.length === 0) {
       return res.status(400).json({ error: "No extras requested" });
@@ -39,7 +39,7 @@ export async function POST(req, res) {
 
 export async function DELETE(req, res) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = req.body || {};
     const extras = Array.isArray(body.extras) ? body.extras : [];
     if (extras.length === 0) {
       return res.status(400).json({ error: "No extras requested" });

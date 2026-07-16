@@ -12,29 +12,25 @@
     "file": "assets/material-symbols-outlined.B4RtTC4Y.woff2",
     "src": "../node_modules/material-symbols/material-symbols-outlined.woff2"
   },
-  "_EndpointPageClient.XC1PAjFZ.js": {
-    "file": "assets/EndpointPageClient.XC1PAjFZ.js",
+  "_EndpointPageClient.BNiu_vhL.js": {
+    "file": "assets/EndpointPageClient.BNiu_vhL.js",
     "name": "EndpointPageClient",
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js"
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js"
     ]
   },
-  "_Loading.C3ra99o8.js": {
-    "file": "assets/Loading.C3ra99o8.js",
+  "_Loading.CRvAR61e.js": {
+    "file": "assets/Loading.CRvAR61e.js",
     "name": "Loading",
     "imports": [
       "index.html"
     ]
   },
-  "_NoAuthProxyCard.C5ap-Sga.css": {
-    "file": "assets/NoAuthProxyCard.C5ap-Sga.css",
-    "src": "_NoAuthProxyCard.C5ap-Sga.css"
-  },
-  "_NoAuthProxyCard.CIzWmBaj.js": {
-    "file": "assets/NoAuthProxyCard.CIzWmBaj.js",
+  "_NoAuthProxyCard.BARTPHmg.js": {
+    "file": "assets/NoAuthProxyCard.BARTPHmg.js",
     "name": "NoAuthProxyCard",
     "imports": [
       "index.html",
@@ -44,8 +40,12 @@
       "assets/NoAuthProxyCard.C5ap-Sga.css"
     ]
   },
-  "_cliTools.BTk8ighn.js": {
-    "file": "assets/cliTools.BTk8ighn.js",
+  "_NoAuthProxyCard.C5ap-Sga.css": {
+    "file": "assets/NoAuthProxyCard.C5ap-Sga.css",
+    "src": "_NoAuthProxyCard.C5ap-Sga.css"
+  },
+  "_cliTools.CsdwAybi.js": {
+    "file": "assets/cliTools.CsdwAybi.js",
     "name": "cliTools"
   },
   "_machine.CagOtseJ.js": {
@@ -68,7 +68,7 @@
     ]
   },
   "index.html": {
-    "file": "assets/index.BiU-40OQ.js",
+    "file": "assets/index.BbQSujX0.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -89,6 +89,7 @@
       "src/pages/proxy-pools/page.jsx",
       "src/pages/combos/page.jsx",
       "src/pages/endpoint/page.jsx",
+      "src/pages/token-saver/page.jsx",
       "src/pages/translator/page.jsx",
       "src/pages/cli-tools/page.jsx",
       "src/pages/cli-tools/[toolId]/page.jsx",
@@ -99,24 +100,43 @@
       "src/pages/docs/page.jsx",
       "src/pages/skills/page.jsx",
       "src/pages/console-log/page.jsx",
+      "src/pages/backup-restore/page.jsx",
       "src/pages/media-providers/web/page.jsx",
       "src/pages/media-providers/[kind]/page.jsx",
       "src/pages/media-providers/[kind]/[id]/page.jsx",
       "src/pages/media-providers/combo/[id]/page.jsx",
       "src/pages/providers/weavy/pool/page.jsx",
-      "src/pages/automation/ammail-tutorial/page.jsx"
+      "src/pages/automation/fsmail-tutorial/page.jsx",
+      "src/pages/search/page.jsx",
+      "src/pages/moderations/page.jsx",
+      "src/pages/rerank/page.jsx",
+      "src/pages/ocr/page.jsx",
+      "src/pages/webfetch/page.jsx",
+      "src/pages/audio/page.jsx",
+      "src/pages/update/page.jsx"
     ],
     "css": [
-      "assets/index.DqsEWaGW.css"
+      "assets/index.COMgQZYj.css"
     ],
     "assets": [
       "assets/material-symbols-outlined.B4RtTC4Y.woff2"
     ]
   },
-  "src/pages/automation/ammail-tutorial/page.jsx": {
-    "file": "assets/page.BmJV2Sc3.js",
+  "src/pages/audio/page.jsx": {
+    "file": "assets/page.CavjztiR.js",
     "name": "page",
-    "src": "src/pages/automation/ammail-tutorial/page.jsx",
+    "src": "src/pages/audio/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/automation/fsmail-tutorial/page.jsx": {
+    "file": "assets/page.u8Bt3ap8.js",
+    "name": "page",
+    "src": "src/pages/automation/fsmail-tutorial/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
@@ -125,32 +145,44 @@
     ]
   },
   "src/pages/automation/page.jsx": {
-    "file": "assets/page.B2GX4rcl.js",
+    "file": "assets/page.CNUurvtj.js",
     "name": "page",
     "src": "src/pages/automation/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/backup-restore/page.jsx": {
+    "file": "assets/page.Cx7iFgCR.js",
+    "name": "page",
+    "src": "src/pages/backup-restore/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/basic-chat/page.jsx": {
-    "file": "assets/page.BCC4qdzb.js",
+    "file": "assets/page.DTfhMnYX.js",
     "name": "page",
     "src": "src/pages/basic-chat/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/callback/page.jsx": {
-    "file": "assets/page.BeGfgDAI.js",
+    "file": "assets/page.DjsFF4p7.js",
     "name": "page",
     "src": "src/pages/callback/page.jsx",
     "isDynamicEntry": true,
@@ -161,22 +193,22 @@
     ]
   },
   "src/pages/cli-tools/[toolId]/page.jsx": {
-    "file": "assets/page.X8OLDP8G.js",
+    "file": "assets/page.CWyZKaVw.js",
     "name": "page",
     "src": "src/pages/cli-tools/[toolId]/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_cliTools.BTk8ighn.js",
+      "_cliTools.CsdwAybi.js",
       "_machine.CagOtseJ.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/cli-tools/page.jsx": {
-    "file": "assets/page.CmWVoXIy.js",
+    "file": "assets/page.C1MGHZJw.js",
     "name": "page",
     "src": "src/pages/cli-tools/page.jsx",
     "isDynamicEntry": true,
@@ -184,39 +216,39 @@
       "index.html",
       "_router.Cjj1--8t.js",
       "_machine.CagOtseJ.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
-      "_cliTools.BTk8ighn.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
+      "_cliTools.CsdwAybi.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/combos/page.jsx": {
-    "file": "assets/page.Dbx82cMD.js",
+    "file": "assets/page.2cfQ0soc.js",
     "name": "page",
     "src": "src/pages/combos/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/console-log/page.jsx": {
-    "file": "assets/page.BeREiDTX.js",
+    "file": "assets/page.N_CNyJfs.js",
     "name": "page",
     "src": "src/pages/console-log/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/docs/page.jsx": {
-    "file": "assets/page.Bref8whQ.js",
+    "file": "assets/page.BTTzRlp6.js",
     "name": "page",
     "src": "src/pages/docs/page.jsx",
     "isDynamicEntry": true,
@@ -227,7 +259,7 @@
     ]
   },
   "src/pages/endpoint/page.jsx": {
-    "file": "assets/page.CxXmgb_F.js",
+    "file": "assets/page.cIm7s2zC.js",
     "name": "page",
     "src": "src/pages/endpoint/page.jsx",
     "isDynamicEntry": true,
@@ -235,14 +267,14 @@
       "index.html",
       "_router.Cjj1--8t.js",
       "_machine.CagOtseJ.js",
-      "_EndpointPageClient.XC1PAjFZ.js",
+      "_EndpointPageClient.BNiu_vhL.js",
       "_zustand.akaTi5uX.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js"
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js"
     ]
   },
   "src/pages/landing/page.jsx": {
-    "file": "assets/page.BF5BpOVC.js",
+    "file": "assets/page.D_dG62bf.js",
     "name": "page",
     "src": "src/pages/landing/page.jsx",
     "isDynamicEntry": true,
@@ -253,7 +285,7 @@
     ]
   },
   "src/pages/login/page.tsx": {
-    "file": "assets/page.CUjbxDjX.js",
+    "file": "assets/page.CuZp1ItQ.js",
     "name": "page",
     "src": "src/pages/login/page.tsx",
     "isDynamicEntry": true,
@@ -264,68 +296,91 @@
     ]
   },
   "src/pages/media-providers/[kind]/[id]/page.jsx": {
-    "file": "assets/page.5tVTeUC0.js",
+    "file": "assets/page.CiURc2ed.js",
     "name": "page",
     "src": "src/pages/media-providers/[kind]/[id]/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/media-providers/[kind]/page.jsx": {
-    "file": "assets/page.Dz4NXyFs.js",
+    "file": "assets/page.DIBe8_S7.js",
     "name": "page",
     "src": "src/pages/media-providers/[kind]/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/media-providers/combo/[id]/page.jsx": {
-    "file": "assets/page.Bys1E4PI.js",
+    "file": "assets/page.CqKdcCXs.js",
     "name": "page",
     "src": "src/pages/media-providers/combo/[id]/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/media-providers/web/page.jsx": {
-    "file": "assets/page.S-Fyy0qQ.js",
+    "file": "assets/page.CLbi_S1p.js",
     "name": "page",
     "src": "src/pages/media-providers/web/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/mitm/page.jsx": {
-    "file": "assets/page.ChG3IvBB.js",
+    "file": "assets/page.C5qOhBBX.js",
     "name": "page",
     "src": "src/pages/mitm/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_cliTools.BTk8ighn.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_cliTools.CsdwAybi.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/moderations/page.jsx": {
+    "file": "assets/page.Azr84Ml-.js",
+    "name": "page",
+    "src": "src/pages/moderations/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_Loading.CRvAR61e.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/ocr/page.jsx": {
+    "file": "assets/page.BrLVxn10.js",
+    "name": "page",
+    "src": "src/pages/ocr/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/page.jsx": {
-    "file": "assets/page.AE3apiCd.js",
+    "file": "assets/page.CXKvW0hn.js",
     "name": "page",
     "src": "src/pages/page.jsx",
     "isDynamicEntry": true,
@@ -333,64 +388,64 @@
       "index.html",
       "_router.Cjj1--8t.js",
       "_machine.CagOtseJ.js",
-      "_EndpointPageClient.XC1PAjFZ.js",
+      "_EndpointPageClient.BNiu_vhL.js",
       "_zustand.akaTi5uX.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js"
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js"
     ]
   },
   "src/pages/profile/page.jsx": {
-    "file": "assets/page.CoRkCW9X.js",
+    "file": "assets/page.DOS_9ovb.js",
     "name": "page",
     "src": "src/pages/profile/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/providers/[id]/page.jsx": {
-    "file": "assets/page.D6Vxxalz.js",
+    "file": "assets/page.CXXS5Pj6.js",
     "name": "page",
     "src": "src/pages/providers/[id]/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/providers/new/page.jsx": {
-    "file": "assets/page.ChtwNMyA.js",
+    "file": "assets/page.CjbJHAqY.js",
     "name": "page",
     "src": "src/pages/providers/new/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/providers/page.jsx": {
-    "file": "assets/page.D8vbOLqH.js",
+    "file": "assets/page.K07l9G5d.js",
     "name": "page",
     "src": "src/pages/providers/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/providers/weavy/pool/page.jsx": {
-    "file": "assets/page.DvSeWU45.js",
+    "file": "assets/page.D023izTv.js",
     "name": "page",
     "src": "src/pages/providers/weavy/pool/page.jsx",
     "isDynamicEntry": true,
@@ -401,68 +456,125 @@
     ]
   },
   "src/pages/proxy-pools/page.jsx": {
-    "file": "assets/page.CGyxS4lq.js",
+    "file": "assets/page.DmjQJ44n.js",
     "name": "page",
     "src": "src/pages/proxy-pools/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/quota/page.jsx": {
-    "file": "assets/page.BW5D6nx4.js",
+    "file": "assets/page.B57i00nL.js",
     "name": "page",
     "src": "src/pages/quota/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_Loading.C3ra99o8.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_Loading.CRvAR61e.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/rerank/page.jsx": {
+    "file": "assets/page.BY5IysJR.js",
+    "name": "page",
+    "src": "src/pages/rerank/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/search/page.jsx": {
+    "file": "assets/page.D5dHsYMc.js",
+    "name": "page",
+    "src": "src/pages/search/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_Loading.CRvAR61e.js",
       "_zustand.akaTi5uX.js"
     ]
   },
   "src/pages/skills/page.jsx": {
-    "file": "assets/page.Dth4GH5t.js",
+    "file": "assets/page.C0TLs5yW.js",
     "name": "page",
     "src": "src/pages/skills/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_router.Cjj1--8t.js",
       "_zustand.akaTi5uX.js"
     ]
   },
+  "src/pages/token-saver/page.jsx": {
+    "file": "assets/page.BYy5vdYY.js",
+    "name": "page",
+    "src": "src/pages/token-saver/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
   "src/pages/translator/page.jsx": {
-    "file": "assets/page.BiMQl38v.js",
+    "file": "assets/page.EBdicyw3.js",
     "name": "page",
     "src": "src/pages/translator/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
       "_zustand.akaTi5uX.js"
     ],
     "dynamicImports": [
       "../node_modules/@monaco-editor/react/dist/index.mjs"
     ]
   },
+  "src/pages/update/page.jsx": {
+    "file": "assets/page.CL7pbImn.js",
+    "name": "page",
+    "src": "src/pages/update/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
   "src/pages/usage/page.jsx": {
-    "file": "assets/page.CkZUVaV3.js",
+    "file": "assets/page.Dsd5yK6z.js",
     "name": "page",
     "src": "src/pages/usage/page.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
       "_router.Cjj1--8t.js",
-      "_NoAuthProxyCard.CIzWmBaj.js",
-      "_Loading.C3ra99o8.js",
+      "_NoAuthProxyCard.BARTPHmg.js",
+      "_Loading.CRvAR61e.js",
+      "_zustand.akaTi5uX.js"
+    ]
+  },
+  "src/pages/webfetch/page.jsx": {
+    "file": "assets/page.Bkhxy2VJ.js",
+    "name": "page",
+    "src": "src/pages/webfetch/page.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_router.Cjj1--8t.js",
       "_zustand.akaTi5uX.js"
     ]
   }

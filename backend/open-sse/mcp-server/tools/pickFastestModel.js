@@ -6,7 +6,7 @@ import {
   getComboModelProvider,
   getComboModelString,
   getComboStepTarget
-} from '../../dist/lib/combos/steps.ts.js';
+} from '../../../dist/lib/combos/steps.ts.js';
 import { rankBySpeed, DEFAULT_SPEED_WEIGHTS } from "../../services/autoCombo/speedRanking.ts";
 const OMNIROUTE_BASE_URL = resolveOmniRouteBaseUrl();
 const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || "";
