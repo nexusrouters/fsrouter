@@ -5,8 +5,10 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, Toggle, ConfirmModal } from "@/shared/components";
+import ProviderIcon from "@/shared/components/ProviderIcon";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { getProviderIdFromModel, supportsVision, supportsThinking } from "@/shared/constants/models";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
@@ -227,11 +229,27 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete, currentStrategy, o
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">No models</span>
               ) : (
-                combo.models.slice(0, 3).map((model, index) => (
-                  <code key={index} className="max-w-full truncate rounded bg-black/5 px-1.5 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-[220px]">
-                    {model}
-                  </code>
-                ))
+                combo.models.slice(0, 3).map((model, index) => {
+                  const providerId = getProviderIdFromModel(model);
+                  const isVision = supportsVision(model);
+                  const isThinking = supportsThinking(model);
+                  return (
+                    <code key={index} className="max-w-full inline-flex items-center gap-1 truncate rounded bg-black/5 px-1.5 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-[220px]">
+                      {providerId && (
+                        <ProviderIcon
+                          src={providerId === "codebuddy" || providerId === "cb" ? "/providers/codebuddy.svg" : `/providers/${providerId}.png`}
+                          alt={providerId}
+                          size={10}
+                          className="shrink-0 rounded-sm"
+                          fallbackText={providerId.slice(0, 2).toUpperCase()}
+                        />
+                      )}
+                      <span className="truncate">{model}</span>
+                      {isVision && <span className="material-symbols-outlined shrink-0 text-blue-500" style={{ fontSize: "10px" }} title="Vision">visibility</span>}
+                      {isThinking && <span className="material-symbols-outlined shrink-0 text-orange-500" style={{ fontSize: "10px" }} title="Thinking">memory</span>}
+                    </code>
+                  );
+                })
               )}
               {combo.models.length > 3 && (
                 <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
@@ -347,13 +365,31 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
           className="min-w-0 flex-1 rounded border border-primary/40 bg-white px-1.5 py-0.5 font-mono text-xs text-text-main outline-none dark:bg-black/20"
         />
       ) : (
-        <div
-          className="min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5"
-          onClick={() => setEditing(true)}
-          title="Click to edit"
-        >
-          {model}
-        </div>
+        (() => {
+          const providerId = getProviderIdFromModel(model);
+          const isVision = supportsVision(model);
+          const isThinking = supportsThinking(model);
+          return (
+            <div
+              className="min-w-0 flex-1 cursor-text truncate rounded px-1.5 py-0.5 font-mono text-xs text-text-main hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-1.5"
+              onClick={() => setEditing(true)}
+              title="Click to edit"
+            >
+              {providerId && (
+                <ProviderIcon
+                  src={providerId === "codebuddy" || providerId === "cb" ? "/providers/codebuddy.svg" : `/providers/${providerId}.png`}
+                  alt={providerId}
+                  size={12}
+                  className="shrink-0 rounded-sm"
+                  fallbackText={providerId.slice(0, 2).toUpperCase()}
+                />
+              )}
+              <span className="truncate">{model}</span>
+              {isVision && <span className="material-symbols-outlined shrink-0 text-blue-500" style={{ fontSize: "12px" }} title="Vision">visibility</span>}
+              {isThinking && <span className="material-symbols-outlined shrink-0 text-orange-500" style={{ fontSize: "12px" }} title="Thinking">memory</span>}
+            </div>
+          );
+        })()
       )}
 
       {/* Priority arrows */}
