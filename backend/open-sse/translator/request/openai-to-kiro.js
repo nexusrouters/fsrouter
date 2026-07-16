@@ -8,11 +8,11 @@ import { v4 as uuidv4 } from "uuid";
 import { resolveSessionId } from "../../utils/sessionManager.js";
 import {
   resolveKiroModel,
-  resolveKiroThinkingBudget,
   buildThinkingSystemPrefix,
   KIRO_AGENTIC_SYSTEM_PROMPT,
-  resolveDefaultProfileArn
+  resolveDefaultProfileArn,
 } from "../../config/kiroConstants.js";
+import { resolveKiroThinkingBudget } from "../../services/thinkingBudget.js";
 import { parseDataUri } from "../concerns/image.js";
 import { DEFAULT_IMAGE_MIME } from "../schema/index.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";

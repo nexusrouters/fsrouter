@@ -7,7 +7,7 @@
 import "open-sse/index.js";
 import crypto from "crypto";
 
-import { generatePKCE, generateState } from "./utils/pkce";
+import { generatePKCE, generateState } from "./utils/pkce.js";
 import {
   CLAUDE_CONFIG,
   CODEX_CONFIG,
@@ -29,15 +29,15 @@ import {
   KIMCHI_CONFIG,
   GROK_CLI_CONFIG,
   getOAuthClientMetadata,
-} from "./constants/oauth";
-import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai";
+} from "./constants/oauth.js";
+import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai.js";
 import {
   validateXaiOAuthEndpoint,
   decodeXaiIdTokenEmail,
   extractEmailFromAccessToken,
   extractCodexAccountInfo,
   fetchKiroProfileArn,
-} from "./providerHelpers";
+} from "./providerHelpers.js";
 
 export { extractCodexAccountInfo, fetchKiroProfileArn };
 

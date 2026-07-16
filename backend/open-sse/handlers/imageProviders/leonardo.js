@@ -34,7 +34,7 @@ import { randomBytes } from "crypto";
 // Falls back to empty object if DB not available (e.g., first boot).
 async function getLeonardoAdminConfig() {
   try {
-    const { getAdapter } = await import("../../../src/lib/db/driver.js");
+    const { getAdapter } = await import('../../dist/lib/db/driver.js');
     const db = await getAdapter();
     const row = db.get(`SELECT value FROM kv WHERE scope = 'leonardo' AND key = 'admin_config'`);
     if (!row?.value) return null;

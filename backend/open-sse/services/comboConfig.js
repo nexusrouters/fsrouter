@@ -1,4 +1,4 @@
-import { MAX_TIMER_TIMEOUT_MS } from "../../src/shared/utils/runtimeTimeouts.ts";
+import { MAX_TIMER_TIMEOUT_MS } from '../../dist/shared/utils/runtimeTimeouts.ts.js';
 const PRE_SCREEN_CONCURRENCY = 5;
 const DEFAULT_COMBO_TARGET_TIMEOUT_MS = 12e4;
 const DEFAULT_COMBO_QUEUE_DEPTH = 20;

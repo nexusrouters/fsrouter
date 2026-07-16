@@ -1,6 +1,6 @@
 import { getCodexRequestDefaults } from "../../src/lib/providers/requestDefaults.ts";
 import { getProviderConnections } from "../../src/lib/db/providers.ts";
-import { AI_PROVIDERS, NOAUTH_PROVIDERS } from "../../src/shared/constants/providers.ts";
+import { AI_PROVIDERS, NOAUTH_PROVIDERS } from '../../dist/shared/constants/providers.ts.js';
 function toRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }

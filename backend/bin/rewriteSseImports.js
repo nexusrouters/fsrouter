@@ -13,35 +13,75 @@ function rewrite(file) {
   const orig = content;
 
   // Count directory depth from root: open-sse/handlers/chatCore.js → depth=2
-  // Need ../../dist/lib/ → prefix = "../".repeat(depth) + "dist/lib/"
+  // Need ../../dist/lib/ → prefix = "../".repeat(depth) + "dist/"
   const rel = path.relative(root, path.dirname(file));
   const depth = rel ? rel.split(path.sep).length : 0;
   const prefix = "../".repeat(depth) + "dist/";
 
   content = content
-    .replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['\"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}lib/${resolved}'`;
     })
-    .replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['\"]@\/shared\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}shared/${resolved}'`;
     })
-    .replace(/from\s+['"]@\/store\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['\"]@\/store\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}store/${resolved}'`;
     })
-    .replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['\"]@\/utils\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}utils/${resolved}'`;
     })
-    .replace(/from\s+['"]@\/services\/([^'"]+)['"]/g, (m, imp) => {
+    .replace(/from\s+['\"]@\/services\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}services/${resolved}'`;
     })
     .replace(/import\s+['"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `import '${prefix}lib/${resolved}'`;
+    })
+    .replace(/import\(\s*['"]@\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import('${prefix}lib/${resolved}')`;
+    })
+    // Fix relative imports pointing to ../../../src/lib → ../../dist/lib
+    // For open-sse/services/*.js (depth=2): ../../../src/lib/ = open-sse/src/lib/ (wrong)
+    //   correct: ../../dist/lib/
+    .replace(/['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'../../dist/lib/${resolved}'`;
+    })
+    .replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import('../../dist/lib/${resolved}')`;
+    })
+    // Also catch any existing ../../../dist/lib (wrong, should be ../../dist/lib for depth=2)
+    .replace(/['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'../../dist/lib/${resolved}'`;
+    })
+    .replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import('../../dist/lib/${resolved}')`;
+    })
+    .replace(/['"]\.\.\/\.\.\/src\/shared\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'${prefix}shared/${resolved}'`;
+    })
+    .replace(/['"]\.\.\/\.\.\/src\/utils\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'${prefix}utils/${resolved}'`;
+    })
+    .replace(/['"]\.\.\/\.\.\/src\/services\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'${prefix}services/${resolved}'`;
+    })
+    .replace(/['"]\.\.\/\.\.\/src\/store\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'${prefix}store/${resolved}'`;
     });
 
   if (content !== orig) {
@@ -58,6 +98,6 @@ function walk(dir) {
   }
 }
 
-console.log("[rewriteSseImports] Rewriting @/ imports in open-sse/...");
+console.log("[rewriteSseImports] Rewriting @/ + src/ imports in open-sse/...");
 walk(sseDir);
 console.log("[rewriteSseImports] Done.");

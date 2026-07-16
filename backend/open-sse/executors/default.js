@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { OAUTH_ENDPOINTS, buildKimiHeaders, getKimchiVersionSync } from "../config/appConstants.js";
-import { buildClineHeaders } from "../../src/shared/utils/clineAuth.js";
+import { buildClineHeaders } from '../../dist/shared/utils/clineAuth.js';
 import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";

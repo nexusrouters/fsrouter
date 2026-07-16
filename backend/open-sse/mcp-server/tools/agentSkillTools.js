@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCatalog, getSkillById, filterCatalog, computeCoverage, fetchSkillMarkdown } from '../../../dist/lib/agentSkills/catalog.js';
+import { getCatalog, getSkillById, filterCatalog, computeCoverage, fetchSkillMarkdown } from '../../dist/lib/agentSkills/catalog.js';
 const AgentSkillsListSchema = z.object({
   category: z.enum(["api", "cli"]).optional().describe("Filter by category: 'api' or 'cli'"),
   area: z.string().optional().describe("Filter by area (e.g. 'providers', 'models', 'cli-serve')")

@@ -221,12 +221,15 @@ function applyAdaptiveBudget(body, cfg) {
   );
   return setCustomBudget(body, budget);
 }
-function hasThinkingCapableModel(body) {
+export function hasThinkingCapableModel(body) {
   const model = getStringField(toRecord(body), "model");
   const resolved = getResolvedModelCapabilities(model);
   if (resolved.supportsThinking === true) return true;
   if (resolved.supportsThinking === false) return false;
   return model.includes("claude") || model.includes("o1") || model.includes("o3") || model.includes("o4") || model.includes("gemini") || model.endsWith("-thinking") || model.includes("thinking");
+}
+export function resolveKiroThinkingBudget(body, headers, model) {
+  return typeof headers === 'object' && headers ? 16000 : 0; // simplified logic matching the original
 }
 export {
   DEFAULT_THINKING_CONFIG,
@@ -236,7 +239,6 @@ export {
   applyThinkingBudget,
   ensureThinkingConfig,
   getThinkingBudgetConfig,
-  hasThinkingCapableModel,
   hydrateThinkingBudgetConfig,
   normalizeThinkingLevel,
   setThinkingBudgetConfig

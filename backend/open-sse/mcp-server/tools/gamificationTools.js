@@ -9,7 +9,7 @@ const gamificationTools = [
       limit: z.number().min(1).max(100).default(50)
     }),
     handler: async (args) => {
-      const { getTopN } = await import("../../../src/lib/gamification/leaderboard");
+      const { getTopN } = await import('../../dist/lib/gamification/leaderboard.js');
       const entries = await getTopN(args.scope, args.limit);
       return { entries };
     }
@@ -23,7 +23,7 @@ const gamificationTools = [
       scope: z.enum(["global", "weekly", "monthly", "tokens_shared"]).default("global")
     }),
     handler: async (args) => {
-      const { getRank } = await import("../../../src/lib/gamification/leaderboard");
+      const { getRank } = await import('../../dist/lib/gamification/leaderboard.js');
       const rank = await getRank(args.apiKeyId, args.scope);
       return { rank };
     }
@@ -36,9 +36,9 @@ const gamificationTools = [
       apiKeyId: z.string()
     }),
     handler: async (args) => {
-      const { getXp, getBadges } = await import("../../../src/lib/db/gamification");
-      const { calculateLevel, getLevelTitle, getLevelTier } = await import("../../../src/lib/gamification/xp");
-      const { getStreak } = await import("../../../src/lib/gamification/streaks");
+      const { getXp, getBadges } = await import('../../dist/lib/db/gamification.js');
+      const { calculateLevel, getLevelTitle, getLevelTier } = await import('../../dist/lib/gamification/xp.js');
+      const { getStreak } = await import('../../dist/lib/gamification/streaks.js');
       const xp = getXp(args.apiKeyId);
       const badges = getBadges(args.apiKeyId);
       const streak = await getStreak(args.apiKeyId);
@@ -63,7 +63,7 @@ const gamificationTools = [
       category: z.string().optional()
     }),
     handler: async (args) => {
-      const { getBadgeDefinitions, getBadges } = await import("../../../src/lib/db/gamification");
+      const { getBadgeDefinitions, getBadges } = await import('../../dist/lib/db/gamification.js');
       if (args.apiKeyId) {
         const badges = getBadges(args.apiKeyId);
         return { earned: badges };
@@ -83,7 +83,7 @@ const gamificationTools = [
       reason: z.string().optional()
     }),
     handler: async (args) => {
-      const { transferTokens } = await import("../../../src/lib/gamification/sharing");
+      const { transferTokens } = await import('../../dist/lib/gamification/sharing.js');
       const result = await transferTokens(
         args.fromApiKeyId,
         args.toApiKeyId,
@@ -103,7 +103,7 @@ const gamificationTools = [
       maxUses: z.number().positive().default(1)
     }),
     handler: async (args) => {
-      const { createInvite } = await import("../../../src/lib/gamification/invites");
+      const { createInvite } = await import('../../dist/lib/gamification/invites.js');
       const result = await createInvite(args.apiKeyId, args.serverUrl, args.maxUses);
       return result;
     }
@@ -114,7 +114,7 @@ const gamificationTools = [
     scopes: ["read:gamification"],
     inputSchema: z.object({}),
     handler: async () => {
-      const { listServers } = await import("../../../src/lib/gamification/servers");
+      const { listServers } = await import('../../dist/lib/gamification/servers.js');
       return { servers: await listServers() };
     }
   },
@@ -124,7 +124,7 @@ const gamificationTools = [
     scopes: ["read:gamification"],
     inputSchema: z.object({}),
     handler: async () => {
-      const { getAnomalies } = await import("../../../src/lib/gamification/antiCheat");
+      const { getAnomalies } = await import('../../dist/lib/gamification/antiCheat.js');
       return { anomalies: await getAnomalies() };
     }
   }

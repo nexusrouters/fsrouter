@@ -42,22 +42,61 @@ function rewriteImports(content, filePath, isJsCopy = false) {
   updated = updated.replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/utils/${impPath}'`);
   updated = updated.replace(/require\(['"]@\/utils\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/utils/${impPath}')`);
 
-  // 2. Fix open-sse bare imports to use relative imports from package root
   // Rel to root points to package root. open-sse is at package root.
-  // Wait, if files are under dist/ (e.g. dist/lib/mcp/stdioSseBridge.js), the package root is relToRoot/.. because processed dir is inside dist.
-  // Wait, copyFiles writes directly to dist. So path.relative(dir, distDir) will resolve back to dist.
-  // Package root is parent of dist. So we can use:
-  const relToPkgRoot = isJsCopy ? path.relative(dir, process.cwd()).replace(/\\/g, '/') : relToRoot;
+  const relToPkgRoot = relToRoot;
   
-  updated = updated.replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => `from '${relToPkgRoot}/open-sse/${impPath}'`);
-  updated = updated.replace(/from\s+['"]open-sse['"]/g, `from '${relToPkgRoot}/open-sse/index.js'`);
-  updated = updated.replace(/import\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => `import '${relToPkgRoot}/open-sse/${impPath}'`);
-  updated = updated.replace(/import\s+['"]open-sse['"]/g, `import '${relToPkgRoot}/open-sse/index.js'`);
+  updated = updated.replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
+    return `from '${relToPkgRoot}/open-sse/${impPath}'`;
+  });
+  updated = updated.replace(/from\s+['"]open-sse['"]/g, (m) => {
+    return `from '${relToPkgRoot}/open-sse/index.js'`;
+  });
+  updated = updated.replace(/import\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
+    return `import '${relToPkgRoot}/open-sse/${impPath}'`;
+  });
+  updated = updated.replace(/import\s+['"]open-sse['"]/g, (m) => {
+    return `import '${relToPkgRoot}/open-sse/index.js'`;
+  });
 
   // 3. Fix local relative imports that mistakenly double dist
   updated = updated.replace(/\.\.\/\.\.\/\.\.\/src\//g, '../../../');
   updated = updated.replace(/\.\.\/\.\.\/src\//g, '../../');
   
+  // 4. Fix open-sse files referencing ../../../src/lib/* or ../../../dist/lib/*
+  //    (from dist/open-sse/services/tokenRefresh/providers.js, ../../../ = dist/open-sse/services/,
+  //     so ../../../dist/lib/ becomes dist/open-sse/services/dist/lib/ → DOUBLE dist)
+  //    The correct path is ../../../../dist/lib/ = package_root/dist/lib/
+  //    Match both src/lib and dist/lib source patterns (rewriteSseImports may have written either)
+  const fixSrcLib = (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `'../../../../dist/lib/${resolved}'`;
+  };
+  const fixImportSrcLib = (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `import('../../../../dist/lib/${resolved}')`;
+  };
+  updated = updated.replace(/['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, fixSrcLib);
+  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, fixImportSrcLib);
+  updated = updated.replace(/['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, fixSrcLib);
+  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, fixImportSrcLib);
+  // ../../src/lib/ → ../../dist/lib/ (files at dist/open-sse/ level)
+  updated = updated.replace(/['"]\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `'../../dist/lib/${resolved}'`;
+  });
+  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `import('../../dist/lib/${resolved}')`;
+  });
+  // ../../dist/lib/ (double dist at depth=2) → ../../../dist/lib/
+  updated = updated.replace(/['"]\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `'../../../dist/lib/${resolved}'`;
+  });
+  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
+    return `import('../../../dist/lib/${resolved}')`;
+  });
   // Specific fix for tokenRefresh/providers
   if (filePath.includes('tokenRefresh')) {
     updated = updated.replace(/\.\.\/\.\.\/\.\.\/dist\/lib\/oauth\/kiroExternalIdp.js/g, '../../../dist/lib/oauth/kiroExternalIdp.js');

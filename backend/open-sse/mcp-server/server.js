@@ -83,8 +83,8 @@ import {
   clampMcpAccessibilityConfig
 } from "../services/compression/engines/mcpAccessibility/constants.ts";
 import { getDbInstance } from "../../src/lib/db/core.ts";
-import { normalizeQuotaResponse } from "../../src/shared/contracts/quota.ts";
-import { resolveOmniRouteBaseUrl } from "../../src/shared/utils/resolveOmniRouteBaseUrl.ts";
+import { normalizeQuotaResponse } from '../../dist/shared/contracts/quota.ts.js';
+import { resolveOmniRouteBaseUrl } from '../../dist/shared/utils/resolveOmniRouteBaseUrl.ts.js';
 import { getMcpModelsCatalog } from "./catalog.ts";
 import { getMcpModelsCatalog as getMcpModelsCatalog2 } from "./catalog.ts";
 const OMNIROUTE_BASE_URL = resolveOmniRouteBaseUrl();
