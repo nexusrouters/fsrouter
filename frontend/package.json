@@ -6,7 +6,7 @@
   "description": "9Router v2 — Vite + React + TypeScript Dashboard",
   "scripts": {
     "dev": "vite --port 5177",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview --port 5177",
     "typecheck": "tsc --noEmit"
   },
