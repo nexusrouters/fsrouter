@@ -1,9 +1,9 @@
 {
   "name": "9router-frontend",
   "private": true,
-  "version": "0.6.29",
+  "version": "0.6.30",
   "type": "module",
-  "description": "9Router v2 — Vite + React + TypeScript Dashboard",
+  "description": "9Router v2 \u2014 Vite + React + TypeScript Dashboard",
   "scripts": {
     "dev": "vite --port 5177",
     "build": "tsc -b && vite build",
@@ -37,4 +37,4 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   }
-}\n
+}

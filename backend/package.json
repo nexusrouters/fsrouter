@@ -1,9 +1,9 @@
 {
   "name": "9router-backend",
-  "version": "0.6.29",
+  "version": "0.6.30",
   "private": true,
   "type": "module",
-  "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
+  "description": "9Router v2 \u2014 Express Backend (API, SSE, DB, Auth, MITM)",
   "main": "src/server.ts",
   "bin": {
     "amrouter": "bin/cli.cjs"
@@ -48,4 +48,4 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
-}\n
+}
