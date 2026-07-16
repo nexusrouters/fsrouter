@@ -1,7 +1,7 @@
 {
   "name": "amrouter",
   "private": true,
-  "version": "0.6.28",
+  "version": "0.6.29",
   "description": "9Router v2 — Monorepo (frontend + backend)",
   "workspaces": [
     "frontend",
@@ -17,4 +17,4 @@
   "devDependencies": {
     "concurrently": "^9.1.2"
   }
-}
+}\n
