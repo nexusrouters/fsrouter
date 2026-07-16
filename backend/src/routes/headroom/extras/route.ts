@@ -1,6 +1,6 @@
 import { getSettings } from "../../../lib/db/repos/settingsRepo.js";
-import { findPython310, getInstalledHeadroomExtras, getHeadroomLogTail } from "../../../lib/headroom/detect.js";
-import { installHeadroomExtras, uninstallHeadroomExtras } from "../../../lib/headroom/process.js";
+import { findPython310, getInstalledHeadroomExtras } from "../../../lib/headroom/detect.js";
+import { installHeadroomExtras, uninstallHeadroomExtras, getHeadroomLogTail } from "../../../lib/headroom/process.js";
 
 export async function GET(req, res) {
   try {
