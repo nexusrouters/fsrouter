@@ -40,6 +40,8 @@ jobs:
             // Rename to @fudrouter/fsrouter and make public
             pkg.name = "@fudrouter/fsrouter";
             pkg.private = false;
+            // Publish exactly the pushed tag; prevents stale backend version conflicts.
+            pkg.version = process.env.GITHUB_REF_NAME.replace(/^v/, "");
             
             // Map global command to fsrouter
             pkg.bin = {

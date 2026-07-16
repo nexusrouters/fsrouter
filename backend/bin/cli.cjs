@@ -2,6 +2,7 @@
 
 const { spawn, exec, execSync } = require("child_process");
 const path = require("path");
+const { pathToFileURL } = require("node:url");
 const fs = require("fs");
 const https = require("https");
 const os = require("os");
@@ -508,7 +509,20 @@ function startServer(latestVersion) {
   function spawnServer() {
     serverStartTime = Date.now();
     crashLog = [];
-    const child = spawn(RUNTIME, ["--import", "tsx", "--max-old-space-size=6144", serverPath], {
+    // Resolve tsx loader path (works cross-platform; bare --import tsx fails on Windows,
+    // absolute paths need file:// URL on Windows ESM loader)
+    let tsxImport;
+    try {
+      tsxImport = pathToFileURL(require.resolve("tsx/esm")).href;
+    } catch (_) {
+      try {
+        tsxImport = pathToFileURL(require.resolve("tsx")).href;
+      } catch (_) {
+        tsxImport = "tsx";
+      }
+    }
+    // tsx resolves the entrypoint relative to cwd; only the loader needs a file URL.
+    const child = spawn(RUNTIME, ["--import", tsxImport, "--max-old-space-size=6144", serverPath], {
       cwd: standaloneDir,
       stdio: showLog ? "inherit" : ["ignore", "ignore", "pipe"],
       detached: true,
