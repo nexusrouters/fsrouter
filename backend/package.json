@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "node bin/copyJs.js",
+    "build": "tsc --project tsconfig.json || true && node bin/copyJs.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
