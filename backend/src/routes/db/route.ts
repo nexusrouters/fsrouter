@@ -76,6 +76,15 @@ export async function POST_handler(req: any, res: any) {
     // state differs between machines. Keep raw-file restore below for old backups.
     if (body.database) {
       await importDb(body.database);
+      // Flush WAL into the main DB file BEFORE we remove -wal/-shm below,
+      // otherwise the just-imported rows live only in the WAL and get deleted.
+      const db = await getAdapter();
+      if (db && typeof db.checkpoint === "function") {
+        try { db.checkpoint(); } catch (e) { console.warn("[Restore] checkpoint failed:", e.message); }
+      }
+      if (db && typeof db.exec === "function") {
+        try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* ignore */ }
+      }
     } else {
       const db = await getAdapter();
       if (db && typeof db.close === "function") db.close();
