@@ -104,9 +104,7 @@ export async function POST_handler(req: any, res: any) {
       const hasLogical = !!body.database;
       if (hasLogical) {
         progress(15, "Mengimpor data logical (provider, connections, proxy, api keys, combos)...");
-        // Import on the live connection — do NOT close it first, or getAdapter()
-        // would keep returning the stale closed instance and every query throws
-        // "The database connection is not open".
+        // Import on the live connection.
         await importDb(body.database);
 
         progress(40, "Flush WAL ke file database utama (checkpoint)...");
@@ -117,6 +115,21 @@ export async function POST_handler(req: any, res: any) {
         if (db && typeof db.exec === "function") {
           try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* ignore */ }
         }
+
+        progress(50, "Menutup koneksi DB agar file WAL/SHM tidak terkunci...");
+        // Switch journal mode to DELETE so SQLite folds the WAL back into the
+        // main db file and deletes -wal/-shm itself — avoids leaving a locked
+        // WAL that Windows can't unlink (which previously dropped restored rows).
+        if (db && typeof db.exec === "function") {
+          try { db.exec("PRAGMA journal_mode=DELETE"); } catch { /* ignore */ }
+        }
+        // Close the connection so Windows releases the -wal/-shm file locks.
+        // Logical data is already flushed to the main DB via the checkpoint above.
+        if (db && typeof db.close === "function") {
+          try { db.close(); } catch { /* ignore */ }
+        }
+        // Clear the cached instance so getAdapter() re-opens fresh on next boot.
+        resetAdapter();
       } else {
         progress(15, "Menutup koneksi database aktif (raw restore)...");
         const db = await getAdapter();
