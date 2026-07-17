@@ -1,4 +1,8 @@
 import { exportDb } from "../../lib/db/index.js";
+import { getAdapter } from "../../lib/db/driver.js";
+import { DATA_DIR } from "../../lib/dataDir.js";
+import path from "path";
+import fs from "fs";
 import { runRestoreStream } from "../../lib/db/restoreRunner.js";
 export const dynamic = "force-dynamic";
 
@@ -60,7 +64,6 @@ export async function GET(req: any, res: any) {
 }
 
 // ─── SSE helpers for streaming restore progress ───────────────────────────────
-import { runRestoreStream } from "../../lib/db/restoreRunner.js";
 
 // POST /api/db - Restore database & secrets (streaming progress)
 export async function POST_handler(req: any, res: any) {
