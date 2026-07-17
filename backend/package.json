@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.11.1",
     "confbox": "^0.2.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -47,5 +46,8 @@
     "@types/node": "^24.0.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.11.1"
   }
 }
