@@ -817,7 +817,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
             console.error("Cloudflare auto-add to 9router failed:", e);
           }
 
-          return resolve();
+          return resolve(undefined);
         } catch (err: any) {
           const errMsg = err.message || String(err);
           await markCodeBuddyError(account.id, errMsg);
@@ -827,7 +827,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
             error: errMsg,
             ok: false
           });
-          return resolve();
+          return resolve(undefined);
         }
       }
       // ── End CF GAK path. isCloudflare + short password → Python browser below ──
@@ -982,6 +982,16 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
       if (global._codebuddyState.activeProcesses) {
         global._codebuddyState.activeProcesses.add(child);
       }
+      // Hard timeout: if the python child hangs (e.g. stuck on a captcha/await),
+      // kill it so the worker can mark this account failed and move on instead of
+      // blocking the whole job (which leaves the UI stuck on "running").
+      const HARD_TIMEOUT_MS = 8 * 60 * 1000;
+      const hardTimer = setTimeout(() => {
+        if (!done) {
+          console.error(`[automation] account ${account.email} exceeded ${HARD_TIMEOUT_MS}ms, killing child`);
+          try { child.kill("SIGKILL"); } catch {}
+        }
+      }, HARD_TIMEOUT_MS);
       let stderrAccumulator = "";
       child.stderr.on("data", (data) => {
         console.error(`[child stderr] ${data.toString()}`);
@@ -1110,6 +1120,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
       });
 
       child.on("close", async (code) => {
+        clearTimeout(hardTimer);
         if (global._codebuddyState.activeProcesses) {
           global._codebuddyState.activeProcesses.delete(child);
         }
@@ -1128,7 +1139,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
             ok: false
           });
         }
-        resolve();
+        resolve(undefined);
       });
 
       child.on("error", async (err) => {
@@ -1147,7 +1158,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
             ok: false
           });
         }
-        resolve();
+        resolve(undefined);
       });
 
     } catch (e) {
