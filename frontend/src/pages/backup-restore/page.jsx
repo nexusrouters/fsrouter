@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/shared/components";
 
 export default function BackupRestorePage() {
@@ -11,8 +11,18 @@ export default function BackupRestorePage() {
   const [logs, setLogs] = useState([]);
   const [pasteText, setPasteText] = useState("");
   const [filePath, setFilePath] = useState("");
+  const [dbInfo, setDbInfo] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetch("/api/db/info").then(r => r.ok ? r.json() : null).then(d => {
+      if (d) {
+        setDbInfo(d);
+        setFilePath(d.examplePath || "");
+      }
+    }).catch(() => {});
+  }, []);
 
   const appendLog = useCallback((msg, level = "info") => {
     setLogs((prev) => [...prev.slice(-300), { msg, level, ts: new Date().toLocaleTimeString() }]);
@@ -346,13 +356,20 @@ export default function BackupRestorePage() {
 
           {/* Path */}
           <div className="space-y-1">
-            <label className="text-[11px] text-text-muted">Atau path file di server (ganti file manual):</label>
+            <label className="text-[11px] text-text-muted">
+              Atau path file di server{dbInfo ? ` (${dbInfo.isWindows ? "Windows" : dbInfo.platform}):` : ":"}
+            </label>
             <input
               value={filePath}
               onChange={(e) => setFilePath(e.target.value)}
-              placeholder="C:\\Users\\fud\\backups\\fsrouter-backup.fud"
+              placeholder={dbInfo?.examplePath || "C:\\Users\\fud\\AppData\\Roaming\\fsrouter\\backups\\fsrouter-backup.fud"}
               className="w-full text-[11px] bg-black/40 border border-border-subtle rounded p-2 text-text-main"
             />
+            {dbInfo && (
+              <p className="text-[10px] text-text-muted">
+                Folder backup default: <code className="text-primary">{dbInfo.defaultBackupDir}</code>
+              </p>
+            )}
             <Button variant="secondary" fullWidth onClick={handlePathRestore} disabled={restoring} icon="folder_open">
               Restore dari Path
             </Button>
