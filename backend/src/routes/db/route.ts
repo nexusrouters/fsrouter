@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: any, res: any) {
   try {
     const db = await getAdapter();
-    
+
     // 1. Clean up stale/large records (like old OTPs) to shrink backup
     if (db && typeof db.exec === "function") {
       try {
@@ -63,106 +63,144 @@ export async function GET(req: any, res: any) {
   }
 }
 
-// POST /api/db - Restore database & secrets
+// ─── SSE helpers for streaming restore progress ───────────────────────────────
+function sseInit(res: any) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+}
+function sseSend(res: any, event: string, data: any) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+// POST /api/db - Restore database & secrets (streaming progress)
 export async function POST_handler(req: any, res: any) {
-  try {
-    const body = req.body;
-    
-    if (!body || body.signature !== "FUDROUTER_BACKUP") {
-      return res.status(400).json({ error: "Invalid backup file signature." });
-    }
+  // Switch to SSE immediately so the client sees progress from the start.
+  sseInit(res);
+  const log = (msg: string, level: "info" | "warn" | "error" = "info") =>
+    sseSend(res, "log", { message: msg, level, ts: new Date().toISOString() });
+  const progress = (percent: number, label: string) => {
+    sseSend(res, "progress", { percent, label });
+    log(label);
+  };
 
-    // Prefer logical import: raw SQLite replacement can lose rows when WAL/driver
-    // state differs between machines. Keep raw-file restore below for old backups.
-    if (body.database) {
-      await importDb(body.database);
-      // Flush WAL into the main DB file BEFORE we remove -wal/-shm below,
-      // otherwise the just-imported rows live only in the WAL and get deleted.
-      const db = await getAdapter();
-      if (db && typeof db.checkpoint === "function") {
-        try { db.checkpoint(); } catch (e) { console.warn("[Restore] checkpoint failed:", e.message); }
+  // Run restore asynchronously; don't await the whole thing on the request.
+  (async () => {
+    try {
+      const body = req.body;
+
+      progress(5, "Memvalidasi file backup...");
+      if (!body || body.signature !== "FUDROUTER_BACKUP") {
+        sseSend(res, "error", { message: "Invalid backup file signature." });
+        return res.end();
       }
-      if (db && typeof db.exec === "function") {
-        try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* ignore */ }
+
+      // Prefer logical import: raw SQLite replacement can lose rows when WAL/driver
+      // state differs between machines. Keep raw-file restore below for old backups.
+      const hasLogical = !!body.database;
+      if (hasLogical) {
+        progress(15, "Menutup koneksi database aktif...");
+        const db0 = await getAdapter();
+        if (db0 && typeof db0.close === "function") {
+          try { db0.close(); } catch { /* ignore */ }
+        }
+
+        progress(25, "Mengimpor data logical (provider, connections, proxy, api keys, combos)...");
+        await importDb(body.database);
+
+        progress(40, "Flush WAL ke file database utama (checkpoint)...");
+        const db = await getAdapter();
+        if (db && typeof db.checkpoint === "function") {
+          try { db.checkpoint(); } catch (e) { log(`checkpoint gagal: ${e.message}`, "warn"); }
+        }
+        if (db && typeof db.exec === "function") {
+          try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* ignore */ }
+        }
+      } else {
+        progress(15, "Menutup koneksi database aktif (raw restore)...");
+        const db = await getAdapter();
+        if (db && typeof db.close === "function") {
+          try { db.close(); } catch { /* ignore */ }
+        }
       }
-    } else {
-      const db = await getAdapter();
-      if (db && typeof db.close === "function") db.close();
-    }
 
-    // 2. Remove active -wal and -shm files to prevent corruption/mismatch.
-    // On Windows these files can be locked by the OS/AV/SQLite even after
-    // db.close() (EBUSY). Use a retry + rename fallback so restore never
-    // hard-fails on a transient lock.
-    const walFile = path.join(DATA_DIR, "db", "data.sqlite-wal");
-    const shmFile = path.join(DATA_DIR, "db", "data.sqlite-shm");
+      // 2. Remove active -wal and -shm files to prevent corruption/mismatch.
+      progress(50, "Membersihkan file WAL/SHM lock...");
+      const walFile = path.join(DATA_DIR, "db", "data.sqlite-wal");
+      const shmFile = path.join(DATA_DIR, "db", "data.sqlite-shm");
 
-    const safeUnlink = (file) => {
-      if (!fs.existsSync(file)) return;
-      // Give the DB a moment to fully release the file handle.
-      const attempts = process.platform === "win32" ? 12 : 3;
-      for (let i = 0; i < attempts; i++) {
-        try {
-          fs.unlinkSync(file);
-          return;
-        } catch (e) {
-          if (e.code === "EBUSY" || e.code === "EPERM" || e.code === "ETXTBSY") {
-            // Fallback: rename out of the way (atomic on NTFS) then retry unlink.
-            try {
-              const tmp = `${file}.old-${Date.now()}`;
-              fs.renameSync(file, tmp);
-              try { fs.unlinkSync(tmp); } catch { /* ignore */ }
-              return;
-            } catch {
-              // Wait and retry — the lock may be released shortly.
-              try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250); } catch { /* noop */ }
-              continue;
+      const safeUnlink = (file: string) => {
+        if (!fs.existsSync(file)) return;
+        const attempts = process.platform === "win32" ? 12 : 3;
+        for (let i = 0; i < attempts; i++) {
+          try {
+            fs.unlinkSync(file);
+            return;
+          } catch (e: any) {
+            if (e.code === "EBUSY" || e.code === "EPERM" || e.code === "ETXTBSY") {
+              try {
+                const tmp = `${file}.old-${Date.now()}`;
+                fs.renameSync(file, tmp);
+                try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+                return;
+              } catch {
+                try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250); } catch { /* noop */ }
+                continue;
+              }
             }
+            throw e;
           }
-          throw e;
         }
-      }
-      // Last resort: leave the file; SQLite rebuilds -wal/-shm on next open.
-      console.warn(`[Restore] Could not remove ${file} (locked) — continuing.`);
-    };
+        log(`Tidak bisa menghapus ${file} (terkunci) — melanjutkan.`, "warn");
+      };
+      safeUnlink(walFile);
+      safeUnlink(shmFile);
 
-    safeUnlink(walFile);
-    safeUnlink(shmFile);
+      // 3. Restore secrets/raw DB only for legacy backups. Do not overwrite the
+      // logical import with a stale/incompatible SQLite file.
+      const filesToRestore = [
+        { key: "db/data.sqlite", path: path.join(DATA_DIR, "db", "data.sqlite") },
+        { key: "machine-id", path: path.join(DATA_DIR, "machine-id") },
+        { key: "jwt-secret", path: path.join(DATA_DIR, "jwt-secret") },
+        { key: "auth/cli-secret", path: path.join(DATA_DIR, "auth", "cli-secret") }
+      ];
 
-    // 3. Restore secrets/raw DB only for legacy backups. Do not overwrite the
-    // logical import with a stale/incompatible SQLite file.
-    const filesToRestore = [
-      { key: "db/data.sqlite", path: path.join(DATA_DIR, "db", "data.sqlite") },
-      { key: "machine-id", path: path.join(DATA_DIR, "machine-id") },
-      { key: "jwt-secret", path: path.join(DATA_DIR, "jwt-secret") },
-      { key: "auth/cli-secret", path: path.join(DATA_DIR, "auth", "cli-secret") }
-    ];
-
-    for (const item of filesToRestore) {
-      if (body.database && item.key === "db/data.sqlite") continue;
-      const b64Data = body.files?.[item.key];
-      if (b64Data) {
-        // Ensure directory exists
-        const dir = path.dirname(item.path);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
+      let idx = 0;
+      const total = filesToRestore.length;
+      for (const item of filesToRestore) {
+        if (hasLogical && item.key === "db/data.sqlite") {
+          idx++;
+          continue; // logical import already applied the DB
         }
-        // Write file
-        fs.writeFileSync(item.path, Buffer.from(b64Data, "base64"));
-        console.log(`[Restore] Restored: ${item.key}`);
+        const b64Data = body.files?.[item.key];
+        const pct = 60 + Math.round((idx / total) * 35);
+        if (b64Data) {
+          progress(pct, `Menimpa file: ${item.key} ...`);
+          const dir = path.dirname(item.path);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(item.path, Buffer.from(b64Data, "base64"));
+          log(`✓ Di-timpa: ${item.key}`, "info");
+        } else {
+          log(`Lewati (tidak ada di backup): ${item.key}`, "warn");
+        }
+        idx++;
       }
+
+      progress(100, "Restore selesai. Server akan merestart...");
+      sseSend(res, "done", { success: true, message: "Restore berhasil. Server merestart..." });
+
+      // 4. Shut down process so PM2 restarts it (applies restored data cleanly)
+      setTimeout(() => {
+        try { process.exit(0); } catch { /* ignore */ }
+      }, 1200);
+    } catch (error: any) {
+      console.error("Restore error:", error);
+      sseSend(res, "error", { message: "Restore gagal: " + (error?.message || error) });
+      res.end();
     }
-
-    // 4. Send success response and shut down process so PM2 restarts it
-    res.json({ success: true, message: "Restore successful. Server is restarting..." });
-
-    console.log("[Restore] Successful. Exiting process for restart...");
-    setTimeout(() => {
-      process.exit(0);
-    }, 1500);
-
-  } catch (error: any) {
-    console.error("Restore error:", error);
-    return res.status(500).json({ error: "Failed to restore backup: " + error.message });
-  }
+  })();
 }

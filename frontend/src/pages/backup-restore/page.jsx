@@ -5,7 +5,13 @@ export default function BackupRestorePage() {
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
+  const [logs, setLogs] = useState([]);
   const fileInputRef = useRef(null);
+
+  const appendLog = (msg, level = "info") =>
+    setLogs((prev) => [...prev.slice(-200), { msg, level, ts: new Date().toLocaleTimeString() }]);
 
   const handleBackup = () => {
     // Navigate directly to download the backup file
@@ -35,6 +41,9 @@ export default function BackupRestorePage() {
 
     setError("");
     setSuccess("");
+    setLogs([]);
+    setProgress(0);
+    setProgressLabel("Memulai restore...");
     setRestoring(true);
 
     try {
@@ -46,24 +55,63 @@ export default function BackupRestorePage() {
 
           const res = await fetch("/api/db", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
 
-          const data = await res.json();
-          if (res.ok && data.success) {
-            setSuccess("Restore berhasil! Server sedang merestart, harap tunggu beberapa saat...");
-            setTimeout(() => {
-              window.location.reload();
-            }, 5000);
-          } else {
-            setError(data.error || "Gagal melakukan restore.");
-            setRestoring(false);
+          if (!res.ok || !res.body) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+
+          // Read SSE stream for progress + logs
+          const readerStream = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let finished = false;
+
+          while (!finished) {
+            const { done, value } = await readerStream.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+            for (const chunk of parts) {
+              const lines = chunk.split("\n");
+              let evt = "message";
+              let dataStr = "";
+              for (const ln of lines) {
+                if (ln.startsWith("event:")) evt = ln.slice(6).trim();
+                else if (ln.startsWith("data:")) dataStr = ln.slice(5).trim();
+              }
+              if (!dataStr) continue;
+              let data;
+              try { data = JSON.parse(dataStr); } catch { continue; }
+
+              if (evt === "progress") {
+                setProgress(data.percent || 0);
+                setProgressLabel(data.label || "");
+                appendLog(`[${data.percent}%] ${data.label}`, "info");
+              } else if (evt === "log") {
+                appendLog(data.message, data.level || "info");
+              } else if (evt === "error") {
+                appendLog(`ERROR: ${data.message}`, "error");
+                setError(data.message);
+              } else if (evt === "done") {
+                appendLog("✓ " + (data.message || "Selesai"), "info");
+                setSuccess("Restore berhasil! Server sedang merestart, harap tunggu beberapa saat...");
+                finished = true;
+                setTimeout(() => window.location.reload(), 5000);
+              }
+            }
+          }
+          if (!finished) {
+            setSuccess("Restore selesai. Server sedang merestart...");
+            setTimeout(() => window.location.reload(), 5000);
           }
         } catch (err) {
-          setError("File backup corrupt atau tidak valid.");
+          appendLog("ERROR: " + (err.message || err), "error");
+          setError(err.message || "File backup corrupt atau tidak valid.");
           setRestoring(false);
         }
       };
@@ -72,7 +120,7 @@ export default function BackupRestorePage() {
       setError("Gagal membaca file.");
       setRestoring(false);
     }
-    
+
     // Reset file input
     event.target.value = "";
   };
@@ -173,6 +221,43 @@ export default function BackupRestorePage() {
           >
             {restoring ? "Sedang Memulihkan..." : "Pilih File & Restore"}
           </Button>
+
+          {restoring && (
+            <div className="mt-2 space-y-3">
+              <div>
+                <div className="flex justify-between text-[11px] text-text-muted mb-1">
+                  <span>{progressLabel || "Memproses..."}</span>
+                  <span>{progress}%</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-sidebar overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              <div className="bg-black/80 rounded-lg p-3 h-48 overflow-y-auto font-mono text-[10px] leading-relaxed">
+                {logs.length === 0 ? (
+                  <div className="text-text-muted">Menunggu output restore...</div>
+                ) : (
+                  logs.map((l, i) => (
+                    <div
+                      key={i}
+                      className={
+                        l.level === "error"
+                          ? "text-red-400"
+                          : l.level === "warn"
+                          ? "text-amber-400"
+                          : "text-green-300"
+                      }
+                    >
+                      <span className="text-text-muted">[{l.ts}]</span> {l.msg}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
