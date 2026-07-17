@@ -81,11 +81,44 @@ export async function POST_handler(req: any, res: any) {
       if (db && typeof db.close === "function") db.close();
     }
 
-    // 2. Remove active -wal and -shm files to prevent corruption/mismatch
+    // 2. Remove active -wal and -shm files to prevent corruption/mismatch.
+    // On Windows these files can be locked by the OS/AV/SQLite even after
+    // db.close() (EBUSY). Use a retry + rename fallback so restore never
+    // hard-fails on a transient lock.
     const walFile = path.join(DATA_DIR, "db", "data.sqlite-wal");
     const shmFile = path.join(DATA_DIR, "db", "data.sqlite-shm");
-    if (fs.existsSync(walFile)) fs.unlinkSync(walFile);
-    if (fs.existsSync(shmFile)) fs.unlinkSync(shmFile);
+
+    const safeUnlink = (file) => {
+      if (!fs.existsSync(file)) return;
+      // Give the DB a moment to fully release the file handle.
+      const attempts = process.platform === "win32" ? 12 : 3;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          fs.unlinkSync(file);
+          return;
+        } catch (e) {
+          if (e.code === "EBUSY" || e.code === "EPERM" || e.code === "ETXTBSY") {
+            // Fallback: rename out of the way (atomic on NTFS) then retry unlink.
+            try {
+              const tmp = `${file}.old-${Date.now()}`;
+              fs.renameSync(file, tmp);
+              try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+              return;
+            } catch {
+              // Wait and retry — the lock may be released shortly.
+              try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250); } catch { /* noop */ }
+              continue;
+            }
+          }
+          throw e;
+        }
+      }
+      // Last resort: leave the file; SQLite rebuilds -wal/-shm on next open.
+      console.warn(`[Restore] Could not remove ${file} (locked) — continuing.`);
+    };
+
+    safeUnlink(walFile);
+    safeUnlink(shmFile);
 
     // 3. Restore secrets/raw DB only for legacy backups. Do not overwrite the
     // logical import with a stale/incompatible SQLite file.
