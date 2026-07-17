@@ -43,8 +43,9 @@ SPA_ROUTES.forEach((route) => {
 });
 
 // ─── Health Check (no auth) ────────────────────────────────────────────────────
+import { getAppVersion } from "./lib/db/version.js";
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", version: "0.6.11", ts: Date.now() });
+  res.json({ status: "ok", version: getAppVersion(), ts: Date.now() });
 });
 
 // ─── Auth Middleware ───────────────────────────────────────────────────────────
