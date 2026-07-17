@@ -98,14 +98,17 @@ export async function createProviderConnection(data) {
     const all = db.all(`SELECT * FROM providerConnections WHERE provider = ?`, [data.provider]).map(rowToConn);
 
     let existing = null;
-    if (data.authType === "oauth" && data.email) {
-      const incomingWs = data.providerSpecificData?.chatgptAccountId;
+    if (data.authType === "oauth" || data.authType === "access_token") {
+      // Dedupe only when the access token is identical — allows multiple
+      // accounts (different tokens, even same email) for device-code/OAuth
+      // providers like Nous, GitHub, etc.
+      const incomingToken = data.accessToken;
       existing = all.find(c => {
-        if (c.authType !== "oauth" || c.email !== data.email) return false;
-        // If both sides have a workspace ID, they must match for dedup
-        const existingWs = c.providerSpecificData?.chatgptAccountId;
-        if (incomingWs && existingWs) return incomingWs === existingWs;
-        return true; // fallback: email-only match for non-workspace providers
+        if (c.authType !== data.authType) return false;
+        if (incomingToken && c.accessToken === incomingToken) return true;
+        // Fallback: email-only match only when no token is available yet
+        if (!incomingToken && data.email && c.email === data.email) return true;
+        return false;
       });
     } else if (data.authType === "apikey" && data.name) {
       existing = all.find(c => c.authType === "apikey" && c.name === data.name);
