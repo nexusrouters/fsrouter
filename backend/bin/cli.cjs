@@ -43,7 +43,23 @@ function createSpinner(text) {
   };
 }
 
-const pkg = require("../package.json");
+// Resolve the package version from the nearest package.json carrying the
+// published package name (handles both dev layout and the installed package).
+function resolvePkg() {
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    const cand = require("path").join(dir, "package.json");
+    try {
+      const p = require(cand);
+      if (p && (p.name === "@fudrouter/fsrouter" || p.name === "amrouter")) return p;
+    } catch { /* keep walking up */ }
+    const parent = require("path").dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  try { return require("../package.json"); } catch { return { version: "0.0.0" }; }
+}
+const pkg = resolvePkg();
 const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRuntime.cjs");
 const { ensureTrayRuntime } = require("./hooks/trayRuntime.cjs");
 const args = process.argv.slice(2);
@@ -458,7 +474,7 @@ async function showInterfaceMenu(latestVersion) {
 
   const displayHost = host === DEFAULT_HOST ? "localhost" : host;
 
-  // Detect tunnel/local mode for server URL display
+  // Tunnel/local mode for server URL display
   let serverUrl;
   try {
     const { endpoint, tunnelEnabled } = await getEndpoint(port);
@@ -467,7 +483,11 @@ async function showInterfaceMenu(latestVersion) {
     serverUrl = `http://${displayHost}:${port}`;
   }
 
-  const subtitle = `🚀 Server: \x1b[32m${serverUrl}\x1b[0m`;
+  // Build subtitle: server URL + update notice when a newer version exists
+  let subtitle = `🚀 Server: \x1b[32m${serverUrl}\x1b[0m`;
+  if (latestVersion && latestVersion !== pkg.version) {
+    subtitle += `\n  \x1b[33m⚠ Update tersedia: v${latestVersion} (installed: v${pkg.version})\x1b[0m`;
+  }
 
   const menuItems = [];
 

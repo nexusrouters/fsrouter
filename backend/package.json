@@ -1,6 +1,6 @@
 {
   "name": "9router-backend",
-  "version": "0.6.34",
+  "version": "0.6.96",
   "private": true,
   "type": "module",
   "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
