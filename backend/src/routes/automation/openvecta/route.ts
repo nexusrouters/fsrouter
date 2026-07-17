@@ -270,7 +270,7 @@ export async function POST_handler(req, res) {
 // ── Background runner ─────────────────────────────────────────────────────────
 async function runOpenVectaSignup(jobId, email, venvPython, args) {
   try {
-    const logDir = path.join(process.env.DATA_DIR || path.join(process.env.HOME || "/tmp", ".amrouter"), "logs");
+    const logDir = path.join(process.env.DATA_DIR || path.join(process.env.HOME || "/tmp", ".fsrouter"), "logs");
     fs.mkdirSync(logDir, { recursive: true });
     fs.appendFileSync(
       `${logDir}/automation_spawn.log`,
