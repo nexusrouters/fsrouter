@@ -1,129 +1,253 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/shared/components";
 
 export default function BackupRestorePage() {
   const [restoring, setRestoring] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
   const [logs, setLogs] = useState([]);
+  const [pasteText, setPasteText] = useState("");
+  const [filePath, setFilePath] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const appendLog = (msg, level = "info") =>
-    setLogs((prev) => [...prev.slice(-200), { msg, level, ts: new Date().toLocaleTimeString() }]);
+  const appendLog = useCallback((msg, level = "info") => {
+    setLogs((prev) => [...prev.slice(-300), { msg, level, ts: new Date().toLocaleTimeString() }]);
+  }, []);
 
-  const handleBackup = () => {
-    // Navigate directly to download the backup file
-    window.location.href = "/api/db";
-  };
-
-  const handleRestoreClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  // ── Backup (logical .fud) with progress ───────────────────────────────────
+  const handleBackup = useCallback(async () => {
+    setBackingUp(true);
+    setError("");
+    appendLog("Memulai backup data (logical)...");
+    try {
+      const res = await fetch("/api/db");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const total = Number(res.headers.get("Content-Length")) || 0;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let received = 0;
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        if (total) setProgress(Math.min(99, Math.round((received / total) * 100)));
+        buf += decoder.decode(value, { stream: true });
+      }
+      const payload = JSON.parse(buf);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fsrouter-backup.fud";
+      a.click();
+      URL.revokeObjectURL(url);
+      setProgress(100);
+      appendLog("✓ Backup selesai: fsrouter-backup.fud", "info");
+    } catch (e) {
+      appendLog("ERROR: " + e.message, "error");
+      setError("Gagal backup: " + e.message);
+    } finally {
+      setBackingUp(false);
     }
-  };
+  }, [appendLog]);
 
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // File format check
-    if (!file.name.endsWith(".fud") && !file.name.endsWith(".json")) {
-      setError("Format file tidak didukung. Harap gunakan file berekstensi .fud");
-      return;
+  // ── Backup raw database file (.sqlite) ─────────────────────────────────────
+  const handleBackupRaw = useCallback(async () => {
+    setBackingUp(true);
+    setError("");
+    appendLog("Memulai backup database mentah (.sqlite)...");
+    try {
+      const res = await fetch("/api/db/raw");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const total = Number(res.headers.get("Content-Length")) || 0;
+      const reader = res.body.getReader();
+      const chunks = [];
+      let received = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        if (total) setProgress(Math.min(99, Math.round((received / total) * 100)));
+        chunks.push(value);
+      }
+      const blob = new Blob(chunks, { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fsrouter-db-raw-${Date.now()}.sqlite`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setProgress(100);
+      appendLog("✓ Backup mentah selesai", "info");
+    } catch (e) {
+      appendLog("ERROR: " + e.message, "error");
+      setError("Gagal backup mentah: " + e.message);
+    } finally {
+      setBackingUp(false);
     }
+  }, [appendLog]);
 
-    if (!window.confirm("PERINGATAN: Memulihkan database akan MENIMPA semua data, pengaturan, dan provider saat ini! Server akan di-restart otomatis. Lanjutkan?")) {
-      event.target.value = ""; // reset input
-      return;
-    }
-
+  // ── Restore (SSE streaming) ────────────────────────────────────────────────
+  const runRestore = useCallback(async (payload) => {
     setError("");
     setSuccess("");
     setLogs([]);
     setProgress(0);
     setProgressLabel("Memulai restore...");
     setRestoring(true);
-
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target.result;
-          const payload = JSON.parse(content);
-
-          const res = await fetch("/api/db", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-
-          if (!res.ok || !res.body) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || `HTTP ${res.status}`);
+      const res = await fetch("/api/db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const readerStream = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finished = false;
+      while (!finished) {
+        const { done, value } = await readerStream.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const chunk of parts) {
+          const lines = chunk.split("\n");
+          let evt = "message";
+          let dataStr = "";
+          for (const ln of lines) {
+            if (ln.startsWith("event:")) evt = ln.slice(6).trim();
+            else if (ln.startsWith("data:")) dataStr = ln.slice(5).trim();
           }
-
-          // Read SSE stream for progress + logs
-          const readerStream = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          let finished = false;
-
-          while (!finished) {
-            const { done, value } = await readerStream.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const parts = buffer.split("\n\n");
-            buffer = parts.pop() || "";
-            for (const chunk of parts) {
-              const lines = chunk.split("\n");
-              let evt = "message";
-              let dataStr = "";
-              for (const ln of lines) {
-                if (ln.startsWith("event:")) evt = ln.slice(6).trim();
-                else if (ln.startsWith("data:")) dataStr = ln.slice(5).trim();
-              }
-              if (!dataStr) continue;
-              let data;
-              try { data = JSON.parse(dataStr); } catch { continue; }
-
-              if (evt === "progress") {
-                setProgress(data.percent || 0);
-                setProgressLabel(data.label || "");
-                appendLog(`[${data.percent}%] ${data.label}`, "info");
-              } else if (evt === "log") {
-                appendLog(data.message, data.level || "info");
-              } else if (evt === "error") {
-                appendLog(`ERROR: ${data.message}`, "error");
-                setError(data.message);
-              } else if (evt === "done") {
-                appendLog("✓ " + (data.message || "Selesai"), "info");
-                setSuccess("Restore berhasil! Server sedang merestart, harap tunggu beberapa saat...");
-                finished = true;
-                setTimeout(() => window.location.reload(), 5000);
-              }
-            }
-          }
-          if (!finished) {
-            setSuccess("Restore selesai. Server sedang merestart...");
+          if (!dataStr) continue;
+          let data;
+          try { data = JSON.parse(dataStr); } catch { continue; }
+          if (evt === "progress") {
+            setProgress(data.percent || 0);
+            setProgressLabel(data.label || "");
+            appendLog(`[${data.percent}%] ${data.label}`, "info");
+          } else if (evt === "log") {
+            appendLog(data.message, data.level || "info");
+          } else if (evt === "error") {
+            appendLog(`ERROR: ${data.message}`, "error");
+            setError(data.message);
+          } else if (evt === "done") {
+            appendLog("✓ " + (data.message || "Selesai"), "info");
+            setSuccess("Restore berhasil! Server sedang merestart, harap tunggu beberapa saat...");
+            finished = true;
             setTimeout(() => window.location.reload(), 5000);
           }
-        } catch (err) {
-          appendLog("ERROR: " + (err.message || err), "error");
-          setError(err.message || "File backup corrupt atau tidak valid.");
-          setRestoring(false);
         }
-      };
-      reader.readAsText(file);
+      }
+      if (!finished) {
+        setSuccess("Restore selesai. Server sedang merestart...");
+        setTimeout(() => window.location.reload(), 5000);
+      }
     } catch (err) {
-      setError("Gagal membaca file.");
+      appendLog("ERROR: " + (err.message || err), "error");
+      setError(err.message || "File backup corrupt atau tidak valid.");
       setRestoring(false);
     }
+  }, [appendLog]);
 
-    // Reset file input
-    event.target.value = "";
-  };
+  const startRestoreFromFile = useCallback(async (file) => {
+    if (!file) return;
+    if (!file.name.endsWith(".fud") && !file.name.endsWith(".json") && !file.name.endsWith(".sqlite")) {
+      setError("Format tidak didukung (.fud / .json / .sqlite)");
+      return;
+    }
+    if (!window.confirm("PERINGATAN: Restore akan MENIMPA semua data saat ini! Lanjutkan?")) return;
+    if (file.name.endsWith(".sqlite")) {
+      // Raw sqlite: wrap into legacy backup envelope
+      const b64 = await new Promise((r) => {
+        const fr = new FileReader();
+        fr.onload = () => r(btoa(new Uint8Array(fr.result).reduce((s, b) => s + String.fromCharCode(b), "")));
+        fr.readAsArrayBuffer(file);
+      });
+      return runRestore({ signature: "FUDROUTER_BACKUP", version: 1, files: { "db/data.sqlite": b64 } });
+    }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const payload = JSON.parse(e.target.result);
+        await runRestore(payload);
+      } catch {
+        setError("File backup corrupt atau tidak valid.");
+        setRestoring(false);
+      }
+    };
+    reader.readAsText(file);
+  }, [runRestore]);
+
+  const handleFileChange = (e) => startRestoreFromFile(e.target.files[0]);
+
+  const handlePasteRestore = useCallback(async () => {
+    if (!pasteText.trim()) { setError("Textarea kosong."); return; }
+    if (!window.confirm("PERINGATAN: Restore akan MENIMPA semua data saat ini! Lanjutkan?")) return;
+    try {
+      const payload = JSON.parse(pasteText);
+      await runRestore(payload);
+    } catch {
+      setError("JSON tidak valid.");
+      setRestoring(false);
+    }
+  }, [pasteText, runRestore]);
+
+  const handlePathRestore = useCallback(async () => {
+    if (!filePath.trim()) { setError("Path kosong."); return; }
+    if (!window.confirm("PERINGATAN: Restore akan MENIMPA semua data saat ini! Lanjutkan?")) return;
+    try {
+      const res = await fetch("/api/db/restore-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: filePath.trim() })
+      });
+      // The server streams progress on this same response
+      if (!res.ok || !res.body) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `HTTP ${res.status}`);
+      }
+      const readerStream = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finished = false;
+      setError(""); setSuccess(""); setLogs([]); setProgress(0); setProgressLabel("Memulai restore dari path..."); setRestoring(true);
+      while (!finished) {
+        const { done, value } = await readerStream.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const chunk of parts) {
+          const lines = chunk.split("\n");
+          let evt = "message", dataStr = "";
+          for (const ln of lines) {
+            if (ln.startsWith("event:")) evt = ln.slice(6).trim();
+            else if (ln.startsWith("data:")) dataStr = ln.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          let data; try { data = JSON.parse(dataStr); } catch { continue; }
+          if (evt === "progress") { setProgress(data.percent || 0); setProgressLabel(data.label || ""); appendLog(`[${data.percent}%] ${data.label}`); }
+          else if (evt === "log") appendLog(data.message, data.level || "info");
+          else if (evt === "error") { appendLog("ERROR: " + data.message, "error"); setError(data.message); }
+          else if (evt === "done") { appendLog("✓ " + (data.message || "Selesai")); setSuccess("Restore berhasil! Server merestart..."); finished = true; setTimeout(() => window.location.reload(), 5000); }
+        }
+      }
+    } catch (err) {
+      appendLog("ERROR: " + (err.message || err), "error");
+      setError(err.message || "Gagal restore dari path.");
+      setRestoring(false);
+    }
+  }, [filePath, appendLog]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -133,7 +257,7 @@ export default function BackupRestorePage() {
           Backup & Restore
         </h1>
         <p className="text-xs text-text-muted">
-          Amankan seluruh data FSRouter Anda ke dalam satu file .fud, atau pulihkan data dari file backup sebelumnya.
+          Amankan seluruh data FSRouter (provider, connections, akun automation, proxy, api keys) ke satu file, atau pulihkan dari file/teks/path.
         </p>
       </div>
 
@@ -143,7 +267,6 @@ export default function BackupRestorePage() {
           {error}
         </div>
       )}
-
       {success && (
         <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 text-sm rounded-lg flex items-center gap-2">
           <span className="material-symbols-outlined text-sm">check_circle</span>
@@ -152,7 +275,7 @@ export default function BackupRestorePage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Backup Section */}
+        {/* ── Backup ── */}
         <div className="p-6 rounded-[14px] border border-border-subtle bg-surface flex flex-col gap-4">
           <div className="flex items-center gap-3 text-text-main">
             <div className="size-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
@@ -160,31 +283,29 @@ export default function BackupRestorePage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold">Buat Backup</h2>
-              <p className="text-[11px] text-text-muted">Simpan data ke perangkat Anda</p>
+              <p className="text-[11px] text-text-muted">Simpan data ke perangkat</p>
             </div>
           </div>
-          
           <div className="text-xs text-text-muted leading-relaxed flex-1">
-            <p className="mb-2">File backup (.fud) berisi keseluruhan state sistem:</p>
             <ul className="list-disc list-inside space-y-1 ml-1">
-              <li>Konfigurasi Providers & Endpoint</li>
-              <li>Riwayat Penggunaan & Limits</li>
-              <li>Akun Otomatis & FSmail</li>
-              <li>Proxy Pools & Identitas Perangkat</li>
+              <li><b>Portabel (.fud)</b>: semua data sebagai JSON — bisa dipulihkan di OS berbeda.</li>
+              <li><b>Mentah (.sqlite)</b>: copy langsung file database — paling akurat, sama OS.</li>
             </ul>
           </div>
-
-          <Button 
-            variant="primary" 
-            fullWidth 
-            onClick={handleBackup}
-            icon="download"
-          >
-            Download Backup (.fud)
+          <Button variant="primary" fullWidth onClick={handleBackup} disabled={backingUp} icon="download">
+            {backingUp ? `Membackup... ${progress}%` : "Download Backup (.fud)"}
           </Button>
+          <Button variant="secondary" fullWidth onClick={handleBackupRaw} disabled={backingUp} icon="storage">
+            Download Database Mentah (.sqlite)
+          </Button>
+          {backingUp && (
+            <div className="w-full h-2.5 rounded-full bg-sidebar overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          )}
         </div>
 
-        {/* Restore Section */}
+        {/* ── Restore ── */}
         <div className="p-6 rounded-[14px] border border-border-subtle bg-surface flex flex-col gap-4">
           <div className="flex items-center gap-3 text-text-main">
             <div className="size-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
@@ -192,35 +313,50 @@ export default function BackupRestorePage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold">Pulihkan Backup</h2>
-              <p className="text-[11px] text-text-muted">Timpa data dari file .fud</p>
+              <p className="text-[11px] text-text-muted">Timpa data dari file/teks/path</p>
             </div>
           </div>
-          
-          <div className="text-xs text-text-muted leading-relaxed flex-1">
-            <p className="mb-2 text-amber-500/90 font-medium">Perhatian sebelum memulihkan:</p>
-            <p>
-              Proses restore akan menghapus dan menimpa database yang berjalan saat ini dengan database yang ada di file backup.
-              FSRouter akan melakukan restart layanan setelah proses restore selesai.
-            </p>
+
+          {/* Drop zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); startRestoreFromFile(e.dataTransfer.files[0]); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-primary bg-primary/5" : "border-border-subtle hover:border-primary/50"}`}
+          >
+            <span className="material-symbols-outlined text-3xl text-text-muted">upload_file</span>
+            <p className="text-xs text-text-muted mt-1">Klik atau seret file .fud / .json / .sqlite ke sini</p>
+          </div>
+          <input type="file" accept=".fud,.json,.sqlite" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+          {/* Paste */}
+          <div className="space-y-1">
+            <label className="text-[11px] text-text-muted">Atau tempel (paste) isi file backup JSON:</label>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder='{ "signature": "FUDROUTER_BACKUP", ... }'
+              className="w-full h-20 text-[11px] font-mono bg-black/40 border border-border-subtle rounded p-2 text-text-main resize-none"
+            />
+            <Button variant="secondary" fullWidth onClick={handlePasteRestore} disabled={restoring} icon="content_paste">
+              Restore dari Teks
+            </Button>
           </div>
 
-          <input 
-            type="file" 
-            accept=".fud,.json" 
-            ref={fileInputRef} 
-            onChange={handleFileChange}
-            className="hidden" 
-          />
-
-          <Button 
-            variant="secondary" 
-            fullWidth 
-            onClick={handleRestoreClick}
-            disabled={restoring}
-            icon={restoring ? "sync" : "upload"}
-          >
-            {restoring ? "Sedang Memulihkan..." : "Pilih File & Restore"}
-          </Button>
+          {/* Path */}
+          <div className="space-y-1">
+            <label className="text-[11px] text-text-muted">Atau path file di server (ganti file manual):</label>
+            <input
+              value={filePath}
+              onChange={(e) => setFilePath(e.target.value)}
+              placeholder="C:\\Users\\fud\\backups\\fsrouter-backup.fud"
+              className="w-full text-[11px] bg-black/40 border border-border-subtle rounded p-2 text-text-main"
+            />
+            <Button variant="secondary" fullWidth onClick={handlePathRestore} disabled={restoring} icon="folder_open">
+              Restore dari Path
+            </Button>
+          </div>
 
           {restoring && (
             <div className="mt-2 space-y-3">
@@ -230,10 +366,7 @@ export default function BackupRestorePage() {
                   <span>{progress}%</span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-sidebar overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
+                  <div className="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-300" style={{ width: `${progress}%` }} />
                 </div>
               </div>
               <div className="bg-black/80 rounded-lg p-3 h-48 overflow-y-auto font-mono text-[10px] leading-relaxed">
@@ -241,16 +374,7 @@ export default function BackupRestorePage() {
                   <div className="text-text-muted">Menunggu output restore...</div>
                 ) : (
                   logs.map((l, i) => (
-                    <div
-                      key={i}
-                      className={
-                        l.level === "error"
-                          ? "text-red-400"
-                          : l.level === "warn"
-                          ? "text-amber-400"
-                          : "text-green-300"
-                      }
-                    >
+                    <div key={i} className={l.level === "error" ? "text-red-400" : l.level === "warn" ? "text-amber-400" : "text-green-300"}>
                       <span className="text-text-muted">[{l.ts}]</span> {l.msg}
                     </div>
                   ))
