@@ -1,6 +1,25 @@
-import pkg from "../../package.json" with { type: "json" };
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import { existsSync } from "fs";
 
-const APP_VERSION = pkg.version || "0.0.0";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Resolve package.json by walking up — works in both src (open-sse/shared)
+// and dist (dist/open-sse/shared) layouts.
+function resolvePkgPath() {
+  let d = __dirname;
+  for (let i = 0; i < 6; i++) {
+    const p = `${d}/package.json`;
+    if (existsSync(p)) return p;
+    d = dirname(d);
+  }
+  return null;
+}
+
+const _require = createRequire(import.meta.url);
+const _pkgPath = resolvePkgPath();
+const APP_VERSION = _pkgPath ? _require(_pkgPath).version || "0.0.0" : "0.0.0";
 
 export function getClineAccessToken(token) {
   if (typeof token !== "string") return "";

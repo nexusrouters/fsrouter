@@ -1,5 +1,5 @@
 // Ensure proxyFetch is loaded to patch globalThis.fetch
-import "open-sse/index.js";
+import '../../../../open-sse/index.js';
 
 import { getProviderConnectionById, updateProviderConnection } from "../../../lib/localDb.js";
 import { getUsageForProvider } from "../../../open-sse/services/usage.js"; // Watcher trigger comment

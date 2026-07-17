@@ -145,3 +145,17 @@ export function formatProviderError(error, provider, model, statusCode) {
   const causeStr = causeCode || causeMsg ? ` (cause: ${[causeCode, causeMsg].filter(Boolean).join(": ")})` : "";
   return `[${code}]: ${message}${causeStr}`;
 }
+
+/**
+ * Strip internal details from an error message so they don't leak upstream paths.
+ * @param {unknown} message
+ * @returns {string}
+ */
+export function sanitizeErrorMessage(message) {
+  if (message == null) return "";
+  const str = typeof message === "string" ? message : String(message);
+  // Remove absolute filesystem paths (e.g. /usr/local/lib/node_modules/.../file.js)
+  return str.replace(/\/[\w./-]+\.(js|ts|mjs|cjs)(:\d+:\d+)?/g, (m) =>
+    m.length > 40 ? "[internal]" : m,
+  );
+}

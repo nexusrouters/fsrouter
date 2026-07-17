@@ -18,6 +18,23 @@ function rewrite(file) {
   const depth = rel ? rel.split(path.sep).length : 0;
   const prefix = "../".repeat(depth) + "dist/";
 
+  // Rewrite bare `open-sse/...` specifiers (side-effect or from) to depth-correct
+  // relative paths so the published package resolves them without node_modules/open-sse.
+  const ssePrefix = "../".repeat(depth) + "open-sse/";
+  content = content
+    .replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `from '${ssePrefix}${resolved}'`;
+    })
+    .replace(/import\s+['"]open-sse\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import '${ssePrefix}${resolved}'`;
+    })
+    .replace(/import\(\s*['"]open-sse\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import('${ssePrefix}${resolved}')`;
+    });
+
   content = content
     .replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
@@ -92,10 +109,12 @@ function walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p);
-    else if (e.name.endsWith(".js")) rewrite(p);
+    else if (e.name.endsWith(".js") || e.name.endsWith(".ts")) rewrite(p);
   }
 }
 
-console.log("[rewriteSseImports] Rewriting @/ + src/ imports in open-sse/...");
+console.log("[rewriteSseImports] Rewriting @/ + src/ + bare open-sse imports...");
 walk(sseDir);
+const routesDir = path.join(root, "src", "routes");
+if (fs.existsSync(routesDir)) walk(routesDir);
 console.log("[rewriteSseImports] Done.");

@@ -66,6 +66,7 @@ export const OAUTH_PROVIDERS = {
   kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC", website: "https://kilocode.ai", notice: { signupUrl: "https://kilocode.ai" } },
   cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL", website: "https://cline.bot", notice: { signupUrl: "https://cline.bot" } },
   kimchi: { id: "kimchi", alias: "kimchi", name: "Kimchi", icon: "local_dining", color: "#FF6B35", textIcon: "KC", website: "https://kimchi.dev", notice: { signupUrl: "https://app.kimchi.dev" }, serviceKinds: ["llm", "webSearch", "imageToText"], authModes: ["oauth", "apikey"], hasOAuth: true, searchConfig: { baseUrl: "https://llm.kimchi.dev/v1/search", authType: "apikey", authHeader: "bearer", format: "openai", timeoutMs: 25000 } },
+  "nous-research": { id: "nous-research", alias: "nous", name: "Nous Research", icon: "hub", color: "#2563EB", textIcon: "NO", website: "https://portal.nousresearch.com", notice: { text: "Free tier: 50 RPM, 500K TPM — no credit card. Sign in with your Nous Portal account (device login, no API key needed).", signupUrl: "https://portal.nousresearch.com" }, serviceKinds: ["llm"], authModes: ["oauth"], hasOAuth: true },
   // opencode: { id: "opencode", alias: "oc", name: "OpenCode", icon: "terminal", color: "#E87040", textIcon: "OC" },
 };
 
@@ -290,6 +291,7 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "minimax-cn",
   "codebuddy",
   "cloudflare-ai",
+  "nous-research",
 ];
 
 // Subset that uses apikey auth (still surfaced on quota page)
