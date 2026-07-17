@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Modal, Button, Input } from "@/shared/components";
+import { Modal, Button, Input, Select } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+
+const NONE_PROXY_POOL_VALUE = "__none__";
 
 /**
  * OAuth Modal Component
  * - Localhost: Auto callback via popup message
  * - Remote: Manual paste callback URL
  */
-export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, onClose, oauthMeta, idcConfig }) {
+export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, onClose, oauthMeta, idcConfig, proxyPools = [] }) {
   const [step, setStep] = useState("waiting"); // waiting | input | success | error
   const [authData, setAuthData] = useState(null);
   const [callbackUrl, setCallbackUrl] = useState("");
@@ -22,6 +24,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const pollingAbortRef = useRef(false);
   const openedRef = useRef(false);
   const { copied, copy } = useCopyToClipboard();
+  const [proxyPoolId, setProxyPoolId] = useState(NONE_PROXY_POOL_VALUE);
 
   // State for client-only values to avoid hydration mismatch
   const [isLocalhost, setIsLocalhost] = useState(false);
@@ -87,7 +90,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   }, [authData, onSuccess]);
 
   // Poll for device code token
-  const startPolling = useCallback(async (deviceCode, codeVerifier, interval, extraData, deadlineMs) => {
+  const startPolling = useCallback(async (deviceCode, codeVerifier, interval, extraData, deadlineMs, proxyPoolId) => {
     pollingAbortRef.current = false;
     setPolling(true);
     // Honor the upstream's expires_in when supplied (qoder sets 300s) so we
@@ -117,7 +120,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         const res = await fetch(`/api/oauth/${provider}/poll`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deviceCode, codeVerifier, extraData }),
+          body: JSON.stringify({ deviceCode, codeVerifier, extraData, proxyPoolId }),
         });
 
         const data = await res.json();
@@ -218,6 +221,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
           Number.isFinite(data.expires_in) && data.expires_in > 0
             ? data.expires_in * 1000
             : undefined,
+          proxyPoolId,
         );
         return;
       }
@@ -660,6 +664,22 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                   />
                 </div>
               </div>
+              {proxyPools && proxyPools.length > 0 && (
+                <div className="mt-4 text-left">
+                  <label className="block text-xs text-text-muted mb-1">Proxy Pool (optional)</label>
+                  <Select
+                    value={proxyPoolId}
+                    onChange={(e) => setProxyPoolId(e.target.value)}
+                    options={[
+                      { value: NONE_PROXY_POOL_VALUE, label: "No proxy" },
+                      ...proxyPools.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
+                  />
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Bind this account to a proxy pool so requests route through a different IP — avoids multi-account detection.
+                  </p>
+                </div>
+              )}
             </div>
             {polling && (
               <div className="flex items-center justify-center gap-2 text-sm text-text-muted">

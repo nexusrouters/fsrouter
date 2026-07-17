@@ -8,6 +8,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
+import { getProxyPoolById } from "../../models/index.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
@@ -262,6 +263,21 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     connectionNoProxy: credentials?.providerSpecificData?.connectionNoProxy || "",
     vercelRelayUrl: credentials?.providerSpecificData?.vercelRelayUrl || "",
   };
+
+  // Resolve proxy pool (bound at connect time) -> proxy URL for inference routing.
+  // This lets each OAuth account use a different proxy IP, avoiding multi-account detection.
+  const boundPoolId = credentials?.providerSpecificData?.connectionProxyPoolId;
+  if (boundPoolId && !proxyOptions.connectionProxyEnabled && !proxyOptions.connectionProxyUrl) {
+    try {
+      const pool = await getProxyPoolById(boundPoolId);
+      if (pool && pool.isActive !== false && pool.proxyUrl) {
+        proxyOptions.connectionProxyEnabled = true;
+        proxyOptions.connectionProxyUrl = pool.proxyUrl;
+      }
+    } catch (e) {
+      log?.warn?.(`PROXY pool resolve failed for ${boundPoolId}: ${e?.message}`);
+    }
+  }
 
   if (proxyOptions.vercelRelayUrl) {
     const connectionName = credentials?.connectionName || credentials?.connectionId || "unknown";

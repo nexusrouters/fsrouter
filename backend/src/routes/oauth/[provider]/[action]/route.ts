@@ -198,8 +198,10 @@ export async function POST_handler(req, res, { params }) {
   try {
     const { provider, action } = await params;
     let body;
+    let proxyPoolId = null;
     try {
       body = req.body;
+      proxyPoolId = body?.proxyPoolId || null;
     } catch {
       return res.status(400).json({ error: "Invalid or empty request body" });
     }
@@ -317,10 +319,14 @@ export async function POST_handler(req, res, { params }) {
           provider,
           authType: "oauth",
           ...result.tokens,
-          expiresAt: result.tokens.expiresIn 
-            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString() 
+          expiresAt: result.tokens.expiresIn
+            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString()
             : null,
           testStatus: "active",
+          providerSpecificData: {
+            ...(result.tokens.providerSpecificData || {}),
+            ...(proxyPoolId ? { connectionProxyPoolId: proxyPoolId } : {}),
+          },
         });
 
         return res.json({ 
