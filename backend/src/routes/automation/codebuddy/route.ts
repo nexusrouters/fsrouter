@@ -513,7 +513,7 @@ export async function POST_handler(req, res) {
     }
 
     // ── Action: Bulk add ready accounts to 9router ─────────────────
-    if (action === "bulk-add-to-9router") {
+    if (action === "bulk-add-to-9router" || action === "bulk-add-to-fsrouter") {
       const { provider } = body;
       const accounts = await listCodeBuddyAccounts();
       const ready = accounts.filter(a => {
