@@ -20,6 +20,7 @@ import {
   getGlmUsage,
   getVercelAiGatewayUsage,
   getQoderUsage,
+  getCloudflareAiUsage,
 } from "./usage/misc.js";
 
 /**
@@ -47,6 +48,7 @@ const USAGE_HANDLERS = {
   "codebuddy-cn": (c) => getCodeBuddyCnUsage(c.accessToken, c.apiKey, c.providerSpecificData, c.proxyOptions),
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   "nous-research": (c) => getNousUsage(c.accessToken),
+  "cloudflare-ai": (c) => getCloudflareAiUsage(c.apiKey, c.providerSpecificData),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null) {
