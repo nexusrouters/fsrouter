@@ -28,6 +28,7 @@ export default {
     baseUrl: "https://inference-api.nousresearch.com/v1/chat/completions",
     format: "openai",
     auth: {
+      combined: true,
       header: "Authorization",
       scheme: "bearer",
     },
