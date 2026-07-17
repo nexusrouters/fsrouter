@@ -79,6 +79,14 @@ export async function getAdapter() {
   return state.initPromise;
 }
 
+// Force re-open the underlying connection (used after an explicit close, e.g.
+// during raw DB restore). Without this, getAdapter() would return the stale
+// closed instance and every subsequent query throws "connection is not open".
+export function resetAdapter() {
+  state.instance = null;
+  state.initPromise = null;
+}
+
 export function getAdapterSync() {
   if (!state.instance) throw new Error("[DB] adapter not initialized — await getAdapter() first");
   return state.instance;

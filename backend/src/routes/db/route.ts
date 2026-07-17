@@ -1,4 +1,4 @@
-import { getAdapter } from "../../lib/db/driver.js";
+import { getAdapter, resetAdapter } from "../../lib/db/driver.js";
 import { exportDb, importDb } from "../../lib/db/index.js";
 import { DATA_DIR } from "../../lib/dataDir.js";
 import path from "path";
@@ -103,13 +103,10 @@ export async function POST_handler(req: any, res: any) {
       // state differs between machines. Keep raw-file restore below for old backups.
       const hasLogical = !!body.database;
       if (hasLogical) {
-        progress(15, "Menutup koneksi database aktif...");
-        const db0 = await getAdapter();
-        if (db0 && typeof db0.close === "function") {
-          try { db0.close(); } catch { /* ignore */ }
-        }
-
-        progress(25, "Mengimpor data logical (provider, connections, proxy, api keys, combos)...");
+        progress(15, "Mengimpor data logical (provider, connections, proxy, api keys, combos)...");
+        // Import on the live connection — do NOT close it first, or getAdapter()
+        // would keep returning the stale closed instance and every query throws
+        // "The database connection is not open".
         await importDb(body.database);
 
         progress(40, "Flush WAL ke file database utama (checkpoint)...");
@@ -126,6 +123,8 @@ export async function POST_handler(req: any, res: any) {
         if (db && typeof db.close === "function") {
           try { db.close(); } catch { /* ignore */ }
         }
+        // Reset cached instance so the next getAdapter() re-opens a fresh connection.
+        resetAdapter();
       }
 
       // 2. Remove active -wal and -shm files to prevent corruption/mismatch.
