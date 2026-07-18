@@ -3,7 +3,7 @@ import { getProviderNodeById } from "../../../models/index.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, AI_PROVIDERS } from "../../../shared/constants/providers.js";
 import { getDefaultModel } from "../../../open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "../../../open-sse/config/providers.js";
-import { openaiToCommandCode } from "../../../open-sse/translator/request/openai-to-commandcode.js";
+import { openaiToCommandCodeRequest } from "../../../open-sse/translator/request/openai-to-commandcode.js";
 import { PROVIDER_ENDPOINTS } from "../../../shared/constants/config.js";
 import { normalizeProviderId } from "../../../lib/providerNormalization.js";
 
@@ -104,10 +104,10 @@ export async function POST_handler(req, res) {
           return res.status(404).json({ error: "OpenAI Compatible node not found" });
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
-        const res = await fetch(modelsUrl, {
+        const probeRes = await fetch(modelsUrl, {
           headers: { "Authorization": `Bearer ${apiKey}` },
         });
-        isValid = res.ok;
+        isValid = probeRes.ok;
         return res.json({
           valid: isValid,
           error: isValid ? null : "Invalid API key",
@@ -158,7 +158,7 @@ export async function POST_handler(req, res) {
 
         const modelsUrl = `${normalizedBase}/models`;
 
-        const res = await fetch(modelsUrl, {
+        const probeRes = await fetch(modelsUrl, {
           headers: {
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
@@ -166,7 +166,7 @@ export async function POST_handler(req, res) {
           },
         });
 
-        isValid = res.ok;
+        isValid = probeRes.ok;
         return res.json({
           valid: isValid,
           error: isValid ? null : "Invalid API key",
@@ -414,7 +414,7 @@ export async function POST_handler(req, res) {
         case "commandcode": {
           const cfg = PROVIDERS.commandcode;
           const model = getDefaultModel("commandcode");
-          const payload = openaiToCommandCode(model, {
+          const payload = openaiToCommandCodeRequest(model, {
             messages: [{ role: "user", content: "ping" }],
             max_tokens: 1,
             stream: false,
