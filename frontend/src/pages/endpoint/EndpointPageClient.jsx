@@ -558,6 +558,9 @@ export default function APIPageClient({ machineId }) {
 
       setTunnelUrl(url);
       setTunnelPublicUrl(data.publicUrl || "");
+      setTunnelEnabled(true);
+      setTunnelChecking(false);
+      setTunnelStatus({ type: "success", message: "Tunnel enabled" });
       await pingTunnelHealth(data.publicUrl, url);
     } catch (error) {
       setTunnelStatus({ type: "error", message: error.message });
