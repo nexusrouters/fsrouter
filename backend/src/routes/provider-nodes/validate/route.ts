@@ -119,11 +119,11 @@ export async function POST_handler(req, res) {
         }
       });
 
-      if (probeRes.ok) return probeRes.json({ valid: true });
+      if (probeRes.ok) return res.json({ valid: true });
 
       // Auth errors - no point trying chat fallback
       if (probeRes.status === 401 || probeRes.status === 403) {
-        return probeRes.json({ valid: false, error: "API key unauthorized" });
+        return res.json({ valid: false, error: "API key unauthorized" });
       }
 
       // Fallback: try chat/completions if modelId provided
@@ -143,16 +143,16 @@ export async function POST_handler(req, res) {
           })
         });
         if (chatRes.ok) {
-          return probeRes.json({ valid: true, method: "chat" });
+          return res.json({ valid: true, method: "chat" });
         }
-        return probeRes.json({
+        return res.json({
           valid: false,
           error: getChatErrorMessage(chatRes.status),
           method: "chat"
         });
       }
 
-      return probeRes.json({ valid: false, error: getModelsErrorMessage(probeRes.status) });
+      return res.json({ valid: false, error: getModelsErrorMessage(probeRes.status) });
     }
 
     // OpenAI Compatible Validation (Default)
@@ -161,11 +161,11 @@ export async function POST_handler(req, res) {
       headers: { "Authorization": `Bearer ${apiKey}` },
     });
 
-    if (probeRes.ok) return probeRes.json({ valid: true });
+    if (probeRes.ok) return res.json({ valid: true });
 
     // Auth errors - no point trying chat fallback
     if (probeRes.status === 401 || probeRes.status === 403) {
-      return probeRes.json({ valid: false, error: "API key unauthorized" });
+      return res.json({ valid: false, error: "API key unauthorized" });
     }
 
     // Fallback: try chat/completions if modelId provided
@@ -183,7 +183,7 @@ export async function POST_handler(req, res) {
         })
       });
       if (chatRes.ok) {
-        return probeRes.json({ valid: true, method: "chat" });
+        return res.json({ valid: true, method: "chat" });
       }
       return res.json({
         valid: false,
