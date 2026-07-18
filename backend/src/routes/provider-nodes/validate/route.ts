@@ -1,6 +1,8 @@
 
 
-// Fetch with timeout wrapper — uses AbortSignal.timeout (reliably aborts the
+import { assertPublicUrl } from "../../../lib/ssrfGuard.js";
+
+// Fetch with timeout wrapper — uses AbortController (reliably aborts the
 // underlying request instead of just racing a dangling promise that can hang
 // the whole HTTP handler / make the browser show "Network error").
 const fetchWithTimeout = (url, options, timeout = 10000) => {
@@ -63,6 +65,13 @@ export async function POST_handler(req, res) {
       return res.status(400).json({ error: "Invalid URL format" });
     }
 
+    // SSRF guard: block localhost / private / cloud-metadata targets
+    try {
+      assertPublicUrl(baseUrl);
+    } catch {
+      return res.status(400).json({ error: "URL not allowed (internal/private address)" });
+    }
+
     // Custom Embedding Validation - test POST /embeddings directly
     if (type === "custom-embedding") {
       const normalizedBase = baseUrl.trim().replace(/\/$/, "");
@@ -101,7 +110,7 @@ export async function POST_handler(req, res) {
       }
 
       const modelsUrl = `${normalizedBase}/models`;
-      const res = await fetchWithTimeout(modelsUrl, {
+      const probeRes = await fetchWithTimeout(modelsUrl, {
         method: "GET",
         headers: {
           "x-api-key": apiKey,
@@ -110,11 +119,11 @@ export async function POST_handler(req, res) {
         }
       });
 
-      if (res.ok) return res.json({ valid: true });
+      if (probeRes.ok) return probeRes.json({ valid: true });
 
       // Auth errors - no point trying chat fallback
-      if (res.status === 401 || res.status === 403) {
-        return res.json({ valid: false, error: "API key unauthorized" });
+      if (probeRes.status === 401 || probeRes.status === 403) {
+        return probeRes.json({ valid: false, error: "API key unauthorized" });
       }
 
       // Fallback: try chat/completions if modelId provided
@@ -134,29 +143,29 @@ export async function POST_handler(req, res) {
           })
         });
         if (chatRes.ok) {
-          return res.json({ valid: true, method: "chat" });
+          return probeRes.json({ valid: true, method: "chat" });
         }
-        return res.json({
+        return probeRes.json({
           valid: false,
           error: getChatErrorMessage(chatRes.status),
           method: "chat"
         });
       }
 
-      return res.json({ valid: false, error: getModelsErrorMessage(res.status) });
+      return probeRes.json({ valid: false, error: getModelsErrorMessage(probeRes.status) });
     }
 
     // OpenAI Compatible Validation (Default)
     const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
-    const res = await fetchWithTimeout(modelsUrl, {
+    const probeRes = await fetchWithTimeout(modelsUrl, {
       headers: { "Authorization": `Bearer ${apiKey}` },
     });
 
-    if (res.ok) return res.json({ valid: true });
+    if (probeRes.ok) return probeRes.json({ valid: true });
 
     // Auth errors - no point trying chat fallback
-    if (res.status === 401 || res.status === 403) {
-      return res.json({ valid: false, error: "API key unauthorized" });
+    if (probeRes.status === 401 || probeRes.status === 403) {
+      return probeRes.json({ valid: false, error: "API key unauthorized" });
     }
 
     // Fallback: try chat/completions if modelId provided
@@ -174,7 +183,7 @@ export async function POST_handler(req, res) {
         })
       });
       if (chatRes.ok) {
-        return res.json({ valid: true, method: "chat" });
+        return probeRes.json({ valid: true, method: "chat" });
       }
       return res.json({
         valid: false,
