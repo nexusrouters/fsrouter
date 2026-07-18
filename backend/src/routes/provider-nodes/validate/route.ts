@@ -1,13 +1,12 @@
 
 
-// Fetch with timeout wrapper
+// Fetch with timeout wrapper — uses AbortSignal.timeout (reliably aborts the
+// underlying request instead of just racing a dangling promise that can hang
+// the whole HTTP handler / make the browser show "Network error").
 const fetchWithTimeout = (url, options, timeout = 10000) => {
-  return Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request timeout")), timeout)
-    )
-  ]);
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeout);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(t));
 };
 
 // Validate URL format
