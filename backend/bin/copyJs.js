@@ -42,6 +42,16 @@ function rewriteImports(content, filePath, isJsCopy = false) {
   updated = updated.replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/utils/${impPath}'`);
   updated = updated.replace(/require\(['"]@\/utils\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/utils/${impPath}')`);
 
+  // Dynamic import('@/lib/...') — must also be rewritten (used in async code paths)
+  const dynAlias = (alias) => {
+    updated = updated.replace(new RegExp(`import\\(\\s*['"]@\\/${alias}\\/([^'"]+)['"]\\s*\\)`, 'g'), (m, imp) => {
+      const resolved = imp.endsWith('.js') || imp.endsWith('.ts') || imp.endsWith('.json') ? imp : imp + '.js';
+      return `import('${relToDist}/${alias}/${resolved}')`;
+    });
+    updated = updated.replace(new RegExp(`import\\(\\s*['"]@\\/${alias}['"]\\s*\\)`, 'g'), `import('${relToDist}/${alias}')`);
+  };
+  ['lib', 'shared', 'store', 'services', 'utils'].forEach(dynAlias);
+
   // Rel to root points to package root. open-sse is at package root.
   const relToPkgRoot = relToRoot;
   
