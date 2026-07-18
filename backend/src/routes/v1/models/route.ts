@@ -434,15 +434,21 @@ export async function OPTIONS() {
  */
 export async function GET(req, res) {
   try {
+    // Require auth: do not publicly expose the model catalog.
+    const authHeader =
+      (req.headers && (req.headers.authorization || req.headers.Authorization)) ||
+      (typeof req.get === "function" ? req.get("authorization") : undefined);
+    if (!authHeader || !/^Bearer\s+/i.test(String(authHeader))) {
+      return res.status(401).json({
+        error: { message: "Authentication required to list models", type: "authentication_error" },
+      });
+    }
     const data = await buildModelsList([LLM_KIND]);
-    return Response.json({ object: "list", data }, {
-      headers: { "Access-Control-Allow-Origin": "*" },
-    });
+    return res.status(200).json({ object: "list", data });
   } catch (error) {
     console.log("Error fetching models:", error);
-    return Response.json(
-      { error: { message: error.message, type: "server_error" } },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      error: { message: error.message, type: "server_error" },
+    });
   }
 }
