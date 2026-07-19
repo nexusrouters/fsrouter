@@ -369,6 +369,9 @@ amp --model "{{model}}"
     configType: "custom",
     docsUrl: "https://x.ai/cli",
     defaultCommand: "grok",
+    defaultModels: [
+      { id: "x-ai/grok-build-0.1", name: "xAI: Grok Build 0.1", alias: "grok-build", defaultValue: "x-ai/grok-build-0.1" },
+    ],
     notes: [
       {
         type: "info",
