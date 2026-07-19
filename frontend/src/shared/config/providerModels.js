@@ -704,6 +704,7 @@ export const PROVIDER_MODELS = {
     { id: "grok-build", name: "Grok Build" },
     { id: "grok-4.5", name: "Grok 4.5" },
     { id: "grok-4.5-high", name: "Grok 4.5 High" },
+    { id: "grok-4.5-xhigh", name: "Grok 4.5 XHigh" },
     { id: "grok-4.5-medium", name: "Grok 4.5 Medium" },
     { id: "grok-4.5-low", name: "Grok 4.5 Low" },
     { id: "grok-4.3", name: "Grok 4.3 (Recommended)" },

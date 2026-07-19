@@ -370,7 +370,12 @@ amp --model "{{model}}"
     docsUrl: "https://x.ai/cli",
     defaultCommand: "grok",
     defaultModels: [
-      { id: "x-ai/grok-build-0.1", name: "xAI: Grok Build 0.1", alias: "grok-build", defaultValue: "x-ai/grok-build-0.1" },
+      { id: "grok-build", name: "Grok Build", alias: "grok-build", defaultValue: "grok-build" },
+      { id: "grok-4.5", name: "Grok 4.5", alias: "grok-4.5", defaultValue: "grok-4.5" },
+      { id: "grok-4.5-high", name: "Grok 4.5 High", alias: "grok-4.5-high", defaultValue: "grok-4.5-high" },
+      { id: "grok-4.5-xhigh", name: "Grok 4.5 XHigh", alias: "grok-4.5-xhigh", defaultValue: "grok-4.5-xhigh" },
+      { id: "grok-4.5-medium", name: "Grok 4.5 Medium", alias: "grok-4.5-medium", defaultValue: "grok-4.5-medium" },
+      { id: "grok-4.5-low", name: "Grok 4.5 Low", alias: "grok-4.5-low", defaultValue: "grok-4.5-low" },
     ],
     notes: [
       {
