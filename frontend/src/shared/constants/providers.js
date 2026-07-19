@@ -12,8 +12,7 @@ export const FREE_PROVIDERS = {
   qoder: { id: "qoder", alias: "qd", name: "Qoder", icon: "water_drop", color: "#EC4899", deprecated: true, deprecationNotice: RISK_NOTICE, website: "https://qoder.com", notice: { signupUrl: "https://qoder.com" } },
   // iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1", website: "https://iflow.cn", notice: { signupUrl: "https://iflow.cn" } },
   opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
-  "grok-cli": { id: "grok-cli", alias: "gcli", name: "Grok CLI (Free)", icon: "terminal", color: "#1DA1F2", textIcon: "G4", website: "https://x.ai/cli", notice: { text: "Free Grok 4.5 via CLI proxy. Run `grok login --device-auth` then paste the session token, or run `grok login` on this machine.", signupUrl: "https://x.ai/cli" }, serviceKinds: ["llm"] },
-  "grok-build": { id: "grok-build", alias: "gbuild", name: "Grok Build", icon: "terminal", color: "#1DA1F2", textIcon: "GB", website: "https://x.ai/cli", notice: { text: "xAI Grok Build TUI coding agent. Uses ~/.grok/config.toml — FSRouter routes it through the grok-cli provider (gcli).", signupUrl: "https://x.ai/cli" }, serviceKinds: ["llm"] },
+  "grok-cli": { id: "grok-cli", alias: "gcli", name: "Grok CLI (Grok Build)", icon: "terminal", color: "#1DA1F2", textIcon: "G4", website: "https://x.ai/cli", notice: { text: "Free Grok 4.5 via CLI proxy. Run `grok login --device-auth` then paste the session token, or run `grok login` on this machine.", signupUrl: "https://x.ai/cli" }, serviceKinds: ["llm"] },
 };
 
 // Free Tier Providers (has free access but may require account/API key)
