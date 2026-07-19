@@ -289,6 +289,8 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "qwen",
   "kilocode",
   "cline",
+  "nous-research",
+  "grok-cli",
 ];
 
 // Subset that uses apikey auth (still surfaced on quota page)
