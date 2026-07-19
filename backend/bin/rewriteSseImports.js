@@ -19,8 +19,8 @@ function rewrite(file) {
   const prefix = "../".repeat(depth) + "dist/";
 
   // Rewrite bare `open-sse/...` specifiers (side-effect or from) to depth-correct
-  // relative paths so the published package resolves them without node_modules/open-sse.
-  const ssePrefix = "../".repeat(depth) + "open-sse/";
+  // relative paths pointing to dist/open-sse so the compiled code resolves correctly.
+  const ssePrefix = "../".repeat(depth) + "dist/open-sse/";
   content = content
     .replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
