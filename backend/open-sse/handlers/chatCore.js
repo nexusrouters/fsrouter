@@ -8,7 +8,7 @@ import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
-import { getProxyPoolById } from "../../models/index.js";
+import { getProxyPoolById } from '../../dist/models/index.js';
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
