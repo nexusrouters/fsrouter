@@ -1147,9 +1147,18 @@ const PROVIDERS = {
     config: KIMI_CODING_CONFIG,
     flowType: "device_code",
     requestDeviceCode: async (config) => {
+      const deviceId = `kimi-${Date.now()}`;
+      const headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        "X-Msh-Platform": "9router",
+        "X-Msh-Version": "2.1.2",
+        "X-Msh-Device-Model": typeof process !== "undefined" ? `${process.platform} ${process.arch}` : "unknown",
+        "X-Msh-Device-Id": deviceId,
+      };
       const response = await fetch(config.deviceCodeUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        headers,
         body: new URLSearchParams({ client_id: config.clientId }),
       });
       if (!response.ok) {
@@ -1157,21 +1166,32 @@ const PROVIDERS = {
         throw new Error(`Device code request failed: ${error}`);
       }
       const data = await response.json();
+      const authorizeDeviceUrl = config.authorizeDeviceUrl || "https://www.kimi.com/code/authorize_device";
       return {
         device_code: data.device_code,
         user_code: data.user_code,
-        verification_uri: data.verification_uri || "https://www.kimi.com/code/authorize_device",
+        verification_uri: data.verification_uri || authorizeDeviceUrl,
         verification_uri_complete:
           data.verification_uri_complete ||
-          `https://www.kimi.com/code/authorize_device?user_code=${data.user_code}`,
+          `${authorizeDeviceUrl}?user_code=${data.user_code}`,
         expires_in: data.expires_in,
         interval: data.interval || 5,
+        _kimiDeviceId: deviceId,
       };
     },
-    pollToken: async (config, deviceCode) => {
+    pollToken: async (config, deviceCode, _codeVerifier, extraData) => {
+      const deviceId = extraData?._kimiDeviceId;
+      const headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        "X-Msh-Platform": "9router",
+        "X-Msh-Version": "2.1.2",
+        "X-Msh-Device-Model": typeof process !== "undefined" ? `${process.platform} ${process.arch}` : "unknown",
+        "X-Msh-Device-Id": deviceId,
+      };
       const response = await fetch(config.tokenUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        headers,
         body: new URLSearchParams({
           grant_type: "urn:ietf:params:oauth:grant-type:device_code",
           client_id: config.clientId,

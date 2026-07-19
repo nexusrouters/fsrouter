@@ -5,6 +5,7 @@ import { AI_PROVIDERS } from "@/shared/constants/providers";
 
 export default function ProviderIcon({
   src,
+  providerId,
   alt,
   size = 32,
   className = "",
@@ -14,10 +15,12 @@ export default function ProviderIcon({
   const [errored, setErrored] = useState(false);
 
   let resolvedSrc = src;
-  if (src && src.startsWith("/providers/") && src.endsWith(".png")) {
-    const providerId = src.substring(11, src.length - 4);
-    if (AI_PROVIDERS[providerId]?.logo) {
-      resolvedSrc = AI_PROVIDERS[providerId].logo;
+  if (providerId && AI_PROVIDERS[providerId]?.logo) {
+    resolvedSrc = AI_PROVIDERS[providerId].logo;
+  } else if (src && src.startsWith("/providers/") && src.endsWith(".png")) {
+    const id = src.substring(11, src.length - 4);
+    if (AI_PROVIDERS[id]?.logo) {
+      resolvedSrc = AI_PROVIDERS[id].logo;
     }
   }
 
@@ -44,6 +47,8 @@ export default function ProviderIcon({
       width={size}
       height={size}
       className={className}
+      loading="lazy"
+      decoding="async"
       onError={() => setErrored(true)}
     />
   );

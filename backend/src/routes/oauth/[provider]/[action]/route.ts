@@ -293,7 +293,8 @@ export async function POST_handler(req, res, { params }) {
       const noPkceProviders = ["github", "kimi-coding", "kilocode", "codebuddy"];
       let result;
       if (noPkceProviders.includes(provider)) {
-        result = await pollForToken(provider, deviceCode);
+        // kimi-coding needs extraData._kimiDeviceId for stable X-Msh-Device-Id (CLIProxyAPI parity)
+        result = await pollForToken(provider, deviceCode, null, extraData);
       } else if (provider === "kiro") {
         // Kiro needs extraData (clientId, clientSecret) from device code response
         result = await pollForToken(provider, deviceCode, null, extraData);
