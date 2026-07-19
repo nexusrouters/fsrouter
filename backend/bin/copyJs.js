@@ -61,20 +61,18 @@ function rewriteImports(content, filePath, isJsCopy = false) {
   };
   ['lib', 'shared', 'store', 'services', 'utils', 'models'].forEach(dynAlias);
 
-  // Rel to root points to package root. open-sse is at package root.
-  const relToPkgRoot = relToRoot;
-  
+  // Rel to dist points to dist root. open-sse is compiled inside dist/open-sse.
   updated = updated.replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
-    return `from '${relToPkgRoot}/open-sse/${impPath}'`;
+    return `from '${relToDist}/open-sse/${impPath}'`;
   });
   updated = updated.replace(/from\s+['"]open-sse['"]/g, (m) => {
-    return `from '${relToPkgRoot}/open-sse/index.js'`;
+    return `from '${relToDist}/open-sse/index.js'`;
   });
   updated = updated.replace(/import\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
-    return `import '${relToPkgRoot}/open-sse/${impPath}'`;
+    return `import '${relToDist}/open-sse/${impPath}'`;
   });
   updated = updated.replace(/import\s+['"]open-sse['"]/g, (m) => {
-    return `import '${relToPkgRoot}/open-sse/index.js'`;
+    return `import '${relToDist}/open-sse/index.js'`;
   });
 
   // 3. Fix local relative imports that mistakenly double dist
