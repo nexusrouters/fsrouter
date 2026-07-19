@@ -707,6 +707,9 @@ export const PROVIDER_MODELS = {
     { id: "grok-4-0709", name: "Grok 4" },
     { id: "grok-3-mini", name: "Grok 3 Mini" },
   ],
+  "grok-build": [
+    { id: "x-ai/grok-build-0.1", name: "xAI: Grok Build 0.1" },
+  ],
   "perplexity-web": [
     { id: "pplx-auto", name: "Perplexity Auto (Free)" },
     { id: "pplx-sonar", name: "Perplexity Sonar" },
