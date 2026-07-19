@@ -56,14 +56,6 @@ function rewrite(file) {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `from '${prefix}services/${resolved}'`;
     })
-    .replace(/from\s+['"]@\/models\/([^'"]+)['"]/g, (m, imp) => {
-      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `from '${prefix}models/${resolved}'`;
-    })
-    .replace(/import\s+['"]@\/models\/([^'"]+)['"]/g, (m, imp) => {
-      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
-      return `import '${prefix}models/${resolved}'`;
-    })
     .replace(/import\s+['"]@\/lib\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `import '${prefix}lib/${resolved}'`;

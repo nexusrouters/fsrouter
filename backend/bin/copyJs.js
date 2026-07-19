@@ -39,6 +39,15 @@ function rewriteImports(content, filePath, isJsCopy = false) {
   updated = updated.replace(/from\s+['"]@\/services\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/services/${impPath}'`);
   updated = updated.replace(/require\(['"]@\/services\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/services/${impPath}')`);
 
+  updated = updated.replace(/from\s+['"]@\/models\/([^'"]+)['"]/g, (m, impPath) => {
+    let resolved = impPath;
+    if (!resolved.endsWith('.js') && !resolved.endsWith('.ts') && !resolved.endsWith('.json')) {
+      resolved += '.js';
+    }
+    return `from '${relToDist}/models/${resolved}'`;
+  });
+  updated = updated.replace(/require\(['"]@\/models\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/models/${impPath}')`);
+
   updated = updated.replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/utils/${impPath}'`);
   updated = updated.replace(/require\(['"]@\/utils\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/utils/${impPath}')`);
 
@@ -50,7 +59,7 @@ function rewriteImports(content, filePath, isJsCopy = false) {
     });
     updated = updated.replace(new RegExp(`import\\(\\s*['"]@\\/${alias}['"]\\s*\\)`, 'g'), `import('${relToDist}/${alias}')`);
   };
-  ['lib', 'shared', 'store', 'services', 'utils'].forEach(dynAlias);
+  ['lib', 'shared', 'store', 'services', 'utils', 'models'].forEach(dynAlias);
 
   // Rel to root points to package root. open-sse is at package root.
   const relToPkgRoot = relToRoot;
