@@ -342,28 +342,45 @@ def main():
                 code_el.fill(otp_val)
             except Exception:
                 pass
-            time.sleep(1)
+            time.sleep(3) # Wait for React hydration
             
             # Click "Confirm email" button specifically
             log_step("Klik tombol Confirm email...")
             try:
                 page.evaluate("""() => {
-                    const btns = Array.from(document.querySelectorAll('button'));
-                    const confirmBtn = btns.find(b => b.textContent.trim().toLowerCase().includes('confirm email') || b.textContent.trim().toLowerCase().includes('verify'));
-                    if (confirmBtn) {
-                        confirmBtn.focus();
-                        confirmBtn.click();
-                    }
+                    const findAndClick = () => {
+                        const elements = Array.from(document.querySelectorAll('button, div, span'));
+                        const btn = elements.find(el => {
+                            const txt = el.textContent.trim().toLowerCase();
+                            return (txt === 'confirm email' || txt === 'verify') && el.offsetHeight > 0;
+                        });
+                        if (btn) {
+                            btn.focus();
+                            // Dispatch standard click
+                            btn.click();
+                            // Also dispatch mouse events just in case
+                            const clickEvent = new MouseEvent('click', {
+                                view: window,
+                                bubbles: true,
+                                cancelable: true
+                            });
+                            btn.dispatchEvent(clickEvent);
+                            return true;
+                        }
+                        return false;
+                    };
+                    findAndClick();
                 }""")
-            except Exception:
+            except Exception as e:
+                log_step(f"Warning: JS Click failed: {e}")
                 pass
                 
-            confirm_btn = page.locator("button:has-text('Confirm email'), button:has-text('Verify')").first
-            if confirm_btn.is_visible(timeout=2000):
-                try:
-                    confirm_btn.click(force=True)
-                except Exception:
-                    pass
+            time.sleep(1)
+            try:
+                confirm_btn = page.locator("button:has-text('Confirm email'), button:has-text('Verify')").last
+                confirm_btn.click(force=True, timeout=3000)
+            except Exception:
+                pass
                 
             # Step 2C: Complete Profile / Set Password (Step 3 of Form)
             log_step("Menunggu form pengisian password / profile baru...")
