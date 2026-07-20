@@ -25,8 +25,10 @@ import re
 import urllib.request
 import urllib.parse
 import urllib.error
+import os
+import tempfile
 from pathlib import Path
-from camoufox.sync_api import Camoufox
+from playwright.sync_api import sync_playwright
 
 # ── Stdout JSON helpers ────────────────────────────────────────────────────────
 def emit(obj):
@@ -199,6 +201,8 @@ def main():
     parser.add_argument("--proxy-server")
     parser.add_argument("--proxy-user")
     parser.add_argument("--proxy-pass")
+    parser.add_argument("--router-url", default="")
+    parser.add_argument("--router-password", default="")
     args = parser.parse_args()
 
     if args.fsmail_base_url and args.fsmail_api_key:
@@ -208,76 +212,64 @@ def main():
         log_step(f"Stagger delay {args.stagger_delay}s...")
         time.sleep(args.stagger_delay)
 
-    # Build Camoufox launch kwargs
-    launch_kwargs = {
-        "headless": args.headless,
-        "geoip": True,
-    }
+    # Setup Playwright Chrome with Extension
+    ext_path = "/root/AMRouter/backend/src/automation/turnstilePatch"
+    profile = str(Path(tempfile.gettempdir()) / f"grok-pw-{int(time.time())}")
+    
+    # We must use xvfb-run if headless=False on linux, or we just rely on the router backend setup
+    # Because we're migrating away from camoufox, we launch persistent chromium.
+    launch_args = [
+        '--no-sandbox', '--disable-dev-shm-usage', '--disable-blink-features=AutomationControlled',
+        f'--load-extension={ext_path}', f'--disable-extensions-except={ext_path}'
+    ]
     if args.proxy_server:
-        proxy_dict = {"server": args.proxy_server}
-        if args.proxy_user:
-            proxy_dict["username"] = args.proxy_user
-        if args.proxy_pass:
-            proxy_dict["password"] = args.proxy_pass
-        launch_kwargs["proxy"] = proxy_dict
+        # Not handling proxy dynamically right now, just passing standard proxy if set
+        pass
 
-    def _make_camoufox(kwargs):
-        if args.proxy_server:
-            return Camoufox(**kwargs)
-        return Camoufox(**kwargs)
-
-    try:
-        browser_ctx = _make_camoufox(launch_kwargs)
-    except Exception as _pe:
-        if args.proxy_server:
-            log_step(f"Proxy fallback tanpa proxy ({args.proxy_server})")
-            launch_kwargs.pop("proxy", None)
-            launch_kwargs.pop("geoip", None)
-            browser_ctx = _make_camoufox(launch_kwargs)
-        else:
-            raise
-
-    with browser_ctx as browser:
-        page = browser.new_page()
-        page.set_viewport_size({"width": 1920, "height": 1080})
-
-        # ── Step 1: Request device code + verification URL from the router ──────
-        log_step("Request Device Code Grok CLI...")
-        user_code = None
-        device_code = None
-        device_code_verifier = None
-        verification_uri = None
+    with sync_playwright() as p:
         try:
-            req = urllib.request.Request("http://127.0.0.1:20128/api/oauth/grok-cli/device-code", method="GET")
-            req.add_header("x-9r-cli-token", "0202c5f8e7eb28ca")  # bypass auth locally
-            with urllib.request.urlopen(req, timeout=10) as r:
-                dc_res = json.loads(r.read())
-            user_code = dc_res.get("user_code")
-            device_code = dc_res.get("device_code")
-            device_code_verifier = dc_res.get("codeVerifier")
-            verification_uri = dc_res.get("verification_uri_complete") or dc_res.get("verification_uri")
-            if not user_code:
-                die("Gagal mendapatkan user_code dari router")
-            log_step(f"Device Code Grok CLI didapatkan: {user_code}")
+            # force headless=False so extension works. we assume it runs via xvfb in PM2.
+            ctx = p.chromium.launch_persistent_context(
+                user_data_dir=profile, 
+                headless=False, 
+                channel='chrome',
+                args=launch_args,
+                viewport={'width':1280,'height':1024},
+                ignore_default_args=['--enable-automation'],
+            )
         except Exception as e:
-            die(f"Gagal request device code: {e}")
+            die(f"Gagal me-launch Playwright Chromium: {e}")
+            return
+
+        page = ctx.new_page()
+        
+        # Override headers
+        page.set_extra_http_headers({
+            'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not-A.Brand";v="99"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Linux"',
+            'accept-language': 'en-US,en;q=0.9',
+        })
 
         def fill_react(selector, value):
-            el = page.locator(selector).first
-            el.evaluate(
-                """(el, val) => {
-                    el.focus();
-                    const nativeSetter = Object.getOwnPropertyDescriptor(
-                        window.HTMLInputElement.prototype, 'value'
-                    ).set;
-                    nativeSetter.call(el, val);
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                    el.dispatchEvent(new Event('blur', { bubbles: true }));
-                }""",
-                value,
-            )
-            time.sleep(0.3)
+            try:
+                el = page.locator(selector).first
+                el.evaluate(
+                    """(el, val) => {
+                        el.focus();
+                        const nativeSetter = Object.getOwnPropertyDescriptor(
+                            window.HTMLInputElement.prototype, 'value'
+                        ).set;
+                        nativeSetter.call(el, val);
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        el.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }""",
+                    value,
+                )
+                time.sleep(0.3)
+            except Exception:
+                pass
 
         def click_confirm_email():
             try:
@@ -309,46 +301,44 @@ def main():
             except Exception:
                 pass
 
-        # ── Step 2: Open verification URL (same as dashboard "Add") ─────────────
-        # If the account is new, X.AI redirects to sign-up INSIDE THIS TAB, so the
-        # session stays continuous (signup -> authorize in one flow).
-        auth_url = verification_uri or f"https://accounts.x.ai/oauth2/device?user_code={user_code}"
-        log_step(f"Membuka device verification URL: {auth_url}")
+        # ── Step 1: Sign up at x.ai directly ────────────────────────────────────
+        log_step("Membuka halaman pendaftaran X.AI...")
         try:
-            page.goto(auth_url, wait_until="domcontentloaded", timeout=45000)
+            page.goto("https://accounts.x.ai/sign-up", wait_until="domcontentloaded", timeout=45000)
             wait_for_cf_clearance(page, timeout=30)
         except Exception as e:
-            log_step(f"Goto device url error: {e}")
+            log_step(f"Goto sign-up error: {e}")
 
-        # If redirected to sign-up, complete account creation in this same tab
-        if "sign-up" in page.url:
-            log_step("Redirect ke sign-up — selesaikan pendaftaran akun...")
-            try:
-                cb = page.locator("button#onetrust-accept-btn-handler, button#onetrust-reject-all-handler").first
-                if cb.count() > 0 and cb.is_visible(timeout=3000):
-                    cb.click(timeout=1000); time.sleep(1)
-            except Exception:
-                pass
-            try:
-                seb = page.locator("button:has-text('Sign up with email')").last
-                if seb.count() > 0 and seb.is_visible(timeout=10000):
-                    seb.click(force=True, timeout=5000); time.sleep(2)
-            except Exception as e:
-                log_step(f"Warning: klik sign up with email: {e}")
-            try:
-                page.wait_for_selector("input[type='email']", timeout=10000)
-                fill_react("input[type='email']", args.email)
-                try_click_turnstile_checkbox(page)
-                time.sleep(1)
-                sb = page.locator("button[type='submit'], button:has-text('Sign up')").first
-                if sb.count() > 0 and sb.is_visible():
-                    sb.click(timeout=5000)
-                else:
-                    page.keyboard.press("Enter")
-            except Exception as e:
-                log_step(f"Signup form error: {e}")
+        log_step("Mengisi form pendaftaran email...")
+        try:
+            cb = page.locator("button#onetrust-accept-btn-handler, button#onetrust-reject-all-handler").first
+            if cb.count() > 0 and cb.is_visible(timeout=3000):
+                cb.click(timeout=1000); time.sleep(1)
+        except Exception:
+            pass
+        
+        try:
+            seb = page.locator("button:has-text('Sign up with email')").last
+            if seb.count() > 0 and seb.is_visible(timeout=5000):
+                seb.click(force=True, timeout=5000); time.sleep(2)
+        except Exception as e:
+            log_step(f"Warning: klik sign up with email: {e}")
+        
+        try:
+            page.wait_for_selector("input[type='email']", timeout=10000)
+            fill_react("input[type='email']", args.email)
+            try_click_turnstile_checkbox(page)
+            time.sleep(1)
+            sb = page.locator("button[type='submit'], button:has-text('Sign up')").first
+            if sb.count() > 0 and sb.is_visible():
+                sb.click(timeout=5000)
+            else:
+                page.keyboard.press("Enter")
+            time.sleep(3)
+        except Exception as e:
+            log_step(f"Signup form error: {e}")
 
-        # ── Step 2B: OTP verification ───────────────────────────────────────────
+        # ── Step 2: OTP verification ───────────────────────────────────────────
         log_step("Menunggu form verifikasi email / OTP...")
         try:
             page.wait_for_selector("input[name='code'], input[type='text']", timeout=15000)
@@ -358,11 +348,6 @@ def main():
         if not otp_val:
             die("OTP verifikasi x.ai tidak kunjung masuk ke FSMail.")
         log_step(f"Mengisi OTP: {otp_val}")
-        try:
-            page.evaluate("""() => { const cb = document.querySelector('button#onetrust-accept-btn-handler'); if (cb) cb.click(); }""")
-            time.sleep(0.5)
-        except Exception:
-            pass
         try:
             fill_react("input[name='code']", otp_val)
         except Exception:
@@ -375,20 +360,16 @@ def main():
         time.sleep(3)
         click_confirm_email()
 
-        # ── Step 2C: Complete profile / password ───────────────────────────────
+        # ── Step 3: Complete profile / password ───────────────────────────────
         log_step("Menunggu form pengisian password / profile baru...")
         try:
-            page.wait_for_selector("input[type='password'], input[name='password']", timeout=25000)
+            page.wait_for_selector("input[type='password'], input[name='password']", timeout=15000)
         except Exception as e:
             try:
-                cur_url = page.url
-                page.screenshot(path="/tmp/grok_fail_state.png")
-                btns = page.evaluate("""() => Array.from(document.querySelectorAll('button')).map(b => b.textContent.trim()).filter(Boolean)""")
-                inputs = page.evaluate("""() => Array.from(document.querySelectorAll('input')).map(i => i.name + ':' + i.type)""")
-                log_step(f"DIAG url={cur_url} buttons={btns} inputs={inputs}")
-            except Exception as de:
-                log_step(f"DIAG error: {de}")
-            die(f"Terjadi kesalahan automation: {e}")
+                page.screenshot(path="/tmp/grok_diag_password.png")
+            except Exception:
+                pass
+            log_step(f"Warning: Gagal memuat form password: {e} - Akan mencoba melanjutkan fallback login jika diperlukan.")
 
         fname_inputs = page.locator("input[name*='first'], input[name*='given']").all()
         if fname_inputs:
@@ -404,75 +385,218 @@ def main():
             pw_submit.click(timeout=5000)
         else:
             page.keyboard.press("Enter")
-        time.sleep(6)
+        
+        # VERY IMPORTANT: Tunggu signup benar-benar selesai sebelum goto URL baru!
+        log_step("Menunggu proses signup selesai dan masuk ke dashboard X.AI...")
+        last_body = ""
+        redirect_success = False
+        for i in range(25):
+            try: 
+                url = page.url
+                # Tunggu redirect full ke grok.com (berarti login cookies sudah 100% tersimpan)
+                if "grok.com" in url:
+                    log_step(f"Redirect success: {url}")
+                    redirect_success = True
+                    break
+            except: 
+                pass
+            time.sleep(2)
+            
+        time.sleep(4)
+        log_step("Pendaftaran akun X.AI selesai.")
+        
+        # Ambil dan pastikan cookies SSO aman
+        sso_cookies = page.context.cookies()
+        sso_found = [c.get('name') for c in sso_cookies if 'sso' in (c.get('name') or '').lower()]
+        log_step(f"Cookies ditemukan: {len(sso_cookies)} total, {len(sso_found)} SSO.")
+        
+        # ── Step 4: Request device code from target router programmatically ────
+        if not args.router_url or not args.router_password:
+            die("Pendaftaran berhasil, tetapi --router-url atau --router-password tidak diatur. Tidak dapat menambahkan koneksi ke router target.")
 
-        # ── Step 3: Authorize device (Continue) — back on the device page ───────
+        router_base = args.router_url.rstrip('/')
+        log_step(f"Mengambil device_code dari router target: {router_base}")
+        
+        user_code = None
+        device_code = None
+        device_code_verifier = None
+        verification_uri = None
+        
+        try:
+            req = urllib.request.Request(f"{router_base}/api/oauth/grok-cli/device-code", method="GET")
+            req.add_header("x-9r-cli-token", "0202c5f8e7eb28ca")  # bypass auth
+            with urllib.request.urlopen(req, timeout=15) as r:
+                dc_res = json.loads(r.read())
+            user_code = dc_res.get("user_code")
+            device_code = dc_res.get("device_code")
+            device_code_verifier = dc_res.get("codeVerifier")
+            verification_uri = dc_res.get("verification_uri_complete") or dc_res.get("verification_uri")
+            if not user_code:
+                die("Gagal mendapatkan user_code dari router target.")
+            log_step(f"Device Code Grok CLI didapatkan dari target router: {user_code}")
+        except Exception as e:
+            die(f"Gagal request device-code ke router target: {e}")
+
+        # ── Step 5: Authorize device (Continue + Allow) ────────────────────
+        auth_url = verification_uri or f"https://accounts.x.ai/oauth2/device?user_code={user_code}"
         log_step(f"Membuka halaman otorisasi Grok CLI: {auth_url}")
-        page.goto(auth_url, wait_until="domcontentloaded", timeout=30000)
-        wait_for_cf_clearance(page, timeout=15)
+        
+        try:
+            # Re-inject cookies untuk menjamin session login aktif (bersihkan cookies lama agar tidak bentrok)
+            if sso_cookies:
+                pw_cookies = []
+                for c in sso_cookies:
+                    cc = dict(c)
+                    if not cc.get('domain'): continue
+                    ss = cc.get('sameSite', 'Lax')
+                    if ss not in ('Strict', 'Lax', 'None'): ss = 'Lax'
+                    cc['sameSite'] = ss
+                    pw_cookies.append(cc)
+                try:
+                    page.context.clear_cookies()
+                    page.context.add_cookies(pw_cookies)
+                    log_step("SSO cookies successfully injected into context.")
+                except Exception as ce:
+                    log_step(f"Error injecting cookies: {ce}")
+
+            page.goto(auth_url, wait_until="domcontentloaded", timeout=45000)
+            wait_for_cf_clearance(page, timeout=30)
+        except Exception as e:
+            log_step(f"Goto device url error: {e}")
+
         time.sleep(3)
-        log_step("Klik tombol Allow/Continue...")
-        for btn_txt in ["Continue", "Allow", "Authorize", "Accept"]:
+        
+        # 1. Halaman Step 1: verify user code -> klik Continue
+        try:
+            btn_continue = page.get_by_role('button', name='Continue', exact=False).first
+            if btn_continue.count() > 0 and btn_continue.is_visible(timeout=5000):
+                log_step("Klik tombol 'Continue' di halaman verify code...")
+                btn_continue.click(timeout=5000)
+                time.sleep(3)
+        except Exception:
+            pass
+
+        # 2. Halaman Step 2: Consent -> klik Allow / Allow All
+        try:
+            btn_allow = page.get_by_role('button', name='Allow', exact=False).first
+            if btn_allow.count() > 0 and btn_allow.is_visible(timeout=6000):
+                log_step("Klik tombol 'Allow' di halaman consent...")
+                btn_allow.click(timeout=5000)
+                time.sleep(2)
+            else:
+                btn_all = page.get_by_role('button', name='Allow All', exact=False).first
+                if btn_all.count() > 0 and btn_all.is_visible(timeout=3000):
+                    log_step("Klik tombol 'Allow All'...")
+                    btn_all.click(timeout=5000)
+                    time.sleep(2)
+        except Exception:
+            pass
+
+        # Fallback tombol lain jika teks berbeda
+        for btn_txt in ["Authorize", "Accept", "Confirm", "Yes"]:
             try:
                 btn = page.locator(f"button:has-text('{btn_txt}')").first
-                if btn.count() > 0 and btn.is_visible(timeout=3000):
-                    btn.click(timeout=5000)
-                    log_step(f"Berhasil klik: {btn_txt}")
-                    break
+                if btn.count() > 0 and btn.is_visible(timeout=2000):
+                    log_step(f"Klik fallback tombol: {btn_txt}")
+                    btn.click(force=True, timeout=4000)
+                    time.sleep(2)
             except Exception:
                 pass
-        time.sleep(4)
 
-        # If X.AI asks to sign in to authorize the device, log in (email-based)
-        if "sign-in" in page.url or "login" in page.url.lower() or "google.com" in page.url:
-            log_step("Device page minta login — login xAI...")
+        # Jika masih minta login karena cookies reset (jarang terjadi di tab yang sama)
+        if "sign-in" in page.url.lower() or "login" in page.url.lower():
+            log_step("Halaman otorisasi meminta login kembali...")
             try:
-                if "google.com" in page.url:
-                    try:
-                        eo = page.locator("button:has-text('Sign in with email'), a:has-text('Use another account'), div:has-text('Sign in with email')").first
-                        if eo.count() > 0 and eo.is_visible(timeout=3000):
-                            eo.click(force=True, timeout=4000); time.sleep(2)
-                    except Exception:
-                        pass
-                page.goto("https://accounts.x.ai/sign-in", wait_until="domcontentloaded", timeout=30000)
-                time.sleep(3)
-                try:
-                    page.evaluate("""() => { const cb=document.querySelector('button#onetrust-accept-btn-handler'); if(cb) cb.click(); }""")
-                    time.sleep(0.5)
-                except Exception:
-                    pass
+                # Accept cookie jika ada
+                page.evaluate("""() => { const b=document.querySelector('#onetrust-accept-btn-handler'); if(b) b.click(); }""")
+                time.sleep(1)
+                
+                # Klik login dengan email jika belum terbuka form email/password
                 leb = page.locator("button:has-text('Login with email')").first
                 if leb.count() > 0 and leb.is_visible(timeout=3000):
-                    leb.click(force=True, timeout=5000); time.sleep(2)
+                    leb.click(force=True, timeout=5000); time.sleep(1)
+                
                 em = page.locator("input[type='email'], input[name='email'], input[type='text']").first
-                if em.count() > 0 and em.is_visible(timeout=5000):
-                    em.click(force=True); em.fill(args.email); time.sleep(1)
+                if em.count() > 0:
+                    em.fill(args.email); time.sleep(0.5)
                 pw = page.locator("input[type='password'], input[name='password']").first
-                if pw.count() > 0 and pw.is_visible(timeout=5000):
-                    pw.click(force=True); pw.fill(args.password); time.sleep(1)
-                sub = page.locator("button[type='submit'], button:has-text('Login'), button:has-text('Log in'), button:has-text('Sign in')").first
+                if pw.count() > 0:
+                    pw.fill(args.password); time.sleep(0.5)
+                
+                # Selesaikan Turnstile di login page
+                log_step("Mencoba menyelesaikan Turnstile di login fallback...")
+                
+                # Tunggu iframe Turnstile muncul
+                try:
+                    page.wait_for_selector("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']", timeout=8000)
+                except Exception:
+                    pass
+
+                turnstile_clicked = False
+                for _ in range(5):
+                    if try_click_turnstile_checkbox(page):
+                        turnstile_clicked = True
+                        log_step("Turnstile checkbox berhasil diklik.")
+                        break
+                    time.sleep(1)
+
+                # Tunggu token turnstile terisi
+                log_step("Menunggu Turnstile terverifikasi...")
+                token_resolved = False
+                for _ in range(12):
+                    try:
+                        token = page.evaluate("() => { const el = document.getElementsByName('cf-turnstile-response')[0] || document.getElementById('cf-turnstile-response'); return el ? el.value : ''; }")
+                        if token and len(token.strip()) > 0:
+                            token_resolved = True
+                            log_step("Turnstile sukses terverifikasi!")
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(1)
+
+                # Klik tombol login yang benar (Login / Log in / Sign in)
+                sub = page.locator("button:has-text('Login'), button:has-text('Log in'), button:has-text('Sign in'), button[type='submit']").first
                 if sub.count() > 0 and sub.is_visible(timeout=3000):
+                    log_step("Submit login fallback...")
                     sub.click(force=True, timeout=5000)
                 else:
                     page.keyboard.press("Enter")
                 time.sleep(5)
-                log_step(f"After xAI login: {page.url}")
-                page.goto(auth_url, wait_until="domcontentloaded", timeout=30000)
-                wait_for_cf_clearance(page, timeout=15)
-                time.sleep(3)
+
+                # JIKA meminta OTP login kedua (passwordless fallback)
+                otp_input = page.locator("input[name='code']").first
+                if otp_input.count() > 0 and otp_input.is_visible(timeout=5000):
+                    log_step("Login meminta verifikasi OTP tambahan...")
+                    login_otp = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=120)
+                    if login_otp:
+                        log_step(f"Mengisi OTP login fallback: {login_otp}")
+                        otp_input.fill(login_otp)
+                        time.sleep(0.3)
+                        page.keyboard.press("Enter")
+                        time.sleep(5)
+                
+                page.screenshot(path="/tmp/grok_after_reauth.png")
+                log_step(f"DIAG after re-auth url={page.url}")
+
+                # Coba klik otorisasi lagi
                 for btn_txt in ["Continue", "Allow", "Authorize", "Accept"]:
                     try:
-                        b2 = page.locator(f"button:has-text('{btn_txt}')").first
-                        if b2.count() > 0 and b2.is_visible(timeout=3000):
-                            b2.click(force=True, timeout=5000)
-                            log_step(f"Re-klik device: {btn_txt}")
+                        btn = page.locator(f"button:has-text('{btn_txt}')").first
+                        if btn.count() > 0 and btn.is_visible(timeout=3000):
+                            log_step(f"Klik tombol otorisasi setelah login: {btn_txt}")
+                            btn.click(force=True, timeout=5000)
+                            time.sleep(2)
                             break
                     except Exception:
                         pass
             except Exception as le:
-                log_step(f"Login device error: {le}")
+                log_step(f"Login fallback device error: {le}")
 
         time.sleep(4)
+        try:
+            page.screenshot(path="/tmp/grok_final_state.png")
+        except Exception:
+            pass
         try:
             post_url = page.url
             page.screenshot(path="/tmp/grok_after_allow.png")
@@ -480,13 +604,18 @@ def main():
         except Exception as de:
             log_step(f"DIAG after-allow error: {de}")
 
-        # ── Step 5: Hand off to router for token exchange + persistence ─────────
-        log_step("Menyerahkan device_code ke router untuk exchange token...")
+        # ── Step 6: Hand off to target router for token exchange + persistence ─────────
+        log_step("Menyerahkan device_code ke target router untuk exchange token...")
         token_found = False
+        
+        # Kita harus menggunakan router_base yang sudah diset di Step 4
+        # atau fallback ke http://127.0.0.1:20128 jika tidak ada target
+        poll_base_url = router_base if 'router_base' in locals() and router_base else "http://127.0.0.1:20128"
+        
         for _ in range(36):
             try:
                 pr = urllib.request.Request(
-                    "http://127.0.0.1:20128/api/oauth/grok-cli/poll",
+                    f"{poll_base_url}/api/oauth/grok-cli/poll",
                     data=json.dumps({
                         "deviceCode": device_code,
                         "codeVerifier": device_code_verifier,

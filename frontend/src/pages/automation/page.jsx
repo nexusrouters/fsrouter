@@ -80,9 +80,12 @@ function CodeBuddyTab() {
   const [proxyModalText, setProxyModalText] = useState("");
   const [leonardoInviteLink, setLeonardoInviteLink] = useState("");
   const [codebuddy2CaptchaApiKey, setCodebuddy2CaptchaApiKey] = useState("");
+  const [grokRouterUrl, setGrokRouterUrl] = useState("");
+  const [grokRouterPassword, setGrokRouterPassword] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [openSettings, setOpenSettings] = useState({
     general: true,
+    grok: false,
     proxy: false,
   });
 
@@ -224,6 +227,8 @@ function CodeBuddyTab() {
           } catch { setProxyPool([]); }
           setLeonardoInviteLink(s.leonardo_invite_link || "");
           setCodebuddy2CaptchaApiKey(s.codebuddy_2captcha_api_key || "");
+          setGrokRouterUrl(s.grok_router_url || "");
+          setGrokRouterPassword(s.grok_router_password || "");
         }
       }
     } catch (e) {
@@ -302,7 +307,9 @@ function CodeBuddyTab() {
           proxy_enabled: proxyEnabled,
           proxy_pool: JSON.stringify(proxyPool),
           leonardo_invite_link: leonardoInviteLink,
-          codebuddy_2captcha_api_key: codebuddy2CaptchaApiKey
+          codebuddy_2captcha_api_key: codebuddy2CaptchaApiKey,
+          grok_router_url: grokRouterUrl,
+          grok_router_password: grokRouterPassword
         })
       });
       if (res.ok) {
@@ -686,9 +693,40 @@ function CodeBuddyTab() {
               )}
             </div>
 
-            {/* Leonardo & Weavy Settings Removed */}
+            {/* Grok CLI Target Settings */}
+            <div className="space-y-2">
+              {renderSectionHeader("Grok CLI Target Settings", "router", openSettings.grok || false, () => {
+                setOpenSettings(prev => ({ ...prev, grok: !prev.grok }));
+              })}
+              {openSettings.grok && (
+                <div className="pl-6 pr-2 py-2 space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-text-main">Target Router URL</span>
+                    <span className="text-[9px] text-text-muted">Masukkan IP + Port router tujuan (kosongkan untuk default localhost). Contoh: http://172.104.33.214:20266</span>
+                    <input
+                      type="text"
+                      className="w-full px-2 py-1 text-xs border rounded bg-input-bg border-border-subtle focus:outline-none focus:border-border-focus"
+                      placeholder="http://127.0.0.1:20128"
+                      value={grokRouterUrl}
+                      onChange={(e) => setGrokRouterUrl(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-text-main">Target Router Password</span>
+                    <span className="text-[9px] text-text-muted">Password login admin untuk router tujuan.</span>
+                    <input
+                      type="password"
+                      className="w-full px-2 py-1 text-xs border rounded bg-input-bg border-border-subtle focus:outline-none focus:border-border-focus"
+                      placeholder="••••••••"
+                      value={grokRouterPassword}
+                      onChange={(e) => setGrokRouterPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
-            {/* 4. Outbound Proxy Settings */}
+            {/* Outbound Proxy Settings */}
             <div className="space-y-2">
               {renderSectionHeader("Outbound Proxy Settings", "vpn_lock", openSettings.proxy, () => toggleSection("proxy"))}
               {openSettings.proxy && (

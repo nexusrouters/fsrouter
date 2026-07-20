@@ -231,7 +231,7 @@ export async function POST_handler(req, res) {
 
     // ── Action: Settings ─────────────────────────────────────────────
     if (action === "settings") {
-      const { auto_fsrouter, auto_9router, browser_headless, debug_mode, leave_canva_team, proxy_enabled, proxy_pool, leonardo_invite_link, codebuddy_2captcha_api_key } = body;
+      const { auto_fsrouter, auto_9router, browser_headless, debug_mode, leave_canva_team, proxy_enabled, proxy_pool, leonardo_invite_link, codebuddy_2captcha_api_key, grok_router_url, grok_router_password } = body;
       const updates = {};
       const effectiveAutoRouterSetting = auto_fsrouter !== undefined ? auto_fsrouter : auto_9router;
       if (effectiveAutoRouterSetting !== undefined) updates.codebuddy_auto_9router = effectiveAutoRouterSetting ? "1" : "0";
@@ -242,6 +242,8 @@ export async function POST_handler(req, res) {
       if (proxy_pool !== undefined) updates.codebuddy_proxy_pool = proxy_pool;
       if (leonardo_invite_link !== undefined) updates.leonardo_invite_link = leonardo_invite_link;
       if (codebuddy_2captcha_api_key !== undefined) updates.codebuddy_2captcha_api_key = codebuddy_2captcha_api_key;
+      if (grok_router_url !== undefined) updates.grok_router_url = grok_router_url;
+      if (grok_router_password !== undefined) updates.grok_router_password = grok_router_password;
       
       await updateSettings(updates);
       return res.json({ ok: true });
@@ -932,6 +934,15 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
           args.push(`--fsmail-api-key=${fsmailApiKey}`);
           args.push(`--fsmail-domain=${fsmailDomain}`);
         }
+        
+        // Pass router target for Grok CLI Add Connection
+        if (isGrok) {
+          const targetUrl = settings.grok_router_url || "http://127.0.0.1:20128";
+          const targetPw = settings.grok_router_password || process.env.ADMIN_PASSWORD || "";
+          if (targetUrl) args.push(`--router-url=${targetUrl}`);
+          if (targetPw) args.push(`--router-password=${targetPw}`);
+        }
+
         // Stagger browser launches
         const slotDelay = (idx % 3) * 5;
         if (slotDelay > 0) {

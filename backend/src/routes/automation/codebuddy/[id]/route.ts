@@ -177,6 +177,7 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
       const isQoder = account.provider === "qoder";
       const isCloudflare = account.provider === "cloudflare";
       const isFlashloop = account.provider === "flashloop";
+      const isGrok = account.provider === "grok-cli" || account.provider === "grok";
       if (isLeonardo && !settings.leonardo_invite_link) {
         return reject(new Error("Leonardo invite link belum di-set di Settings."));
       }
@@ -194,6 +195,8 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
         ? path.resolve(process.cwd(), "src/automation/cloudflare_signup.py")
         : isFlashloop
         ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
+        : isGrok
+        ? path.resolve(process.cwd(), "src/automation/grok_cli_signup.py")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")
@@ -207,6 +210,8 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
         ? path.resolve(process.cwd(), "profiles/cloudflare")
         : isFlashloop
         ? path.resolve(process.cwd(), "profiles/flashloop")
+        : isGrok
+        ? path.resolve(process.cwd(), "profiles/grok")
         : path.resolve(process.cwd(), "profiles/codebuddy");
 
       const args = [
@@ -239,6 +244,20 @@ function executeCodeBuddySignupSingle(accountId, jobId, settings) {
         if (captchaKey) {
           args.push(`--2captcha-key=${captchaKey}`);
         }
+      } else if (isGrok) {
+        const fsmailSettings = settings;
+        const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+        const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+        const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+        if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+          args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+          args.push(`--fsmail-api-key=${fsmailApiKey}`);
+          args.push(`--fsmail-domain=${fsmailDomain}`);
+        }
+        const targetUrl = settings.grok_router_url || "http://127.0.0.1:20128";
+        const targetPw = settings.grok_router_password || process.env.ADMIN_PASSWORD || "";
+        if (targetUrl) args.push(`--router-url=${targetUrl}`);
+        if (targetPw) args.push(`--router-password=${targetPw}`);
       } else if (isWeavy) {
         if (account.signupMethod === "google" || (account.email && (account.email.endsWith("@gmosel.com") || account.email.endsWith("@gmail.com")))) {
           args.push("--gsuite");
