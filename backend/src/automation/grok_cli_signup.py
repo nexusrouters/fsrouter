@@ -3,7 +3,7 @@
 
 Outputs JSON lines to stdout:
   {"step": "..."} — progress update
-  {"status": "success", "email": "..."} — final result
+  {"status": "success", "email": "...", "api_key": "...", "refresh_token": "...", "expires_in": ...} — final result
   {"status": "error", "error": "..."} — failure
 """
 
@@ -18,6 +18,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 from pathlib import Path
+from camoufox.sync_api import Camoufox
 
 # ── Stdout JSON helpers ────────────────────────────────────────────────────────
 def emit(obj):
@@ -25,9 +26,6 @@ def emit(obj):
 
 def log_step(msg):
     emit({"step": msg})
-
-def success(email):
-    emit({"status": "success", "email": email})
 
 def die(msg):
     emit({"status": "error", "error": msg})
@@ -75,7 +73,7 @@ def wait_for_xai_otp(base_url, api_key, email, timeout=120):
                     continue
                 seen_ids.add(msg_id)
                 subj_lower = subject.lower()
-                if "x.ai" in subj_lower or "verification" in subj_lower or "code" in subj_lower:
+                if "x.ai" in subj_lower or "verification" in subj_lower or "code" in subj_lower or "security" in subj_lower:
                     try:
                         full = fsmail_request(base_url, api_key, f"/messages/{urllib.parse.quote(msg_id)}")
                         msg_body = full.get("message", full)
@@ -172,6 +170,7 @@ def main():
     parser.add_argument("--fsmail-domain", default="")
     parser.add_argument("--profiles-dir", default="profiles/grok")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--stagger-delay", type=int, default=0)
     parser.add_argument("--proxy-server")
     parser.add_argument("--proxy-user")
     parser.add_argument("--proxy-pass")
@@ -181,8 +180,10 @@ def main():
     if args.fsmail_base_url and args.fsmail_api_key:
         create_fsmail_inbox(args.fsmail_base_url, args.fsmail_api_key, args.email)
 
-    import camoufox
-    
+    if args.stagger_delay > 0:
+        log_step(f"Stagger delay {args.stagger_delay}s...")
+        time.sleep(args.stagger_delay)
+
     proxy_dict = None
     if args.proxy_server:
         proxy_dict = {"server": args.proxy_server}
@@ -191,14 +192,42 @@ def main():
         if args.proxy_pass:
             proxy_dict["password"] = args.proxy_pass
 
-    log_step(f"Meluncurkan stealth browser (headless={args.headless})...")
-    with camoufox.Camoufox(
+    launch_kwargs = dict(
         headless=args.headless,
-        proxy=proxy_dict,
-        geoip=True,
-        enable_cache=True,
-    ) as browser:
+        os="windows",
+        locale="en-US",
+    )
+    if proxy_dict:
+        launch_kwargs["proxy"] = proxy_dict
+        launch_kwargs["geoip"] = True
+
+    def _make_camoufox(kw):
+        try:
+            return Camoufox(**kw)
+        except TypeError:
+            kw.pop("os", None)
+            try:
+                return Camoufox(**kw)
+            except TypeError:
+                kw.pop("locale", None)
+                return Camoufox(**kw)
+
+    log_step(f"Meluncurkan browser Camoufox sync (headless={args.headless})...")
+    
+    try:
+        browser_ctx = _make_camoufox(dict(launch_kwargs))
+    except Exception as _pe:
+        if proxy_dict:
+            log_step(f"Proxy fallback tanpa proxy ({proxy_dict.get('server','?')})")
+            launch_kwargs.pop("proxy", None)
+            launch_kwargs.pop("geoip", None)
+            browser_ctx = _make_camoufox(dict(launch_kwargs))
+        else:
+            raise
+
+    with browser_ctx as browser:
         page = browser.new_page()
+        page.set_viewport_size({"width": 1920, "height": 1080})
         
         # Step 1: Request Device Code for Grok CLI locally
         log_step("Request Device Code Grok CLI...")
@@ -228,47 +257,91 @@ def main():
                 page.screenshot(path="/tmp/grok_blocked.png")
                 die("Akses diblokir oleh WAF Cloudflare X.AI (Attention Required). Gunakan Proxy Residential atau daftar manual.")
             
-            # Form email & password
-            log_step("Mengisi form pendaftaran X.AI...")
-            page.wait_for_selector("input[type='email'], input[name='email']", timeout=15000)
-            page.fill("input[type='email'], input[name='email']", args.email)
-            page.fill("input[type='password'], input[name='password']", args.password)
+            # Dismiss cookie banner if exists
+            try:
+                cookie_btn = page.locator("button#onetrust-accept-btn-handler, button#onetrust-reject-all-handler").first
+                if cookie_btn.count() > 0 and cookie_btn.is_visible(timeout=3000):
+                    cookie_btn.click(timeout=1000)
+                    time.sleep(1)
+            except Exception:
+                pass
+                
+            # Click "Sign up with email"
+            try:
+                signup_email_btn = page.locator("button:has-text('Sign up with email')").first
+                if signup_email_btn.count() > 0 and signup_email_btn.is_visible(timeout=5000):
+                    signup_email_btn.click()
+                    time.sleep(1)
+            except Exception:
+                pass
+
+            # Step 2A: Fill Email (Step 1 of Form)
+            log_step("Mengisi email pendaftaran X.AI...")
+            page.wait_for_selector("input[type='email']", timeout=10000)
+            
+            def fill_react(selector, value):
+                el = page.locator(selector).first
+                el.evaluate("""
+                    (el, val) => {
+                        el.focus();
+                        const nativeSetter = Object.getOwnPropertyDescriptor(
+                            window.HTMLInputElement.prototype, 'value'
+                        ).set;
+                        nativeSetter.call(el, val);
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        el.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                """, value)
+                time.sleep(0.3)
+
+            fill_react("input[type='email']", args.email)
             
             # Turnstile checkbox in form (if any)
             try_click_turnstile_checkbox(page)
-            time.sleep(2)
+            time.sleep(1)
             
-            submit_btn = page.locator("button[type='submit'], button:has-text('Sign up'), button:has-text('Create')").first
+            # Click submit/continue (Sign up)
+            submit_btn = page.locator("button[type='submit'], button:has-text('Sign up')").first
             if submit_btn.is_visible():
-                submit_btn.click()
+                submit_btn.click(timeout=5000)
             else:
                 page.keyboard.press("Enter")
             
-            # Step 3: Verifikasi OTP
+            # Step 2B: Verifikasi OTP (Step 2 of Form)
             log_step("Menunggu form verifikasi email / OTP...")
-            otp_found = False
-            for _ in range(15):
-                if page.locator("input[name*='code'], input[type='text'], input").count() > 2:
-                    otp_found = True
-                    break
-                time.sleep(1)
-            
-            if not otp_found:
-                die("Form OTP tidak muncul setelah pendaftaran. Mungkin WAF memblokir form submission.")
+            page.wait_for_selector("input[name='code']", timeout=15000)
 
             otp_val = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=90)
             if not otp_val:
                 die("OTP verifikasi x.ai tidak kunjung masuk ke FSMail.")
             
-            # Fill OTP inputs
+            # Fill OTP
             log_step(f"Mengisi OTP: {otp_val}")
-            otp_inputs = page.locator("input[type='text']").all()
-            for idx, ch in enumerate(otp_val):
-                if idx < len(otp_inputs):
-                    otp_inputs[idx].fill(ch)
-            time.sleep(3)
+            fill_react("input[name='code']", otp_val)
+            time.sleep(1)
             
-            # Step 4: Menavigasi ke OAuth Device Authorization URL
+            # Click Verify/Continue OTP
+            otp_submit = page.locator("button[type='submit'], button:has-text('Verify'), button:has-text('Continue')").first
+            if otp_submit.is_visible():
+                otp_submit.click(timeout=5000)
+            else:
+                page.keyboard.press("Enter")
+                
+            # Step 2C: Set Password (Step 3 of Form)
+            log_step("Menunggu form pengisian password baru...")
+            page.wait_for_selector("input[type='password']", timeout=15000)
+            fill_react("input[type='password']", args.password)
+            
+            pw_submit = page.locator("button[type='submit'], button:has-text('Continue'), button:has-text('Submit')").first
+            if pw_submit.is_visible():
+                pw_submit.click(timeout=5000)
+            else:
+                page.keyboard.press("Enter")
+                
+            time.sleep(4) # Wait to log in
+            
+            # Step 3: Menavigasi ke OAuth Device Authorization URL
             auth_url = f"https://accounts.x.ai/oauth2/device?user_code={user_code}"
             log_step(f"Membuka halaman otorisasi Grok CLI: {auth_url}")
             page.goto(auth_url, wait_until="networkidle", timeout=30000)
