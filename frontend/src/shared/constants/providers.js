@@ -12,7 +12,6 @@ export const FREE_PROVIDERS = {
   qoder: { id: "qoder", alias: "qd", name: "Qoder", icon: "water_drop", color: "#EC4899", deprecated: true, deprecationNotice: RISK_NOTICE, website: "https://qoder.com", notice: { signupUrl: "https://qoder.com" } },
   // iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1", website: "https://iflow.cn", notice: { signupUrl: "https://iflow.cn" } },
   opencode: { id: "opencode", alias: "oc", name: "OpenCode Free", icon: "terminal", color: "#E87040", textIcon: "OC", noAuth: true, passthroughModels: true, modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" } },
-  "grok-cli": { id: "grok-cli", alias: "gcli", name: "Grok CLI (Grok Build)", icon: "terminal", color: "#1DA1F2", textIcon: "G4", website: "https://x.ai/cli", notice: { text: "Free Grok 4.5 via CLI proxy. Run `grok login --device-auth` then paste the session token, or run `grok login` on this machine.", signupUrl: "https://x.ai/cli" }, serviceKinds: ["llm"] },
 };
 
 // Free Tier Providers (has free access but may require account/API key)
@@ -68,6 +67,7 @@ export const OAUTH_PROVIDERS = {
   kimchi: { id: "kimchi", alias: "kimchi", name: "Kimchi", icon: "local_dining", color: "#FF6B35", textIcon: "KC", website: "https://kimchi.dev", notice: { signupUrl: "https://app.kimchi.dev" }, serviceKinds: ["llm", "webSearch", "imageToText"], authModes: ["oauth", "apikey"], hasOAuth: true, searchConfig: { baseUrl: "https://llm.kimchi.dev/v1/search", authType: "apikey", authHeader: "bearer", format: "openai", timeoutMs: 25000 } },
   "nous-research": { id: "nous-research", alias: "nous", name: "Nous Research", icon: "hub", color: "#2563EB", textIcon: "NO", website: "https://portal.nousresearch.com", notice: { text: "Free tier: 50 RPM, 500K TPM — no credit card. Sign in with your Nous Portal account (device login, no API key needed).", signupUrl: "https://portal.nousresearch.com" }, serviceKinds: ["llm"], authModes: ["oauth"], hasOAuth: true },
   // opencode: { id: "opencode", alias: "oc", name: "OpenCode", icon: "terminal", color: "#E87040", textIcon: "OC" },
+  "grok-cli": { id: "grok-cli", alias: "gcli", name: "Grok CLI (Grok Build)", icon: "terminal", color: "#1DA1F2", textIcon: "G4", website: "https://x.ai/cli", notice: { text: "Sign in with your xAI / Grok account via device code. Uses Grok Build subscription credits (cli-chat-proxy.grok.com).", signupUrl: "https://x.ai/cli" }, serviceKinds: ["llm"], authModes: ["oauth"], hasOAuth: true },
 };
 
 export const APIKEY_PROVIDERS = {
