@@ -405,10 +405,47 @@ def main():
         time.sleep(4)
         log_step("Pendaftaran akun X.AI selesai.")
         
-        # Ambil dan pastikan cookies SSO aman
+# Ambil dan pastikan cookies SSO aman
         sso_cookies = page.context.cookies()
-        sso_found = [c.get('name') for c in sso_cookies if 'sso' in (c.get('name') or '').lower()]
-        log_step(f"Cookies ditemukan: {len(sso_cookies)} total, {len(sso_found)} SSO.")
+        
+        # Duplikasikan cookies SSO ke domain .x.ai, accounts.x.ai, dan auth.x.ai agar session otorisasi tidak mental/login ulang
+        normalized_cookies = []
+        sso_names = {"sso", "sso-rw", "cf_clearance", "sso_jwt", "__cf_bm"}
+        for c in sso_cookies:
+            c_name = c.get("name") or ""
+            c_val = c.get("value")
+            if not c_name or c_val is None:
+                continue
+            
+            # Buat base cookie item
+            item: dict = {
+                "name": c_name,
+                "value": c_val,
+                "domain": c.get("domain", ".x.ai"),
+                "path": c.get("path", "/"),
+            }
+            if "expires" in c:
+                item["expires"] = c["expires"]
+            if "secure" in c:
+                item["secure"] = c["secure"]
+            if "httpOnly" in c:
+                item["httpOnly"] = c["httpOnly"]
+            if "sameSite" in c:
+                ss = c["sameSite"]
+                if ss not in ("Strict", "Lax", "None"):
+                    ss = "Lax"
+                item["sameSite"] = ss
+            normalized_cookies.append(item)
+
+            # Jika ini SSO cookie, clone ke subdomains
+            if c_name in sso_names or c_name.startswith("sso"):
+                for dom in [".x.ai", "accounts.x.ai", ".accounts.x.ai", "auth.x.ai", ".auth.x.ai"]:
+                    if dom != c.get("domain"):
+                        clone = dict(item)
+                        clone["domain"] = dom
+                        normalized_cookies.append(clone)
+
+        log_step(f"SSO cookies duplicated: {len(normalized_cookies)} items generated.")
         
         # ── Step 4: Request device code from target router programmatically ────
         if not args.router_url or not args.router_password:
@@ -442,20 +479,12 @@ def main():
         log_step(f"Membuka halaman otorisasi Grok CLI: {auth_url}")
         
         try:
-            # Re-inject cookies untuk menjamin session login aktif (bersihkan cookies lama agar tidak bentrok)
-            if sso_cookies:
-                pw_cookies = []
-                for c in sso_cookies:
-                    cc = dict(c)
-                    if not cc.get('domain'): continue
-                    ss = cc.get('sameSite', 'Lax')
-                    if ss not in ('Strict', 'Lax', 'None'): ss = 'Lax'
-                    cc['sameSite'] = ss
-                    pw_cookies.append(cc)
+            # Re-inject cookies yang sudah dinormalisasi dan diduplikasi ke subdomain x.ai
+            if normalized_cookies:
                 try:
                     page.context.clear_cookies()
-                    page.context.add_cookies(pw_cookies)
-                    log_step("SSO cookies successfully injected into context.")
+                    page.context.add_cookies(normalized_cookies)
+                    log_step("Normalized SSO cookies successfully injected into context.")
                 except Exception as ce:
                     log_step(f"Error injecting cookies: {ce}")
 
