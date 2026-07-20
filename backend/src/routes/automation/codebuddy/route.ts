@@ -681,6 +681,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
       const isCloudflare = account.provider === "cloudflare";
       const isOpenVecta = account.provider === "openvecta";
       const isFlashloop = account.provider === "flashloop";
+      const isGrok = account.provider === "grok-cli" || account.provider === "grok";
 
       // ── Cloudflare: Smart routing ─────────────────────────────────────
       // password == GAK (>=37 char or cfk_ prefix) → API-based, no browser
@@ -851,6 +852,8 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         ? path.resolve(process.cwd(), "src/automation/openvecta_signup.py")
         : isFlashloop
         ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
+        : isGrok
+        ? path.resolve(process.cwd(), "src/automation/grok_cli_signup.py")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")
@@ -866,6 +869,8 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         ? path.resolve(process.cwd(), "profiles/openvecta")
         : isFlashloop
         ? path.resolve(process.cwd(), "profiles/flashloop")
+        : isGrok
+        ? path.resolve(process.cwd(), "profiles/grok")
         : path.resolve(process.cwd(), "profiles/codebuddy");
 
       const args = [
@@ -916,7 +921,7 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
           args.push("--gsuite");
         }
         args.push("--clean");
-      } else if (isOpenVecta) {
+      } else if (isOpenVecta || isGrok) {
         // Inject Fsmail credentials so the script can verify email
         const fsmailSettings = settings;
         const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
@@ -1036,15 +1041,15 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
               if (settings.codebuddy_auto_9router === "1" || isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta) {
                 try {
                   const provider = account.provider || "codebuddy";
-                  const connData = {
+                  const connData: any = {
                     provider: provider,
-                    authType: (isLeonardo || isWeavy) ? "cookie" : (isKimi || isQoder) ? "oauth" : "apikey",
+                    authType: (isLeonardo || isWeavy) ? "cookie" : (isKimi || isQoder || isGrok) ? "oauth" : "apikey",
                     name: account.email,
                     apiKey: apiKeyToSave,
                     email: account.email,
                     priority: 1,
                     isActive: true,
-                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta || isFlashloop) ? "active" : "unknown",
+                    testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta || isFlashloop || isGrok) ? "active" : "unknown",
                   };
 
                   if (isLeonardo || isWeavy) {
@@ -1089,6 +1094,14 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
                       machineId: parsed.machine_id || "",
                       organizationId: parsed.organization_id || "",
                     };
+                  } else if (isGrok) {
+                    connData.provider = "grok-cli";
+                    connData.authType = "oauth";
+                    connData.accessToken = parsed.api_key;
+                    connData.refreshToken = parsed.refresh_token;
+                    connData.expiresAt = parsed.expires_in
+                      ? new Date(Date.now() + parsed.expires_in * 1000).toISOString()
+                      : null;
                   } else if (provider === "kiro") {
                     connData.accessToken = apiKeyToSave;
                   } else if (isOpenVecta) {

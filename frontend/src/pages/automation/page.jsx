@@ -47,6 +47,7 @@ function CodeBuddyTab() {
     weavy: "Weavy AI",
     "kimi-coding": "Kimi Coding",
     cloudflare: "Cloudflare Workers AI",
+    "grok-cli": "Grok CLI (Grok Build)",
     openvecta: "OpenVecta",
     flashloop: "Flashloop",
   };
@@ -551,7 +552,7 @@ function CodeBuddyTab() {
           <Card padding="md" className="space-y-4">
             <h2 className="text-sm font-bold text-text-main flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">person_add</span>
-            {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare") && autoGenerateEmail ? "Generate Temp Accounts" : "Add Accounts"}
+            {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "grok-cli") && autoGenerateEmail ? "Generate Temp Accounts" : "Add Accounts"}
           </h2>
           
           <div className="flex flex-col gap-1.5 pb-1">
@@ -568,13 +569,14 @@ function CodeBuddyTab() {
                 className="flex-1 text-xs p-2 rounded-lg border border-border-subtle bg-surface text-text-main focus:outline-none focus:border-primary cursor-pointer"
               >
                 <option value="cloudflare">☁️ Cloudflare Workers AI</option>
+                <option value="grok-cli">🐦 Grok CLI (Grok Build)</option>
                 <option value="openvecta">🟣 OpenVecta</option>
                 <option value="flashloop">⚡ Flashloop</option>
               </select>
             </div>
           </div>
 
-          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop") && (
+          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop" || targetProvider === "grok-cli") && (
             <div className="pt-1 border-t border-border-subtle">
               <label className="flex items-center gap-2 text-xs text-text-main cursor-pointer">
                 <input
@@ -588,7 +590,7 @@ function CodeBuddyTab() {
             </div>
           )}
 
-          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop") && autoGenerateEmail ? (
+          {(targetProvider === "leonardo" || targetProvider === "weavy" || targetProvider === "cloudflare" || targetProvider === "openvecta" || targetProvider === "flashloop" || targetProvider === "grok-cli") && autoGenerateEmail ? (
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-text-muted">Count to generate:</span>
