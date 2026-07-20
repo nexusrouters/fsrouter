@@ -162,6 +162,8 @@ export async function getFsmailClientFromSettings(timeout = 20000) {
 
 // --- OTP Extraction Helper ---
 
+// X.AI / SpaceXAI format: "SpaceXAI confirmation code: LF6-V3B" (3 alnum - 3 alnum)
+const ALNUM_DASH_CODE = /\bcode\b\s*[:#-]?\s*([A-Z0-9]{2,5}-[A-Z0-9]{2,5})\b/i;
 const LABELED_CODE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]?time\s*(?:password|code|pin)|\bOTP\b|\bPIN\b|\bcode\s*(?:is|:)|\bcode\b)\s*[:#-]?\s*([0-9]{4,8})\b/i;
 const LOOSE_DIGITS = /(?<![0-9])([0-9]{4,8})(?![0-9])/;
 const VERIFY_URL_KEYS = /\bhttps?:\/\/[^\s<>"']+(?:verify|confirm|activate|validate|signup|register|email)[^\s<>"']*/i;
@@ -187,13 +189,22 @@ export function extractOtp(text, html = "", subject = "") {
   const haystack = parts.filter(Boolean).join("\n");
 
   let code = "";
-  let labeled = LABELED_CODE.exec(haystack);
-  if (labeled) {
-    code = labeled[1];
+  // X.AI / SpaceXAI: "confirmation code: LF6-V3B" (alnum-dash). Check subject first
+  // because body HTML often contains a 4-digit year (e.g. 2026) that LOOSE_DIGITS
+  // would wrongly grab.
+  const subjectOnly = subject || "";
+  const alnumDash = ALNUM_DASH_CODE.exec(subjectOnly) || ALNUM_DASH_CODE.exec(text || "");
+  if (alnumDash) {
+    code = alnumDash[1];
   } else {
-    let loose = LOOSE_DIGITS.exec(haystack);
-    if (loose) {
-      code = loose[1];
+    let labeled = LABELED_CODE.exec(haystack);
+    if (labeled) {
+      code = labeled[1];
+    } else {
+      let loose = LOOSE_DIGITS.exec(haystack);
+      if (loose) {
+        code = loose[1];
+      }
     }
   }
 
