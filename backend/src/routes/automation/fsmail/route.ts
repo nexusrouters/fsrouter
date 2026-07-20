@@ -77,10 +77,10 @@ export async function GET_handler(req, res) {
                     const alias = inbox.alias;
                     const domain = inbox.domain;
 
-                    const { extractOtp } = await import("../../../lib/automation/fsmailClient");
+                    const { extractOtp } = await import("../../../lib/automation/fsmailClient.js");
                     const { code, verifyUrl } = extractOtp(textBody, htmlBody, subject);
 
-                    const { insertFsmailOtp } = await import("../../../lib/db");
+                    const { insertFsmailOtp } = await import("../../../lib/db/index.js");
                     await insertFsmailOtp({
                       address,
                       alias,
@@ -214,7 +214,7 @@ export async function POST_handler(req, res) {
       try {
         let testClient;
         if (base_url && api_key) {
-          const { TempMailClient } = await import("../../../lib/automation/fsmailClient");
+          const { TempMailClient } = await import("../../../lib/automation/fsmailClient.js");
           testClient = new TempMailClient(base_url, api_key);
         } else {
           const client = await getFsmailClientFromSettings();

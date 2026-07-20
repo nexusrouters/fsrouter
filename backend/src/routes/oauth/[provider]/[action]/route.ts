@@ -211,7 +211,7 @@ export async function POST_handler(req, res, { params }) {
 
       // Detect if "code" is actually a raw JWT access token (starts with eyJ)
       if (code && code.startsWith("eyJ") && code.includes(".")) {
-        const { extractCodexAccountInfo } = await import("../../../../lib/oauth/providers");
+        const { extractCodexAccountInfo } = await import("../../../../lib/oauth/providers.js");
         const info = extractCodexAccountInfo(code);
 
         // Also decode JWT directly for ChatGPT website tokens which use

@@ -245,14 +245,14 @@ const PROVIDER_MODELS_CONFIG = {
   // Custom resolvers (non-OpenAI-shaped APIs / token-refresh flows)
   codebuddy: {
     customResolver: async (connection) => {
-      const { getModelsByProviderId } = await import("../../../../shared/constants/models");
+      const { getModelsByProviderId } = await import("../../../../shared/constants/models.js");
       const models = getModelsByProviderId("codebuddy");
       return { models };
     }
   },
   cb: {
     customResolver: async (connection) => {
-      const { getModelsByProviderId } = await import("../../../../shared/constants/models");
+      const { getModelsByProviderId } = await import("../../../../shared/constants/models.js");
       const models = getModelsByProviderId("cb");
       return { models };
     }
