@@ -992,7 +992,14 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         console.error("Failed to write to automation_spawn.log:", err);
       }
 
-      const child = spawn(venvPython, args, {
+      let spawnCmd = venvPython;
+      let spawnArgs = args;
+      if (isGrok && process.platform === "linux") {
+        spawnCmd = "xvfb-run";
+        spawnArgs = ["-a", venvPython, ...args];
+      }
+
+      const child = spawn(spawnCmd, spawnArgs, {
         env: { ...process.env, DISPLAY: process.env.DISPLAY || ":1" }
       });
       if (global._codebuddyState.activeProcesses) {

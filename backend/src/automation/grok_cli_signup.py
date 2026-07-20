@@ -119,6 +119,31 @@ def wait_for_xai_otp(base_url, api_key, email, timeout=120):
         time.sleep(4)
     return None
 
+# ── Cookie banner helpers ──────────────────────────────────────────────────────
+def dismiss_cookie_banner(page):
+    try:
+        # Coba klik tombol ID OneTrust
+        page.evaluate("""() => {
+            const b = document.getElementById('onetrust-accept-btn-handler') || document.querySelector('button[id*="accept"]');
+            if (b) {
+                b.click();
+                return true;
+            }
+            // Fallback cari text accept/allow
+            const btns = Array.from(document.querySelectorAll('button'));
+            const acceptBtn = btns.find(btn => {
+                const txt = btn.textContent.toLowerCase();
+                return txt.includes('accept all') || txt.includes('accept cookies') || txt.includes('allow all');
+            });
+            if (acceptBtn) {
+                acceptBtn.click();
+                return true;
+            }
+            return false;
+        }""")
+    except Exception:
+        pass
+
 # ── Turnstile bypass ───────────────────────────────────────────────────────────
 def is_on_turnstile_page(page) -> bool:
     try:
@@ -308,6 +333,9 @@ def main():
             wait_for_cf_clearance(page, timeout=30)
         except Exception as e:
             log_step(f"Goto sign-up error: {e}")
+ 
+        time.sleep(2)
+        dismiss_cookie_banner(page)
 
         log_step("Mengisi form pendaftaran email...")
         try:
@@ -316,6 +344,7 @@ def main():
                 cb.click(timeout=1000); time.sleep(1)
         except Exception:
             pass
+        dismiss_cookie_banner(page)
         
         try:
             seb = page.locator("button:has-text('Sign up with email')").last
@@ -358,6 +387,7 @@ def main():
         except Exception:
             pass
         time.sleep(3)
+        dismiss_cookie_banner(page)
         click_confirm_email()
 
         # ── Step 3: Complete profile / password ───────────────────────────────
@@ -437,15 +467,14 @@ def main():
                 item["sameSite"] = ss
             normalized_cookies.append(item)
 
-            # Jika ini SSO cookie, clone ke subdomains
-            if c_name in sso_names or c_name.startswith("sso"):
-                for dom in [".x.ai", "accounts.x.ai", ".accounts.x.ai", "auth.x.ai", ".auth.x.ai"]:
-                    if dom != c.get("domain"):
-                        clone = dict(item)
-                        clone["domain"] = dom
-                        normalized_cookies.append(clone)
+            # Clone SEMUA cookies ke subdomain krusial agar session tidak hilang
+            for dom in [".x.ai", "accounts.x.ai", ".accounts.x.ai", "auth.x.ai", ".auth.x.ai"]:
+                if dom != c.get("domain"):
+                    clone = dict(item)
+                    clone["domain"] = dom
+                    normalized_cookies.append(clone)
 
-        log_step(f"SSO cookies duplicated: {len(normalized_cookies)} items generated.")
+        log_step(f"Semua cookies diduplikasi: {len(normalized_cookies)} items generated.")
         
         # ── Step 4: Request device code from target router programmatically ────
         if not args.router_url or not args.router_password:
