@@ -311,35 +311,63 @@ def main():
             
             # Step 2B: Verifikasi OTP (Step 2 of Form)
             log_step("Menunggu form verifikasi email / OTP...")
-            page.wait_for_selector("input[name='code'], input[name='token']", timeout=15000)
+            page.wait_for_selector("input[name='code'], input[type='text']", timeout=15000)
 
             otp_val = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=90)
             if not otp_val:
                 die("OTP verifikasi x.ai tidak kunjung masuk ke FSMail.")
             
-            # Fill OTP
+            # Fill OTP to single code input
             log_step(f"Mengisi OTP: {otp_val}")
-            try:
-                fill_react("input[name='code'], input[name='token']", otp_val)
-                time.sleep(1)
-            except Exception:
-                # Alternative OTP filling: if it's 6 individual boxes
-                otp_inputs = page.locator("input[type='text'], input[type='number']").all()
-                for idx, ch in enumerate(otp_val):
-                    if idx < len(otp_inputs):
-                        otp_inputs[idx].fill(ch)
-                time.sleep(1)
             
-            # Click Verify/Continue OTP
-            otp_submit = page.locator("button[type='submit'], button:has-text('Confirm email'), button:has-text('Verify')").first
-            if otp_submit.is_visible():
-                otp_submit.click(timeout=5000)
-            else:
-                page.keyboard.press("Enter")
+            # Dismiss cookie banner again if it appeared/re-opened
+            try:
+                page.evaluate("""() => {
+                    const cb = document.querySelector('button#onetrust-accept-btn-handler');
+                    if (cb) cb.click();
+                }""")
+                time.sleep(0.5)
+            except Exception:
+                pass
+
+            # Fill OTP value
+            try:
+                fill_react("input[name='code']", otp_val)
+            except Exception:
+                pass
+                
+            code_el = page.locator("input[name='code'], input[type='text']").first
+            try:
+                code_el.click(force=True)
+                code_el.fill(otp_val)
+            except Exception:
+                pass
+            time.sleep(1)
+            
+            # Click "Confirm email" button specifically
+            log_step("Klik tombol Confirm email...")
+            try:
+                page.evaluate("""() => {
+                    const btns = Array.from(document.querySelectorAll('button'));
+                    const confirmBtn = btns.find(b => b.textContent.trim().toLowerCase().includes('confirm email') || b.textContent.trim().toLowerCase().includes('verify'));
+                    if (confirmBtn) {
+                        confirmBtn.focus();
+                        confirmBtn.click();
+                    }
+                }""")
+            except Exception:
+                pass
+                
+            confirm_btn = page.locator("button:has-text('Confirm email'), button:has-text('Verify')").first
+            if confirm_btn.is_visible(timeout=2000):
+                try:
+                    confirm_btn.click(force=True)
+                except Exception:
+                    pass
                 
             # Step 2C: Complete Profile / Set Password (Step 3 of Form)
             log_step("Menunggu form pengisian password / profile baru...")
-            page.wait_for_selector("input[type='password'], input[name='password']", timeout=20000)
+            page.wait_for_selector("input[type='password'], input[name='password']", timeout=25000)
                 
             # Fill First Name and Last Name if present
             fname_inputs = page.locator("input[name*='first'], input[name*='given']").all()
