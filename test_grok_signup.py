@@ -1,62 +1,57 @@
 import asyncio
+import time
 from camoufox import AsyncCamoufox
 
 async def main():
     print("Launching stealth browser...")
-    try:
-        async with AsyncCamoufox(headless=True) as browser:
-            page = await browser.new_page()
-            await page.goto("https://accounts.x.ai/sign-up", wait_until="networkidle", timeout=30000)
-            
-            # Dismiss OneTrust
-            try:
-                cookie_btn = page.locator("button#onetrust-accept-btn-handler").first
-                await cookie_btn.click(timeout=3000)
-                await asyncio.sleep(1)
-            except: pass
-                
-            # Click sign up with email
-            try:
-                signup_email_btn = page.locator("button:has-text('Sign up with email')").first
-                await signup_email_btn.click(timeout=5000)
-                await asyncio.sleep(1)
-            except: pass
-                
-            # React Fill email
-            await page.wait_for_selector("input[type='email']", timeout=10000)
-            await page.evaluate("""() => {
-                const el1 = document.querySelector("input[type='email']");
-                const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-                setter.call(el1, "test-user-fs2@nguprus.app");
-                el1.dispatchEvent(new Event('input', { bubbles: true }));
-                el1.dispatchEvent(new Event('change', { bubbles: true }));
-            }""")
-            print("Email Form filled.")
+    async with AsyncCamoufox(headless=True) as browser:
+        page = await browser.new_page()
+        print("Navigating to signup page...")
+        await page.goto("https://accounts.x.ai/sign-up", wait_until="networkidle", timeout=30000)
+        
+        # Dismiss Cookie
+        try:
+            await page.locator("button#onetrust-accept-btn-handler").first.click(timeout=3000)
+            print("Cookie accepted")
             await asyncio.sleep(1)
+        except:
+            pass
             
-            # Click submit (Sign up)
-            submit_btn = page.locator("button[type='submit'], button:has-text('Sign up')").first
-            await submit_btn.click(timeout=5000)
-            print("Step 1 submitted!")
-            await asyncio.sleep(5)
+        # Click sign up with email
+        try:
+            await page.locator("button:has-text('Sign up with email')").first.click(timeout=5000)
+            print("Clicked Sign up with email")
+            await asyncio.sleep(1)
+        except Exception as e:
+            print("Failed click button:", e)
             
-            # Screenshot step 2
-            await page.screenshot(path="/tmp/grok_step2.png")
-            print("Screenshot saved to /tmp/grok_step2.png")
+        # Fill email
+        await page.wait_for_selector("input[type='email']", timeout=10000)
+        await page.fill("input[type='email']", "rendi6330-c51ek1p6-8ij2nom9@nguprus.app")
+        print("Filled email. Taking screenshot before submit...")
+        await page.screenshot(path="/tmp/grok_before_submit.png")
+        
+        # Click submit
+        submit_btn = page.locator("button[type='submit'], button:has-text('Sign up')").first
+        await submit_btn.click(timeout=5000)
+        print("Form Step 1 submitted!")
+        
+        # Wait 8s for transitions / WAF check / OTP form
+        await asyncio.sleep(8)
+        
+        # Capture HTML & screenshot
+        await page.screenshot(path="/tmp/grok_after_submit_real.png")
+        print("Screenshot saved to /tmp/grok_after_submit_real.png")
+        
+        content = await page.content()
+        with open("/tmp/grok_after_submit.html", "w") as fh:
+            fh.write(content)
+        print("HTML saved to /tmp/grok_after_submit.html")
+        
+        # Check frames
+        print("Frames present:")
+        for f in page.frames:
+            print(f"  Frame URL: {f.url}")
             
-            # Get inputs
-            inputs = await page.evaluate("""() => {
-                return Array.from(document.querySelectorAll('input')).map(i => ({
-                    type: i.type,
-                    name: i.name,
-                    id: i.id,
-                    placeholder: i.placeholder
-                }));
-            }""")
-            print("Inputs at Step 2:", inputs)
-            
-    except Exception as e:
-        print("Error:", e)
-
 if __name__ == "__main__":
     asyncio.run(main())

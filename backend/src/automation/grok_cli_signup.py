@@ -268,11 +268,12 @@ def main():
                 
             # Click "Sign up with email"
             try:
-                signup_email_btn = page.locator("button:has-text('Sign up with email')").first
-                if signup_email_btn.count() > 0 and signup_email_btn.is_visible(timeout=5000):
-                    signup_email_btn.click()
-                    time.sleep(1)
-            except Exception:
+                signup_email_btn = page.locator("button:has-text('Sign up with email')").last
+                if signup_email_btn.is_visible(timeout=10000):
+                    signup_email_btn.click(force=True, timeout=5000)
+                    time.sleep(2)
+            except Exception as e:
+                log_step(f"Warning: Gagal klik sign up with email: {e}")
                 pass
 
             # Step 2A: Fill Email (Step 1 of Form)
@@ -310,7 +311,7 @@ def main():
             
             # Step 2B: Verifikasi OTP (Step 2 of Form)
             log_step("Menunggu form verifikasi email / OTP...")
-            page.wait_for_selector("input[name='code']", timeout=15000)
+            page.wait_for_selector("input[name='code'], input[name='token']", timeout=15000)
 
             otp_val = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=90)
             if not otp_val:
@@ -318,28 +319,50 @@ def main():
             
             # Fill OTP
             log_step(f"Mengisi OTP: {otp_val}")
-            fill_react("input[name='code']", otp_val)
-            time.sleep(1)
+            try:
+                fill_react("input[name='code'], input[name='token']", otp_val)
+                time.sleep(1)
+            except Exception:
+                # Alternative OTP filling: if it's 6 individual boxes
+                otp_inputs = page.locator("input[type='text'], input[type='number']").all()
+                for idx, ch in enumerate(otp_val):
+                    if idx < len(otp_inputs):
+                        otp_inputs[idx].fill(ch)
+                time.sleep(1)
             
             # Click Verify/Continue OTP
-            otp_submit = page.locator("button[type='submit'], button:has-text('Verify'), button:has-text('Continue')").first
+            otp_submit = page.locator("button[type='submit'], button:has-text('Confirm email'), button:has-text('Verify')").first
             if otp_submit.is_visible():
                 otp_submit.click(timeout=5000)
             else:
                 page.keyboard.press("Enter")
                 
-            # Step 2C: Set Password (Step 3 of Form)
-            log_step("Menunggu form pengisian password baru...")
-            page.wait_for_selector("input[type='password']", timeout=15000)
-            fill_react("input[type='password']", args.password)
+            # Step 2C: Complete Profile / Set Password (Step 3 of Form)
+            log_step("Menunggu form pengisian password / profile baru...")
+            page.wait_for_selector("input[type='password'], input[name='password']", timeout=20000)
+                
+            # Fill First Name and Last Name if present
+            fname_inputs = page.locator("input[name*='first'], input[name*='given']").all()
+            if fname_inputs:
+                fname = ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_lowercase, k=5))
+                fill_react("input[name*='first'], input[name*='given']", fname)
+                
+            lname_inputs = page.locator("input[name*='last'], input[name*='family']").all()
+            if lname_inputs:
+                lname = ''.join(random.choices(string.ascii_uppercase, k=1)) + ''.join(random.choices(string.ascii_lowercase, k=6))
+                fill_react("input[name*='last'], input[name*='family']", lname)
+                
+            # Fill Password
+            fill_react("input[type='password'], input[name='password']", args.password)
             
-            pw_submit = page.locator("button[type='submit'], button:has-text('Continue'), button:has-text('Submit')").first
+            # Submit Complete Profile
+            pw_submit = page.locator("button[type='submit'], button:has-text('Complete sign up'), button:has-text('Continue')").first
             if pw_submit.is_visible():
                 pw_submit.click(timeout=5000)
             else:
                 page.keyboard.press("Enter")
                 
-            time.sleep(4) # Wait to log in
+            time.sleep(6) # Wait to log in and dashboard load
             
             # Step 3: Menavigasi ke OAuth Device Authorization URL
             auth_url = f"https://accounts.x.ai/oauth2/device?user_code={user_code}"
