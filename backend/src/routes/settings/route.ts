@@ -43,7 +43,7 @@ export async function GET(req, res) {
   }
 }
 
-export async function PATCH_handler(req, res) {
+export async function PATCH(req, res) {
   try {
     const body = req.body;
 
