@@ -27,6 +27,8 @@ import urllib.parse
 import urllib.error
 import os
 import tempfile
+import base64
+import hashlib
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -161,30 +163,69 @@ def is_on_turnstile_page(page) -> bool:
     return False
 
 def try_click_turnstile_checkbox(page) -> bool:
-    target_frame = None
+    target_frames = []
     try:
+        # Masukkan semua frames ke kandidat
         for f in page.frames:
-            url = f.url or ""
-            if "challenges.cloudflare.com" in url or "turnstile" in url:
-                target_frame = f
-                break
+            target_frames.append(f)
     except Exception:
         pass
-    if target_frame:
-        try:
-            frame_element = page.locator("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']").first
-            if frame_element.count() > 0 and not frame_element.is_visible(timeout=500):
-                return False
-        except Exception:
-            pass
-        for cb_sel in ["input[type='checkbox']", "[role='checkbox']", "div.ctp-checkbox-label"]:
+    
+    # Fallback: Cari menggunakan selector iframe dan ambil content_frame-nya
+    try:
+        iframes = page.locator("iframe").all()
+        for iframe_el in iframes:
             try:
-                box = target_frame.locator(cb_sel).first
-                if box.count() > 0 and box.is_visible(timeout=500):
-                    box.click(timeout=1000, force=True)
-                    return True
+                cf = iframe_el.content_frame()
+                if cf and cf not in target_frames:
+                    target_frames.append(cf)
             except Exception:
-                continue
+                pass
+    except Exception:
+        pass
+
+    for target_frame in target_frames:
+        if not target_frame:
+            continue
+        try:
+            # Cari checkbox di dalam target_frame
+            for cb_sel in ["input[type='checkbox']", "[role='checkbox']", "div.ctp-checkbox-label", "span.mark"]:
+                try:
+                    box = target_frame.locator(cb_sel).first
+                    if box.count() > 0 and box.is_visible(timeout=500):
+                        box_rect = box.bounding_box()
+                        
+                        # Cari frame element pembungkus untuk koordinat klik absolut
+                        frame_element = None
+                        try:
+                            # Cari iframe yang mengarah ke target_frame ini
+                            for ifr in page.locator("iframe").all():
+                                if ifr.content_frame() == target_frame:
+                                    frame_element = ifr
+                                    break
+                        except Exception:
+                            pass
+                        
+                        frame_rect = frame_element.bounding_box() if frame_element else None
+                        
+                        if box_rect and frame_rect:
+                            click_x = frame_rect['x'] + box_rect['x'] + (box_rect['width'] / 2)
+                            click_y = frame_rect['y'] + box_rect['y'] + (box_rect['height'] / 2)
+                            
+                            log_step(f"Mensimulasikan gerakan & klik mouse fisik ke Turnstile checkbox di ({click_x}, {click_y})")
+                            page.mouse.move(click_x, click_y, steps=5)
+                            time.sleep(0.1)
+                            page.mouse.down()
+                            time.sleep(0.05)
+                            page.mouse.up()
+                            return True
+                        else:
+                            box.click(timeout=1000, force=True)
+                            return True
+                except Exception:
+                    continue
+        except Exception:
+            continue
     return False
 
 def wait_for_cf_clearance(page, timeout=45.0):
@@ -476,18 +517,16 @@ def main():
 
         log_step(f"Semua cookies diduplikasi: {len(normalized_cookies)} items generated.")
         
-        # ── Step 4: Request device code from target router programmatically ────
-        if not args.router_url or not args.router_password:
-            die("Pendaftaran berhasil, tetapi --router-url atau --router-password tidak diatur. Tidak dapat menambahkan koneksi ke router target.")
-
-        router_base = args.router_url.rstrip('/')
-        log_step(f"Mengambil device_code dari router target: {router_base}")
+        # ── Step 4: Request device code ─────────────────────────────────────────
+        router_base = args.router_url.rstrip('/') if args.router_url else "http://127.0.0.1:20128"
+        log_step("Mengambil device_code untuk otorisasi Grok CLI...")
         
         user_code = None
         device_code = None
         device_code_verifier = None
         verification_uri = None
         
+        # 1. Coba minta device code via target router dulu
         try:
             req = urllib.request.Request(f"{router_base}/api/oauth/grok-cli/device-code", method="GET")
             req.add_header("x-9r-cli-token", "0202c5f8e7eb28ca")  # bypass auth
@@ -497,11 +536,38 @@ def main():
             device_code = dc_res.get("device_code")
             device_code_verifier = dc_res.get("codeVerifier")
             verification_uri = dc_res.get("verification_uri_complete") or dc_res.get("verification_uri")
-            if not user_code:
-                die("Gagal mendapatkan user_code dari router target.")
-            log_step(f"Device Code Grok CLI didapatkan dari target router: {user_code}")
         except Exception as e:
-            die(f"Gagal request device-code ke router target: {e}")
+            log_step(f"Router request device code gagal ({e}), fallback request direct ke X.AI...")
+
+        # 2. Fallback: Request device code langsung ke X.AI jika router di-rate-limit
+        if not user_code or not device_code:
+            try:
+                device_code_verifier = base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip("=")
+                code_challenge = base64.urlsafe_b64encode(hashlib.sha256(device_code_verifier.encode()).digest()).decode().rstrip("=")
+                
+                body_params = {
+                    "client_id": "b1a00492-073a-47ea-816f-4c329264a828",
+                    "scope": "openid profile email offline_access grok-cli:access api:access",
+                    "code_challenge": code_challenge,
+                    "code_challenge_method": "S256",
+                    "referrer": "grok-build"
+                }
+                xreq = urllib.request.Request("https://auth.x.ai/oauth2/device/code", data=urllib.parse.urlencode(body_params).encode(), method="POST")
+                xreq.add_header("Content-Type", "application/x-www-form-urlencoded")
+                xreq.add_header("Accept", "application/json")
+                xreq.add_header("User-Agent", "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)")
+                with urllib.request.urlopen(xreq, timeout=15) as xr:
+                    xdc_res = json.loads(xr.read())
+                user_code = xdc_res.get("user_code")
+                device_code = xdc_res.get("device_code")
+                verification_uri = xdc_res.get("verification_uri_complete") or xdc_res.get("verification_uri")
+            except Exception as xe:
+                die(f"Gagal mendapatkan device-code dari X.AI direct: {xe}")
+
+        if not user_code or not device_code:
+            die("Gagal mendapatkan user_code atau device_code untuk otorisasi.")
+
+        log_step(f"Device Code Grok CLI didapatkan: {user_code}")
 
         # ── Step 5: Authorize device (Continue + Allow) ────────────────────
         auth_url = verification_uri or f"https://accounts.x.ai/oauth2/device?user_code={user_code}"
@@ -566,13 +632,18 @@ def main():
             log_step("Halaman otorisasi meminta login kembali...")
             try:
                 # Accept cookie jika ada
-                page.evaluate("""() => { const b=document.querySelector('#onetrust-accept-btn-handler'); if(b) b.click(); }""")
+                dismiss_cookie_banner(page)
                 time.sleep(1)
                 
-                # Klik login dengan email jika belum terbuka form email/password
-                leb = page.locator("button:has-text('Login with email')").first
+                # Klik login dengan email jika ada layar picker metode login awal
+                leb = page.locator("button:has-text('Login with email'), button:has-text('Continue with email')").first
                 if leb.count() > 0 and leb.is_visible(timeout=3000):
-                    leb.click(force=True, timeout=5000); time.sleep(1)
+                    log_step("Klik tombol 'Login with email' picker...")
+                    leb.click(force=True, timeout=5000)
+                    time.sleep(2)
+                
+                # Tunggu form login termuat dengan benar
+                page.wait_for_selector("input[type='email'], input[name='email']", timeout=15000)
                 
                 em = page.locator("input[type='email'], input[name='email'], input[type='text']").first
                 if em.count() > 0:
@@ -584,19 +655,32 @@ def main():
                 # Selesaikan Turnstile di login page
                 log_step("Mencoba menyelesaikan Turnstile di login fallback...")
                 
+                # Debug deteksi Turnstile
+                try:
+                    iframes_info = page.evaluate("""() => {
+                        return Array.from(document.querySelectorAll('iframe')).map(f => ({
+                            src: f.src,
+                            visible: f.offsetHeight > 0,
+                            id: f.id
+                        }));
+                    }""")
+                    log_step(f"DEBUG IFRAMES: {iframes_info}")
+                except Exception as de:
+                    log_step(f"DEBUG IFRAMES error: {de}")
+
                 # Tunggu iframe Turnstile muncul
                 try:
-                    page.wait_for_selector("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']", timeout=8000)
+                    page.wait_for_selector("iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']", timeout=12000)
                 except Exception:
                     pass
 
                 turnstile_clicked = False
-                for _ in range(5):
+                for _ in range(8):
                     if try_click_turnstile_checkbox(page):
                         turnstile_clicked = True
                         log_step("Turnstile checkbox berhasil diklik.")
                         break
-                    time.sleep(1)
+                    time.sleep(1.5)
 
                 # Tunggu token turnstile terisi
                 log_step("Menunggu Turnstile terverifikasi...")
