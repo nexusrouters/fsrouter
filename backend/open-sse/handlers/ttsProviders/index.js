@@ -26,7 +26,7 @@ export function getTtsAdapter(provider) {
 
 // Generic config-driven dispatcher (uses ttsConfig.format)
 export async function synthesizeViaConfig(provider, text, model, credentials) {
-  const { AI_PROVIDERS } = await import("@/shared/constants/providers");
+  const { AI_PROVIDERS } = await import("../../shared/constants/providers.js");
   const cfg = AI_PROVIDERS[provider]?.ttsConfig;
   if (!cfg) return null;
   const handler = FORMAT_HANDLERS[cfg.format];

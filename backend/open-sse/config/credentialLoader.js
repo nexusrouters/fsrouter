@@ -1,5 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import os from "os";
+
 const CREDENTIAL_FIELDS = [
   "clientId",
   "clientSecret",
@@ -14,17 +16,8 @@ function credGlobals() {
   return globalThis;
 }
 function resolveCredentialsPath() {
-  let resolveDataDir;
-  try {
-    resolveDataDir = require("@/lib/dataPaths").resolveDataDir;
-  } catch (err) {
-    const fallbackDataDir = process.env.DATA_DIR || join(process.cwd(), "data");
-    console.warn(
-      `[CREDENTIALS] Could not load dataPaths module, using fallback: ${fallbackDataDir}`
-    );
-    return join(fallbackDataDir, "provider-credentials.json");
-  }
-  return join(resolveDataDir(), "provider-credentials.json");
+  const dataDir = process.env.DATA_DIR || join(os.homedir(), ".fsrouter");
+  return join(dataDir, "provider-credentials.json");
 }
 function loadProviderCredentials(providers) {
   if (cachedProviders && Date.now() - lastLoadTime < CONFIG_TTL_MS) {
