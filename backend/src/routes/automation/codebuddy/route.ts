@@ -216,6 +216,8 @@ export async function GET(req, res) {
         proxy_pool: settings.codebuddy_proxy_pool || "[]",
         leonardo_invite_link: settings.leonardo_invite_link || "",
         codebuddy_2captcha_api_key: settings.codebuddy_2captcha_api_key || "",
+        grok_router_url: settings.grok_router_url || "",
+        grok_router_password: settings.grok_router_password || "",
       }
     });
   } catch (error) {
