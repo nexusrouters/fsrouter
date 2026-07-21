@@ -121,16 +121,19 @@ async function refreshAndUpdateCredentials(connection, force = false, proxyOptio
 /**
  * GET /api/usage/[connectionId] - Get usage data for a specific connection
  */
-export async function GET_handler(req, res, { params }) {
+export async function GET_handler(req, res) {
   let connection;
   try {
-    const { connectionId } = await params;
+    const connectionId = req.params?.connectionId;
 
+    if (!connectionId) {
+      return res.status(400).json({ error: "Missing connectionId" });
+    }
 
     // Get connection from database
     connection = await getProviderConnectionById(connectionId);
     if (!connection) {
-      return Response.json({ error: "Connection not found" }, { status: 404 });
+      return res.status(404).json({ error: "Connection not found" });
     }
 
     // Allow OAuth/cookie connections, plus whitelisted apikey providers (glm/minimax/...)
@@ -141,7 +144,7 @@ export async function GET_handler(req, res, { params }) {
       USAGE_APIKEY_PROVIDERS.includes(connection.provider);
 
     if (!isOAuth && !isCookie && !isApikeyEligible) {
-      return Response.json({ message: "Usage not available for this connection" });
+      return res.json({ message: "Usage not available for this connection" });
     }
 
     // Resolve connection proxy config; force strictProxy=false so quota/refresh fall back to direct on failure
@@ -161,9 +164,9 @@ export async function GET_handler(req, res, { params }) {
         connection = result.connection;
       } catch (refreshError) {
         console.error("[Usage API] Credential refresh failed:", refreshError);
-        return Response.json({
+        return res.status(401).json({
           error: `Credential refresh failed: ${refreshError.message}`
-        }, { status: 401 });
+        });
       }
     }
 
@@ -240,10 +243,10 @@ export async function GET_handler(req, res, { params }) {
       }
     }
 
-    return Response.json(usage);
+    return res.json(usage);
   } catch (error) {
     const provider = connection?.provider ?? "unknown";
     console.warn(`[Usage] ${provider}: ${error.message}`);
-    return Response.json({ error: error.message }, { status: 500 });
+    return res.status(500).json({ error: error.message });
   }
 }
