@@ -1,6 +1,6 @@
-import { getProviderConnectionById, updateProviderConnection } from '../../../../../dist/lib/localDb.js';
-import { resolveConnectionProxyConfig } from '../../../../../dist/lib/network/connectionProxy.js';
-import { testProxyUrl } from '../../../../../dist/lib/network/proxyTest.js';
+import { getProviderConnectionById, updateProviderConnection } from '../../../../../lib/localDb.js';
+import { resolveConnectionProxyConfig } from '../../../../../lib/network/connectionProxy.js';
+import { testProxyUrl } from '../../../../../lib/network/proxyTest.js';
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from '../../../../../dist/shared/constants/providers.js';
 import { PROVIDER_ENDPOINTS } from '../../../../../dist/shared/constants/config.js';
 import { getDefaultModel } from '../../../../../open-sse/config/providerModels.js';
@@ -17,7 +17,7 @@ import {
   CLAUDE_CONFIG,
   CLINE_CONFIG,
   KILOCODE_CONFIG,
-} from '../../../../../dist/lib/oauth/constants/oauth.js';
+} from '../../../../../lib/oauth/constants/oauth.js';
 import { buildClineHeaders } from '../../../../../dist/shared/utils/clineAuth.js';
 
 // OAuth provider test endpoints
