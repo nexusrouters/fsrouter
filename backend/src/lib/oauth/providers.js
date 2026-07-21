@@ -261,11 +261,19 @@ const PROVIDERS = {
   "grok-cli": {
     config: GROK_CLI_CONFIG,
     flowType: "device_code",
-    requestDeviceCode: async (config) => {
-      const body = new URLSearchParams({
+    requestDeviceCode: async (config, codeChallenge) => {
+      const bodyParams = {
         client_id: config.clientId,
         scope: config.scope,
-      });
+      };
+      
+      // Kirim PKCE code_challenge jika ada
+      if (codeChallenge) {
+        bodyParams.code_challenge = codeChallenge;
+        bodyParams.code_challenge_method = "S256";
+      }
+
+      const body = new URLSearchParams(bodyParams);
       // Official CLI sends referrer=grok-build
       if (config.referrer) body.set("referrer", config.referrer);
 
@@ -286,7 +294,17 @@ const PROVIDERS = {
 
       return await response.json();
     },
-    pollToken: async (config, deviceCode) => {
+    pollToken: async (config, deviceCode, codeVerifier = null) => {
+      const bodyParams = {
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: deviceCode,
+        client_id: config.clientId,
+      };
+      // Kirim PKCE code_verifier jika ada (wajib untuk xAI device flow dengan PKCE)
+      if (codeVerifier) {
+        bodyParams.code_verifier = codeVerifier;
+      }
+
       const response = await fetch(config.tokenUrl, {
         method: "POST",
         headers: {
@@ -294,11 +312,7 @@ const PROVIDERS = {
           Accept: "application/json",
           "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
         },
-        body: new URLSearchParams({
-          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-          device_code: deviceCode,
-          client_id: config.clientId,
-        }),
+        body: new URLSearchParams(bodyParams),
       });
 
       let data;
