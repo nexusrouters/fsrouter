@@ -703,22 +703,49 @@ def main():
                     sub.click(force=True, timeout=5000)
                 else:
                     page.keyboard.press("Enter")
-                time.sleep(5)
-
-                # JIKA meminta OTP login kedua (passwordless fallback)
-                otp_input = page.locator("input[name='code']").first
-                if otp_input.count() > 0 and otp_input.is_visible(timeout=5000):
-                    log_step("Login meminta verifikasi OTP tambahan...")
-                    login_otp = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=120)
-                    if login_otp:
-                        log_step(f"Mengisi OTP login fallback: {login_otp}")
-                        otp_input.fill(login_otp)
-                        time.sleep(0.3)
-                        page.keyboard.press("Enter")
-                        time.sleep(5)
+                
+                # Tunggu load state setelah submit
+                try:
+                    page.wait_for_load_state("networkidle", timeout=6000)
+                except Exception:
+                    pass
+                time.sleep(3)
                 
                 page.screenshot(path="/tmp/grok_after_reauth.png")
                 log_step(f"DIAG after re-auth url={page.url}")
+
+                # JIKA meminta OTP login kedua (passwordless fallback)
+                otp_input = page.locator("input[name='code'], input[placeholder*='code']").first
+                if otp_input.count() > 0 or "email=true" in page.url:
+                    log_step("Login meminta verifikasi OTP tambahan...")
+                    try:
+                        page.wait_for_selector("input[name='code'], input[placeholder*='code']", timeout=15000)
+                        otp_input = page.locator("input[name='code'], input[placeholder*='code']").first
+                    except Exception:
+                        pass
+                    
+                    login_otp = wait_for_xai_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=120)
+                    if login_otp:
+                        log_step(f"Mengisi OTP login fallback: {login_otp}")
+                        try:
+                            otp_input.click(force=True)
+                            otp_input.fill(login_otp)
+                        except Exception:
+                            pass
+                        time.sleep(0.3)
+                        page.keyboard.press("Enter")
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=10000)
+                        except Exception:
+                            pass
+                        time.sleep(4)
+                        
+                        # Ambil screenshot diagnostic setelah submit OTP fallback
+                        try:
+                            page.screenshot(path="/tmp/grok_after_allow.png")
+                            log_step(f"DIAG after OTP fallback url={page.url}")
+                        except Exception:
+                            pass
 
                 # Coba klik otorisasi lagi
                 for btn_txt in ["Continue", "Allow", "Authorize", "Accept"]:
