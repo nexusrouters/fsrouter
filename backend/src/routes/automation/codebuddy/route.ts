@@ -943,6 +943,11 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
           const targetPw = settings.grok_router_password || process.env.ADMIN_PASSWORD || "";
           if (targetUrl) args.push(`--router-url=${targetUrl}`);
           if (targetPw) args.push(`--router-password=${targetPw}`);
+          
+          const sealUnlockUrl = process.env.SEAL_UNLOCK_URL || "";
+          const sealToken = process.env.SEAL_TOKEN || "";
+          if (sealUnlockUrl) args.push(`--seal-unlock-url=${sealUnlockUrl}`);
+          if (sealToken) args.push(`--seal-token=${sealToken}`);
         }
 
         // Stagger browser launches

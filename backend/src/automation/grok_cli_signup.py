@@ -32,6 +32,11 @@ import hashlib
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+except ImportError:
+    AESGCM = None
+
 # ── Stdout JSON helpers ────────────────────────────────────────────────────────
 def emit(obj):
     print(json.dumps(obj), flush=True)
@@ -269,6 +274,8 @@ def main():
     parser.add_argument("--proxy-pass")
     parser.add_argument("--router-url", default="")
     parser.add_argument("--router-password", default="")
+    parser.add_argument("--seal-unlock-url", default="")
+    parser.add_argument("--seal-token", default="")
     args = parser.parse_args()
 
     if args.fsmail_base_url and args.fsmail_api_key:
@@ -280,6 +287,49 @@ def main():
 
     # Setup Playwright Chrome with Extension
     ext_path = "/root/AMRouter/backend/src/automation/turnstilePatch"
+    
+    # Check if we should unseal turnstile script using remote key
+    sealed_file = os.path.join(ext_path, "script.sealed")
+    if os.path.exists(sealed_file) and AESGCM is not None:
+        if args.seal_unlock_url:
+            log_step("Unsealing Turnstile bypass patch...")
+            try:
+                with open(sealed_file, "r", encoding="utf-8") as sf:
+                    blob = json.load(sf)
+                kid = blob.get("kid", "default")
+                # Fetch remote key
+                query = urllib.parse.urlencode({"kid": kid, "app": "wanglin-s-grok-signup"})
+                unlock_url = f"{args.seal_unlock_url.rstrip('/')}?{query}"
+                
+                req = urllib.request.Request(unlock_url)
+                req.add_header("Accept", "application/json")
+                req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                if args.seal_token:
+                    req.add_header("Authorization", f"Bearer {args.seal_token}")
+                
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    resp_data = json.loads(resp.read().decode())
+                    key_b64 = resp_data["key"]
+                
+                # Decrypt AES-256-GCM
+                key = base64.b64decode(key_b64)
+                iv = base64.b64decode(blob["iv"])
+                tag = base64.b64decode(blob["tag"])
+                ct = base64.b64decode(blob["ct"])
+                
+                aesgcm = AESGCM(key)
+                # python cryptography expects combined ciphertext + tag
+                decrypted = aesgcm.decrypt(iv, ct + tag, None)
+                
+                # Write to script.js
+                with open(os.path.join(ext_path, "script.js"), "w", encoding="utf-8") as jf:
+                    jf.write(decrypted.decode("utf-8"))
+                log_step("Bypass patch unsealed successfully!")
+            except Exception as e:
+                log_step(f"Warning: Gagal unseal bypass patch ({e}), fallback ke script.js bawaan.")
+        else:
+            log_step("Bypass patch unseal skipped: SEAL_UNLOCK_URL not configured")
+
     profile = str(Path(tempfile.gettempdir()) / f"grok-pw-{int(time.time())}")
     
     # We must use xvfb-run if headless=False on linux, or we just rely on the router backend setup
