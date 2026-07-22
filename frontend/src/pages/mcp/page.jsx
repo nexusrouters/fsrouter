@@ -54,9 +54,39 @@ export default function McpPage() {
       </Section>
 
       <Section title="Server Status">
-        <pre style={{ background: "#0d0d0d", color: "#e5e5e5", padding: 16, borderRadius: 8, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {JSON.stringify(status, null, 2)}
-        </pre>
+        {!status ? (
+          <div style={{ padding: 16, borderRadius: 8, background: "#1a1a1a", color: "#aaa" }}>Loading…</div>
+        ) : status.error ? (
+          <div style={{ padding: 16, borderRadius: 8, background: "#3a1a1a", color: "#ff9a9a" }}>Error: {status.error}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+              <b style={{ color: "#e5e5e5" }}>Online</b>
+              <span style={{ color: "#888", fontSize: 13 }}>
+                {status.sseSessions + (status.streamableSessions || 0)} active session(s)
+              </span>
+            </div>
+
+            <div>
+              <div style={{ color: "#aaa", fontSize: 13, marginBottom: 6 }}>Tools ({status.tools?.length || 0})</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {(status.tools || []).map((t) => (
+                  <span key={t} style={{ fontFamily: "monospace", fontSize: 12, padding: "4px 10px", borderRadius: 6, background: "#2a2a2a", color: "#7dd3fc", border: "1px solid #333" }}>{t}</span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ color: "#aaa", fontSize: 13, marginBottom: 6 }}>Endpoints</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <Code>Streamable HTTP: {base}/api/mcp/stream</Code>
+                <Code>SSE:            {base}/api/mcp/sse</Code>
+                <Code>Status:         {base}/api/mcp/status</Code>
+              </div>
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section title="Example (Claude Desktop / Cursor)">
