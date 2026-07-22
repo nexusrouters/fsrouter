@@ -37,10 +37,11 @@ export default {
     { id: "gpt-5.4-nano",      name: "GPT-5.4 Nano",      upstreamModelId: "blackboxai/openai/gpt-5.4-nano" },
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", upstreamModelId: "blackboxai/deepseek/deepseek-v4-flash" },
     { id: "grok-4.3",          name: "Grok 4.3",          upstreamModelId: "blackboxai/x-ai/grok-4.3" },
-    { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o", name: "GPT-4o" },
     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
     { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
     { id: "deepseek-v3", name: "DeepSeek V3" },
     { id: "blackboxai", name: "Blackbox AI" },
     { id: "blackboxai-pro", name: "Blackbox AI Pro" },
-  ],
+],
+};

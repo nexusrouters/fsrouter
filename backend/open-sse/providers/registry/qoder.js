@@ -37,7 +37,7 @@ export default {
     // { id: "gm51model", name: "GLM 5.1 (Qoder)" },
     // { id: "kmodel", name: "Kimi K2.6 (Qoder)" },
     // { id: "mmodel", name: "MiniMax M2.7 (Qoder)" },
-    { id: "qwen3.8-max-preview", name: "Qwen3.8-Max-Preview" },
+      { id: "qwen3.8-max-preview", name: "Qwen3.8-Max-Preview" },
     { id: "qwen3.7-max", name: "Qwen3.7-Max" },
     { id: "qwen3.7-plus", name: "Qwen3.7-Plus" },
     { id: "kimi-k3", name: "Kimi-K3" },
@@ -46,4 +46,18 @@ export default {
     { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
     { id: "deepseek-v4-flash", name: "DeepSeek-V4-Flash" },
     { id: "minimax-m3", name: "MiniMax-M3" },
-  ],
+],
+  oauth: {
+    openApiBaseUrl: "https://openapi.qoder.sh",
+    centerBaseUrl: "https://center.qoder.sh",
+    chatBaseUrl: "https://api3.qoder.sh",
+    deviceTokenUrl: "https://openapi.qoder.sh/api/v1/deviceToken/poll",
+    refreshUrl: "https://center.qoder.sh/algo/api/v3/user/refresh_token",
+    userInfoUrl: "https://openapi.qoder.sh/api/v1/userinfo",
+    quotaUsageUrl: "https://openapi.qoder.sh/api/v2/quota/usage",
+    loginUrl: "https://qoder.com/device/selectAccounts",
+  },
+  features: {
+    usage: true,
+  },
+};

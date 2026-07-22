@@ -1,21 +1,13 @@
 /**
  * Grok CLI / Grok Build (cli-chat-proxy.grok.com)
  *
- * Source of truth: wire capture of official @xai-official/grok 0.2.99
+ * Source of truth: HAR capture of official grok-shell/grok-pager 0.2.93
  * talking to https://cli-chat-proxy.grok.com (OpenAI Responses API).
  *
  * Distinct from:
- *  - `xai`      → api.x.ai (API key / xAI API OAuth PKCE)
+ *  - `xai`      → api.x.ai (API key / Grok Build OAuth PKCE)
  *  - `grok-web` → grok.com web SSO cookie
  */
-import {
-  GROK_CLI_BASE_URL,
-  GROK_CLI_CLIENT_IDENTIFIER,
-  GROK_CLI_MODEL,
-  GROK_CLI_USER_AGENT,
-  GROK_CLI_VERSION,
-} from "../../config/grokCli.js";
-
 export default {
   id: "grok-cli",
   priority: 275,
@@ -37,28 +29,32 @@ export default {
   authModes: ["oauth"],
   hasOAuth: true,
   thinkingConfig: {
-    options: ["low", "medium", "high", "xhigh"],
+    options: ["low", "medium", "high"],
     defaultMode: "high",
   },
   transport: {
-    baseUrl: `${GROK_CLI_BASE_URL}/responses`,
+    baseUrl: "https://cli-chat-proxy.grok.com/v1/responses",
     format: "openai-responses",
     forceStream: true,
-    modelsUrl: `${GROK_CLI_BASE_URL}/models`,
-    userUrl: `${GROK_CLI_BASE_URL}/user`,
-    billingUrl: `${GROK_CLI_BASE_URL}/billing`,
-    clientVersion: GROK_CLI_VERSION,
-    clientIdentifier: GROK_CLI_CLIENT_IDENTIFIER,
+    modelsUrl: "https://cli-chat-proxy.grok.com/v1/models",
+    userUrl: "https://cli-chat-proxy.grok.com/v1/user",
+    billingUrl: "https://cli-chat-proxy.grok.com/v1/billing",
+    clientVersion: "0.2.93",
+    clientIdentifier: "grok-pager",
     tokenAuth: "xai-grok-cli",
     headers: {
-      "User-Agent": GROK_CLI_USER_AGENT,
-      "x-grok-client-identifier": GROK_CLI_CLIENT_IDENTIFIER,
-      "x-grok-client-version": GROK_CLI_VERSION,
+      "User-Agent": "grok-pager/0.2.93 grok-shell/0.2.93 (linux; x86_64)",
+      "x-xai-token-auth": "xai-grok-cli",
+      "x-grok-client-identifier": "grok-pager",
+      "x-grok-client-version": "0.2.93",
+      "x-authenticateresponse": "authenticate-response",
     },
+    // Compaction threshold mirrored from CLI (x-compaction-at)
+    compactionAt: 400000,
     // Quota tracker: official CLI polls billing?format=credits + user?include=subscription
     usage: {
-      url: `${GROK_CLI_BASE_URL}/billing?format=credits`,
-      userUrl: `${GROK_CLI_BASE_URL}/user?include=subscription`,
+      url: "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+      userUrl: "https://cli-chat-proxy.grok.com/v1/user?include=subscription",
     },
     retry: {
       429: { attempts: 2, delayMs: 2000 },
@@ -67,12 +63,6 @@ export default {
     },
   },
   models: [
-    {
-      id: GROK_CLI_MODEL,
-      name: "Grok Build",
-      contextLength: 500000,
-      maxOutputTokens: 64000,
-    },
     { id: "grok-4.5", name: "Grok 4.5" },
     { id: "grok-4.5-high", name: "Grok 4.5 (High)", upstreamModelId: "grok-4.5" },
     { id: "grok-4.5-medium", name: "Grok 4.5 (Medium)", upstreamModelId: "grok-4.5" },

@@ -27,8 +27,13 @@ export default {
     { id: "glm-4.7", name: "GLM-4.7" },
     { id: "glm-4.6", name: "GLM-4.6" },
     { id: "glm-4.5-air", name: "GLM-4.5-Air" },
-    { id: "glm-4-flash", name: "GLM-4-Flash" },
+      { id: "glm-4-flash", name: "GLM-4-Flash" },
     { id: "glm-4.5-flash", name: "GLM-4.5-Flash" },
     { id: "glm-4.7-flash", name: "GLM-4.7-Flash" },
     { id: "glm-signup-bonus", name: "Z.AI — 20M signup bonus" },
-  ],
+],
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
+};
