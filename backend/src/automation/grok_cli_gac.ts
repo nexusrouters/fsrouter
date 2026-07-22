@@ -78,6 +78,7 @@ function parseArgs(): Args {
     sealUnlockUrl: a["seal-unlock-url"] || envOr("SEAL_UNLOCK_URL", "https://wanglins.6n6.web.id"),
     sealToken: a["seal-token"] || envOr("SEAL_TOKEN", "e4k-0Dil5dKU82VlBLzp50AdWmWVPCdc"),
     headless: !/^(0|false|no)$/i.test(a["headless"] || envOr("HEADLESS", "true")),
+    proxy: a["proxy"] || envOr("GROK_PROXY", ""),
     deviceCode: a["device-code"] || envOr("DEVICE_CODE", ""),
     codeVerifier: a["code-verifier"] || envOr("CODE_VERIFIER", ""),
   };
@@ -227,7 +228,7 @@ function findChrome(): string {
   throw new Error("Chrome not found. Install Google Chrome or set CHROME_PATH");
 }
 
-async function launchChrome(opts: { profile: string; extPath?: string; headless: boolean }): Promise<Browser> {
+async function launchChrome(opts: { profile: string; extPath?: string; headless: boolean; proxy?: string }): Promise<Browser> {
   const executablePath = findChrome();
   const args = [
     "--no-sandbox",
@@ -239,6 +240,10 @@ async function launchChrome(opts: { profile: string; extPath?: string; headless:
     "--disable-infobars",
     "--disable-features=IsolateOrigins,site-per-process,DisableLoadExtensionCommandLineSwitch",
   ];
+  if (opts.proxy) {
+    args.push(`--proxy-server=${opts.proxy}`);
+    args.push("--proxy-bypass-list=<-loopback>");
+  }
   if (opts.extPath) {
     args.push(`--load-extension=${opts.extPath}`);
     args.push(`--disable-extensions-except=${opts.extPath}`);
@@ -420,7 +425,7 @@ async function main(): Promise<void> {
   }
 
   const profile = mkdtempSync(join(tmpdir(), "fsr-grok-"));
-  const browser = await launchChrome({ profile, extPath, headless: args.headless });
+  const browser = await launchChrome({ profile, extPath, headless: args.headless, proxy: args.proxy });
   try {
     const page = await browser.newPage();
     await hardenPage(page);
@@ -525,13 +530,63 @@ async function main(): Promise<void> {
     }
 
     // 7) solve turnstile
+    // Paksa Cloudflare me-render widget dengan memicu interaksi form dulu.
+    try {
+      await page.evaluate(`(() => {
+        // fokus ke field terakhir biar CF anggap user aktif
+        const inputs = Array.from(document.querySelectorAll('input'));
+        const last = inputs[inputs.length - 1];
+        if (last) { last.focus(); last.dispatchEvent(new Event('input', { bubbles: true })); last.dispatchEvent(new Event('change', { bubbles: true })); }
+        // klik tombol submit agar CF lazy-render challenge
+        const btns = Array.from(document.querySelectorAll('button, [role="button"], input[type=submit]'));
+        const sb = btns.find((b) => /complete\\\\s*sign\\\\s*up|create\\\\s*account|sign\\\\s*up|log\\\\s*in|login/i.test(((b.textContent || b.value || '') + '').replace(/\\\\s+/g, ' ').trim()));
+        if (sb) sb.click();
+      })()`);
+      log({ step: 6, msg: "Trigger interaksi form (picu Turnstile render)" });
+    } catch { /* noop */ }
+    await sleep(2500);
     let tok = "";
     for (let i = 0; i < 40; i++) {
+      // Coba klik checkbox Turnstile bila ada (ekstensi akan otomatis solve)
+      try {
+        const clicked = (await page.evaluate(`(() => {
+          const frames = Array.from(document.querySelectorAll('iframe'));
+          for (const f of frames) {
+            try {
+              const doc = f.contentDocument || (f.contentWindow && f.contentWindow.document);
+              if (!doc) continue;
+              const box = doc.querySelector('input[type=checkbox], #checkbox, .ctp-checkbox, [role=checkbox]');
+              if (box) { (box.click ? box.click() : (box as any).click()); return true; }
+            } catch (e) { /* cross-origin, skip */ }
+          }
+          // fallback: checkbox di top document
+          const top = document.querySelector('input[type=checkbox].ctp-checkbox, #ctp-checkbox, .cf-turnstile-checkbox');
+          if (top) { (top.click ? top.click() : (top as any).click()); return true; }
+          return false;
+        })()`)) as boolean;
+        if (clicked) await sleep(800);
+      } catch { /* noop */ }
       tok = (await page.evaluate(`(() => { const el = document.querySelector('input[name=cf-turnstile-response]'); return (el && el.value) || ''; })()`)) as string;
       if (tok) break;
       await sleep(1000);
     }
-    if (!tok) throw new Error("Turnstile timeout 40s");
+    if (!tok) {
+      // Diagnostik: dump kondisi halaman saat Turnstile timeout
+      try {
+        const diag = (await page.evaluate(`(() => {
+          const iframes = Array.from(document.querySelectorAll('iframe')).map(f => ({ src: f.src, w: f.offsetWidth, h: f.offsetHeight }));
+          const hasResp = !!document.querySelector('input[name=cf-turnstile-response]');
+          const resp = document.querySelector('input[name=cf-turnstile-response]');
+          const body = (document.body && document.body.innerText || '').slice(0, 400);
+          return JSON.stringify({ iframes, hasResp, respVal: resp ? (resp.value || '').slice(0,20) : null, url: location.href, body });
+        })()`)) as string;
+        log({ step: 6, msg: `Turnstile diag: ${diag}` });
+      } catch (e) {
+        log({ step: 6, msg: `Turnstile diag err: ${(e as Error).message}` });
+      }
+      try { await page.screenshot({ path: "/tmp/grok_turnstile_diag.png" }); } catch {}
+      throw new Error("Turnstile timeout 40s");
+    }
     log({ step: 6, msg: "Turnstile terpecahkan" });
 
     // submit signup / login

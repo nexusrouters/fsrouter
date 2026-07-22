@@ -205,6 +205,30 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_fsmail_otps_used ON fsmailOtps(usedAt, receivedAt DESC)",
     ],
   },
+  fsmailConnections: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      name: "TEXT NOT NULL",
+      baseUrl: "TEXT NOT NULL",
+      apiKey: "TEXT NOT NULL",
+      defaultDomain: "TEXT",
+      fallbackUrl: "TEXT",
+      webhookSecret: "TEXT",
+      cfAccountId: "TEXT",
+      cfApiToken: "TEXT",
+      cfDomain: "TEXT",
+      cfTelegramBotToken: "TEXT",
+      isActive: "INTEGER DEFAULT 1",
+      lastStatus: "TEXT",
+      lastError: "TEXT",
+      lastCheckedAt: "INTEGER",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_fsmail_connections_active ON fsmailConnections(isActive)",
+    ],
+  },
 };
 
 export function buildCreateTableSql(name, def) {
