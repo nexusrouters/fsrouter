@@ -79,7 +79,7 @@ function clearCliproxyapiUrlCache() {
 }
 (async () => {
   try {
-    const { getSettings } = await import('../../dist/lib/db/settings.js');
+    const { getSettings } = await import('../../lib/db/settings.js');
     const settings = await getSettings();
     if (typeof settings.cliproxyapi_url === "string" && settings.cliproxyapi_url.trim()) {
       _cachedSettingsUrl = { url: settings.cliproxyapi_url.trim(), ts: Date.now() };
@@ -92,7 +92,7 @@ async function resolveCliproxyapiBaseUrl() {
     return _cachedSettingsUrl.url;
   }
   try {
-    const { getSettings } = await import('../../dist/lib/db/settings.js');
+    const { getSettings } = await import('../../lib/db/settings.js');
     const settings = await getSettings();
     if (typeof settings.cliproxyapi_url === "string" && settings.cliproxyapi_url.trim()) {
       const url2 = settings.cliproxyapi_url.trim();

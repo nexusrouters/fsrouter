@@ -112,6 +112,7 @@ export async function buildAutoRouter(): Promise<Router> {
       const handler = (mod[`${method}_handler`] ?? mod[method]) as ((req: Request, res: Response) => Promise<unknown>) | undefined;
       if (typeof handler === "function") {
         const expressMethod = method.toLowerCase() as "get" | "post" | "put" | "patch" | "delete";
+        console.log(`[router] Mount: ${method} ${expressPath}`);
         if (expressPath === "/auth/login") {
            console.log(`DEBUG: Mounted ${method} ${expressPath}`);
         }

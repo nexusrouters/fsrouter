@@ -1,4 +1,4 @@
-import { handleAudioSpeech } from "../../../open-sse/handlers/audioSpeech.js";
+import { handleAudioSpeech } from '../../../../dist/open-sse/handlers/audioSpeech.js';
 import { getProviderCredentials } from "../../../sse/services/auth.js";
 
 export async function POST_handler(req, res) {

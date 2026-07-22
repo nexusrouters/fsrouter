@@ -1,6 +1,6 @@
 import { BaseExecutor } from "./base.ts";
 import { makeExecutorErrorResult as makeErrorResult, sanitizeErrorMessage } from "../utils/error.js";
-import { extractKimiJwt } from '../../dist/lib/providers/webCookieAuth.js';
+import { extractKimiJwt } from '../../lib/providers/webCookieAuth.js';
 const BASE_URL = "https://www.kimi.com";
 const CHAT_URL = `${BASE_URL}/apiv2/kimi.gateway.chat.v1.ChatService/Chat`;
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";

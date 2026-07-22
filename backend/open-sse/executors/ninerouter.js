@@ -5,8 +5,8 @@ import {
 } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { buildErrorBody } from "../utils/error.js";
-import { getSupervisor } from '../../dist/lib/services/registry.js';
-import { getOrCreateApiKey } from '../../dist/lib/services/apiKey.js';
+import { getSupervisor } from '../../lib/services/registry.js';
+import { getOrCreateApiKey } from '../../lib/services/apiKey.js';
 const DEFAULT_PORT = 20130;
 const DEFAULT_HOST = "127.0.0.1";
 const HEALTH_CHECK_TIMEOUT_MS = 3e3;

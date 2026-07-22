@@ -1,6 +1,6 @@
 import { getCircuitBreaker } from "../../../src/shared/utils/circuitBreaker";
 import { secureRandomFloat, secureRandomInt } from "../../../src/shared/utils/secureRandom";
-import { getComboStepTarget, getComboStepWeight } from '../../../dist/lib/combos/steps.ts.js';
+import { getComboStepTarget, getComboStepWeight } from '../../../lib/combos/steps.ts.js';
 import { getComboMetrics } from "../comboMetrics.ts";
 import { parseModel } from "../model.ts";
 function normalizeModelEntry(entry) {
@@ -32,7 +32,7 @@ function orderTargetsForWeightedFallback(targets, selectedExecutionKey, preserve
 }
 async function sortModelsByCost(models) {
   try {
-    const { getPricingForModel } = await import('../../../dist/lib/localDb.js');
+    const { getPricingForModel } = await import('../../../lib/localDb.js');
     const withCost = await Promise.all(
       models.map(async (modelStr) => {
         const parsed = parseModel(modelStr);

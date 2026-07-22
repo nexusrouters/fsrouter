@@ -1,4 +1,4 @@
-import { handleWebFetch } from "../../../open-sse/handlers/webFetch.js";
+import { handleWebFetch } from '../../../../dist/open-sse/handlers/webFetch.js';
 import { getProviderCredentials } from "../../../sse/services/auth.js";
 
 export async function POST_handler(req, res) {

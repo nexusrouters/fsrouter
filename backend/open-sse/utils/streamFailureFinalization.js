@@ -1,7 +1,7 @@
 import {
   finalizeMostRecentPendingRequest,
   finalizePendingRequestById,
-} from '../../dist/lib/usage/usageHistory.js';
+} from '../../lib/usage/usageHistory.js';
 
 import { HTTP_STATUS } from "../config/constants.js";
 import { buildErrorBody } from "./error.js";

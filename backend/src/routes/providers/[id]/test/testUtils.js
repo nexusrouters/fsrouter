@@ -3,12 +3,12 @@ import { resolveConnectionProxyConfig } from '../../../../../lib/network/connect
 import { testProxyUrl } from '../../../../../lib/network/proxyTest.js';
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from '../../../../../dist/shared/constants/providers.js';
 import { PROVIDER_ENDPOINTS } from '../../../../../dist/shared/constants/config.js';
-import { getDefaultModel } from '../../../../../open-sse/config/providerModels.js';
-import { resolveOllamaLocalHost } from '../../../../../open-sse/config/providers.js';
+import { getDefaultModel } from '../../../../../dist/open-sse/config/providerModels.js';
+import { resolveOllamaLocalHost } from '../../../../../dist/open-sse/config/providers.js';
 import {
   refreshProviderCredentials,
   shouldRefreshCredentials,
-} from '../../../../../open-sse/services/oauthCredentialManager.js';
+} from '../../../../../dist/open-sse/services/oauthCredentialManager.js';
 import {
   GEMINI_CONFIG,
   ANTIGRAVITY_CONFIG,
@@ -334,7 +334,7 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
 async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null) {
   // Vercel relay: forward via relay URL
   if (effectiveProxy?.vercelRelayUrl) {
-    const { proxyAwareFetch } = await import('../../../../../open-sse/utils/proxyFetch.js');
+    const { proxyAwareFetch } = await import('../../../../../dist/open-sse/utils/proxyFetch.js');
     return proxyAwareFetch(url, options, {
       vercelRelayUrl: effectiveProxy.vercelRelayUrl,
     });
@@ -344,7 +344,7 @@ async function fetchWithConnectionProxy(url, options = {}, effectiveProxy = null
     return fetch(url, options);
   }
 
-  const { proxyAwareFetch } = await import('../../../../../open-sse/utils/proxyFetch.js');
+  const { proxyAwareFetch } = await import('../../../../../dist/open-sse/utils/proxyFetch.js');
   return proxyAwareFetch(url, options, {
     connectionProxyEnabled: true,
     connectionProxyUrl: effectiveProxy.connectionProxyUrl,
@@ -694,7 +694,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         return { valid, error: errorMessage };
       }
       case "leonardo": {
-        const { refreshLeonardoToken } = await import('../../../../../open-sse/services/tokenRefresh.js');
+        const { refreshLeonardoToken } = await import('../../../../../dist/open-sse/services/tokenRefresh.js');
         const cookie = connection.apiKey || connection.cookie;
         if (!cookie) return { valid: false, error: "Cookie tidak ditemukan" };
         const result = await refreshLeonardoToken(cookie, console);
@@ -715,7 +715,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         }
       }
       case "weavy": {
-        const { refreshWeavyToken } = await import('../../../../../open-sse/services/tokenRefresh.js');
+        const { refreshWeavyToken } = await import('../../../../../dist/open-sse/services/tokenRefresh.js');
         const email = connection.email || connection.name;
         if (!email) return { valid: false, error: "Email/name tidak ditemukan" };
         const result = await refreshWeavyToken(email, connection, console);

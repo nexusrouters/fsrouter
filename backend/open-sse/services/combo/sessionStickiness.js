@@ -10,7 +10,7 @@ function __setStickinessHeadroomFetcherForTests(fetcher) {
 async function resolveSaturation(connectionId, provider) {
   if (_fetcherOverride) return _fetcherOverride(connectionId);
   try {
-    const mod = await import('../../../dist/lib/quota/saturationSignals.js');
+    const mod = await import('../../../lib/quota/saturationSignals.js');
     const getSaturation = mod.getSaturation;
     const [util5h, util7d] = await Promise.all([
       getSaturation(connectionId, provider, { unit: "percent", window: "5h" }),

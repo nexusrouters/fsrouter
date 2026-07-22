@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createObsidianClient, createSyncServerClient, getSyncToken } from '../../../dist/lib/obsidian/api.ts.js';
+import { createObsidianClient, createSyncServerClient, getSyncToken } from '../../../lib/obsidian/api.ts.js';
 import {
   getObsidianConfigForApiKey
-} from '../../../dist/lib/db/obsidian.ts.js';
+} from '../../../lib/db/obsidian.ts.js';
 function extractApiKeyId(extra) {
   const id = extra?.authInfo?.clientId;
   return typeof id === "string" && id.length > 0 && id !== "anonymous" && id !== "env-key" ? id : void 0;

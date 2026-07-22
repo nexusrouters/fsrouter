@@ -30,6 +30,7 @@ const PUBLIC_API_PATHS = [
   "/api/version",
   "/api/settings/require-login",
   "/api/automation/fsmail/webhook",
+  "/api/oauth",
 ];
 
 const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta"];
@@ -50,7 +51,6 @@ const PROTECTED_API_PATHS = [
   "/api/combos",
   "/api/models",
   "/api/usage",
-  "/api/oauth",
   "/api/media-providers",
   "/api/pricing",
   "/api/tags",

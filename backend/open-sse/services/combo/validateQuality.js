@@ -3,7 +3,7 @@ import {
   isKnownNonClaudeStreamPayload
 } from "../../utils/streamHelpers.ts";
 import { evaluateResponseValidation } from "./responseValidation.ts";
-import { getReasoningTokens } from '../../../dist/lib/usage/tokenAccounting.ts.js';
+import { getReasoningTokens } from '../../../lib/usage/tokenAccounting.ts.js';
 function toRetryAfterDisplayValue(value) {
   if (typeof value !== "number") return value;
   if (value > 0 && value < 1e9) {

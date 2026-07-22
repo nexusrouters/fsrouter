@@ -2,7 +2,7 @@ import { BaseExecutor, mergeAbortSignals } from "./base.ts";
 import { FETCH_TIMEOUT_MS } from "../config/constants.ts";
 import { tlsFetchClaude } from "../services/claudeTlsClient.ts";
 import { getCfClearanceToken } from "../services/claudeTurnstileSolver.ts";
-import { normalizeSessionCookieHeader } from '../../dist/lib/providers/webCookieAuth.js';
+import { normalizeSessionCookieHeader } from '../../lib/providers/webCookieAuth.js';
 import { randomUUID } from "crypto";
 import { sanitizeErrorMessage } from "../utils/error.js";
 import { tryBackedChat } from "../services/browserBackedChat.ts";

@@ -1,4 +1,4 @@
-import { handleAudioTranslation } from "../../../open-sse/handlers/audioTranslation.js";
+import { handleAudioTranslation } from '../../../../dist/open-sse/handlers/audioTranslation.js';
 import { getProviderCredentials } from "../../../sse/services/auth.js";
 
 export async function POST_handler(req, res) {

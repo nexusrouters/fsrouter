@@ -16,7 +16,8 @@ function rewrite(file) {
   // Need ../../dist/lib/ → prefix = "../".repeat(depth) + "dist/"
   const rel = path.relative(root, path.dirname(file));
   const depth = rel ? rel.split(path.sep).length : 0;
-  const prefix = "../".repeat(depth) + "dist/";
+  const isInsideSse = rel.startsWith("open-sse");
+  const prefix = isInsideSse ? "../".repeat(depth) : "../".repeat(depth) + "dist/";
 
   // Rewrite bare `open-sse/...` specifiers (side-effect or from) to depth-correct
   // relative paths pointing to dist/open-sse so the compiled code resolves correctly.
@@ -101,6 +102,14 @@ function rewrite(file) {
     .replace(/['"]\.\.\/\.\.\/src\/store\/([^'"]+)['"]/g, (m, imp) => {
       const resolved = imp.endsWith(".js") ? imp : imp + ".js";
       return `'${prefix}store/${resolved}'`;
+    })
+    .replace(/['"](?:\.\.\/)+open-sse\/([^'"]+)['"]/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `'${prefix}open-sse/${resolved}'`;
+    })
+    .replace(/import\(\s*['"](?:\.\.\/)+open-sse\/([^'"]+)['"]\s*\)/g, (m, imp) => {
+      const resolved = imp.endsWith(".js") ? imp : imp + ".js";
+      return `import('${prefix}open-sse/${resolved}')`;
     });
 
   if (content !== orig) {

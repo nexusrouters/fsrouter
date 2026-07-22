@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { resolve, normalize, isAbsolute } from "path";
-import { listPlugins, getPluginByName, updatePluginConfig } from '../../../dist/lib/db/plugins.js';
-import { pluginManager } from '../../../dist/lib/plugins/manager.js';
-import { validatePluginConfig } from '../../../dist/lib/plugins/manifest.js';
+import { listPlugins, getPluginByName, updatePluginConfig } from '../../../lib/db/plugins.js';
+import { pluginManager } from '../../../lib/plugins/manager.js';
+import { validatePluginConfig } from '../../../lib/plugins/manifest.js';
 function validatePluginPath(path) {
   if (path.includes("\0")) {
     throw new Error("Invalid path: contains null bytes");
@@ -151,7 +151,7 @@ const pluginTools = [
       limit: z.number().min(1).max(100).default(20).describe("Max results to return")
     }),
     handler: async (args) => {
-      const { getPluginAnalytics, getPluginAnalyticsSummary } = await import('../../../dist/lib/db/plugins.js');
+      const { getPluginAnalytics, getPluginAnalyticsSummary } = await import('../../../lib/db/plugins.js');
       const limit = args.limit || 20;
       if (args.name) {
         const rows = getPluginAnalytics(args.name).slice(0, limit);

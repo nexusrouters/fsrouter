@@ -1,4 +1,4 @@
-import { isOpenAIResponsesStoreEnabled } from '../../dist/lib/providers/requestDefaults.js';
+import { isOpenAIResponsesStoreEnabled } from '../../lib/providers/requestDefaults.js';
 import {
   DEFAULT_RESPONSES_PREVIOUS_RESPONSE_ID_MODE,
   RESPONSES_PREVIOUS_RESPONSE_ID_MODES

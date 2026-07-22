@@ -2,10 +2,10 @@ import {
   evaluateQuotaCutoff,
   getQuotaFetcher
 } from "../quotaPreflight.ts";
-import { getProviderConnectionById } from '../../../dist/lib/db/providers.js';
+import { getProviderConnectionById } from '../../../lib/db/providers.js';
 import {
   resolveResilienceSettings
-} from '../../../dist/lib/resilience/settings.js';
+} from '../../../lib/resilience/settings.js';
 import { fetchResetAwareQuotaWithCache } from "./quotaStrategies.ts";
 function asThresholdMap(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};

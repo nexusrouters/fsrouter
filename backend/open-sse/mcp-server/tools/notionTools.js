@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createNotionClient } from '../../../dist/lib/notion/api.ts.js';
-import { getNotionToken } from '../../../dist/lib/db/notion.ts.js';
+import { createNotionClient } from '../../../lib/notion/api.ts.js';
+import { getNotionToken } from '../../../lib/db/notion.ts.js';
 function requireToken() {
   const token = getNotionToken();
   if (!token) throw new Error("Notion integration token not configured. Set it in Settings > Context Sources.");

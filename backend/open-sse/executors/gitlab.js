@@ -20,7 +20,7 @@ import {
   isGitLabDirectAccessDisabled,
   parseGitLabDirectAccessDetails,
   resolveGitLabOAuthBaseUrl
-} from '../../dist/lib/oauth/gitlab.js';
+} from '../../lib/oauth/gitlab.js';
 const MAX_TOOL_EXCHANGE_CHARS = 24e3;
 const MAX_TOOL_RESULT_CHARS = 8e3;
 const MAX_USER_INSTRUCTION_CHARS = 4e3;

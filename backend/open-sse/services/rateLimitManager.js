@@ -192,7 +192,7 @@ async function initializeRateLimits() {
   if (initialized) return;
   initialized = true;
   try {
-    const { getProviderConnections, getSettings } = await import('../../dist/lib/localDb.js');
+    const { getProviderConnections, getSettings } = await import('../../lib/localDb.js');
     const [connections, settings] = await Promise.all([getProviderConnections(), getSettings()]);
     const resilience = resolveResilienceSettings(settings);
     currentRequestQueueSettings = { ...resilience.requestQueue };
@@ -221,7 +221,7 @@ async function initializeRateLimits() {
 }
 async function applyRequestQueueSettings(nextSettings) {
   currentRequestQueueSettings = { ...nextSettings };
-  const { getProviderConnections } = await import('../../dist/lib/localDb.js');
+  const { getProviderConnections } = await import('../../lib/localDb.js');
   const connections = await getProviderConnections();
   reconcileEnabledConnections(connections, currentRequestQueueSettings);
   updateAllLimiterSettings();
@@ -465,7 +465,7 @@ function getLearnedLimits() {
 }
 async function persistLearnedLimitsNow() {
   try {
-    const { updateSettings } = await import('../../dist/lib/db/settings.js');
+    const { updateSettings } = await import('../../lib/db/settings.js');
     await updateSettings({ learnedRateLimits: JSON.stringify(learnedLimits) });
     logRateLimit(
       `\u{1F4BE} [RATE-LIMIT] Persisted learned limits for ${Object.keys(learnedLimits).length} provider(s)`
@@ -541,7 +541,7 @@ async function __getLimiterStateForTests(provider, connectionId, model = null) {
 }
 async function loadPersistedLimits() {
   try {
-    const { getSettings } = await import('../../dist/lib/db/settings.js');
+    const { getSettings } = await import('../../lib/db/settings.js');
     const settings = await getSettings();
     const raw = settings?.learnedRateLimits;
     if (typeof raw !== "string" || raw.trim().length === 0) return;

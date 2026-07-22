@@ -13,7 +13,7 @@ import {
   getDefaultThinkingBudget,
   getResolvedModelCapabilities,
   supportsReasoning
-} from '../../dist/lib/modelCapabilities.js';
+} from '../../lib/modelCapabilities.js';
 const EFFORT_BUDGETS = {
   none: 0,
   low: 1024,
