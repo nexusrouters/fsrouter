@@ -316,7 +316,6 @@ export default {
     { id: "zai/GLM-5.1:US", name: "zai/GLM-5.1" },
     { id: "meta/muse-spark-1.1", name: "meta/muse-spark-1.1" },
 
+    { id: "Hermes-4-405B", name: "Hermes 4 7B (Nous Research)" },
+    { id: "Hermes-4-70B", name: "Hermes 4 70B (Nous Research)" },
   ],
-  serviceKinds: ["llm"],
-  passthroughModels: true,
-};

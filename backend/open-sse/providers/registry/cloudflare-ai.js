@@ -49,7 +49,10 @@ export default {
     { id: "@cf/runwayml/stable-diffusion-v1-5-img2img", name: "Stable Diffusion v1.5 Img2Img", params: ["size"], capabilities: ["edit"], kind: "image" },
     { id: "@cf/runwayml/stable-diffusion-v1-5-inpainting", name: "Stable Diffusion v1.5 Inpainting", params: ["size"], capabilities: ["edit","mask"], kind: "image" },
     { id: "@cf/stabilityai/stable-diffusion-xl-base-1.0", name: "SDXL Base 1.0", params: ["size"], kind: "image" },
+    { id: "@cf/meta/llama-3.3-70b-instruct", name: "Llama 3.3 70B (🆓 ~150 resp/day)" },
+    { id: "@cf/meta/llama-3.1-8b-instruct", name: "Llama 3.1 8B (🆓)" },
+    { id: "@cf/google/gemma-3-12b-it", name: "Gemma 3 12B (🆓)" },
+    { id: "@cf/mistral/mistral-7b-instruct-v0.2-lora", name: "Mistral 7B (🆓)" },
+    { id: "@cf/qwen/qwen2.5-coder-15b-instruct", name: "Qwen 2.5 Coder 15B (🆓)" },
+    { id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", name: "DeepSeek R1 Distill 32B (🆓)" },
   ],
-  serviceKinds: ["llm","image"],
-  imageConfig: { baseUrl: "https://api.cloudflare.com/client/v4/accounts" },
-};

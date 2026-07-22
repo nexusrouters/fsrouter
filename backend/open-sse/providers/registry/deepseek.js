@@ -47,5 +47,6 @@ export default {
     { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
     { id: "deepseek-chat", name: "DeepSeek V3.2 Chat" },
     { id: "deepseek-reasoner", name: "DeepSeek V3.2 Reasoner" },
+    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
   ],
-};

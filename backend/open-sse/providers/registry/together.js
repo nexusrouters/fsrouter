@@ -25,7 +25,5 @@ export default {
     { id: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", name: "Llama 4 Maverick" },
     { id: "BAAI/bge-large-en-v1.5", name: "BGE Large EN v1.5", kind: "embedding" },
     { id: "togethercomputer/m2-bert-80M-8k-retrieval", name: "M2 BERT 80M 8K", kind: "embedding" },
+    { id: "together-signup-credit", name: "Together — $25 signup credit (any model)" },
   ],
-  serviceKinds: ["llm", "embedding"],
-  embeddingConfig: { baseUrl: "https://api.together.xyz/v1/embeddings" },
-};

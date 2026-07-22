@@ -25,7 +25,9 @@ export default {
     { id: "codestral-latest", name: "Codestral" },
     { id: "mistral-medium-latest", name: "Mistral Medium 3" },
     { id: "mistral-embed", name: "Mistral Embed", kind: "embedding" },
+    { id: "mistral-large-latest", name: "Mistral Large 3" },
+    { id: "mistral-medium-3-5", name: "Mistral Medium 3.5" },
+    { id: "mistral-small-latest", name: "Mistral Small 4" },
+    { id: "devstral-latest", name: "Devstral 2" },
+    { id: "codestral-latest", name: "Codestral" },
   ],
-  serviceKinds: ["llm","imageToText","embedding"],
-  embeddingConfig: { baseUrl: "https://api.mistral.ai/v1/embeddings", authType: "apikey", authHeader: "bearer" },
-};
