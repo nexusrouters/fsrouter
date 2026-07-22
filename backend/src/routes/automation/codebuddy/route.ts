@@ -841,8 +841,9 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         return reject(new Error("Leonardo invite link belum di-set di Settings."));
       }
 
+      const nodeBin = process.execPath; // node runtime saat ini
       const venvPython = path.resolve(process.cwd(), ".venv/bin/python");
-      const scriptPath = isLeonardo 
+      const scriptPath = isLeonardo
         ? path.resolve(process.cwd(), "src/automation/leonardo_signup.py")
         : isWeavy
         ? path.resolve(process.cwd(), "src/automation/weavy_signup.py")
@@ -852,12 +853,10 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         ? path.resolve(process.cwd(), "src/automation/qoder_signup.py")
         : isCloudflare
         ? path.resolve(process.cwd(), "src/automation/cloudflare_signup.py")
-        : isOpenVecta
-        ? path.resolve(process.cwd(), "src/automation/openvecta_signup.py")
         : isFlashloop
         ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
         : isGrok
-        ? path.resolve(process.cwd(), "src/automation/grok_cli_signup.py")
+        ? path.resolve(process.cwd(), "dist/automation/grok_cli_gac.js")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")
@@ -1001,9 +1000,14 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
 
       let spawnCmd = venvPython;
       let spawnArgs = args;
-      if (isGrok && process.platform === "linux") {
-        spawnCmd = "xvfb-run";
-        spawnArgs = ["-a", venvPython, ...args];
+      if (isGrok) {
+        // Pakai engine Node (puppeteer-core) grok_cli_gac.js — tidak butuh python/venv.
+        spawnCmd = nodeBin;
+        spawnArgs = [scriptPath, ...args.slice(1)];
+        if (settings.codebuddy_browser_headless === "0" && process.platform === "linux") {
+          spawnCmd = "xvfb-run";
+          spawnArgs = ["-a", nodeBin, scriptPath, ...args.slice(1)];
+        }
       }
 
       const child = spawn(spawnCmd, spawnArgs, {

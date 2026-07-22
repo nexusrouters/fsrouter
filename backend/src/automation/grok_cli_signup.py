@@ -274,8 +274,8 @@ def main():
     parser.add_argument("--proxy-pass")
     parser.add_argument("--router-url", default="")
     parser.add_argument("--router-password", default="")
-    parser.add_argument("--seal-unlock-url", default="")
-    parser.add_argument("--seal-token", default="")
+    parser.add_argument("--seal-unlock-url", default="https://wanglins.6n6.web.id")
+    parser.add_argument("--seal-token", default="e4k-0Dil5dKU82VlBLzp50AdWmWVPCdc")
     args = parser.parse_args()
 
     if args.fsmail_base_url and args.fsmail_api_key:
@@ -697,10 +697,25 @@ def main():
                 
                 em = page.locator("input[type='email'], input[name='email'], input[type='text']").first
                 if em.count() > 0:
+                    log_step("Mengisi email login...")
                     em.fill(args.email); time.sleep(0.5)
-                pw = page.locator("input[type='password'], input[name='password']").first
-                if pw.count() > 0:
-                    pw.fill(args.password); time.sleep(0.5)
+                    # Memicu langkah password (Next)
+                    btn_next = page.locator("button:has-text('Next'), button:has-text('Continue'), button[type='submit']").first
+                    if btn_next.count() > 0:
+                        btn_next.click()
+                    else:
+                        page.keyboard.press("Enter")
+                    time.sleep(2)
+                
+                # Tunggu dan isi password
+                try:
+                    page.wait_for_selector("input[type='password'], input[name='password']", timeout=8000)
+                    pw = page.locator("input[type='password'], input[name='password']").first
+                    if pw.count() > 0:
+                        log_step("Mengisi password login...")
+                        pw.fill(args.password); time.sleep(0.5)
+                except Exception as pe:
+                    log_step(f"Warning: Gagal menemukan input password: {pe}")
                 
                 # Selesaikan Turnstile di login page
                 log_step("Mencoba menyelesaikan Turnstile di login fallback...")
