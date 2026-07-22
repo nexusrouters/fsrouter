@@ -1221,6 +1221,9 @@ export const PROVIDER_MODELS = {
     { id: "meta/muse-spark-1.1", name: "meta/muse-spark-1.1" },
 
   ],
+  meta: [
+    { id: "muse-spark-1.1", name: "Muse Spark 1.1", description: "Meta AI Muse Spark 1.1 (api.meta.ai)" },
+  ],
   glhf: [
     { id: "hf:meta-llama/Meta-Llama-3.1-405B-Instruct", name: "Llama 3.1 405B" },
     { id: "hf:meta-llama/Meta-Llama-3.1-70B-Instruct", name: "Llama 3.1 70B" },
