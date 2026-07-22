@@ -54,7 +54,7 @@ export default function McpPage() {
       </Section>
 
       <Section title="Server Status">
-        <pre style={{ background: "#0d0d0d", padding: 16, borderRadius: 8, overflow: "auto" }}>
+        <pre style={{ background: "#0d0d0d", color: "#e5e5e5", padding: 16, borderRadius: 8, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
           {JSON.stringify(status, null, 2)}
         </pre>
       </Section>
@@ -83,7 +83,7 @@ function Section({ title, children }) {
 
 function Code({ children }) {
   return (
-    <div style={{ fontFamily: "monospace", background: "#0d0d0d", padding: "8px 12px", borderRadius: 6, marginBottom: 6, fontSize: 13, overflowX: "auto" }}>
+    <div style={{ fontFamily: "monospace", background: "#0d0d0d", color: "#e5e5e5", padding: "8px 12px", borderRadius: 6, marginBottom: 6, fontSize: 13, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
       {children}
     </div>
   );
