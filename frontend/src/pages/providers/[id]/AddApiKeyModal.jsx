@@ -3,6 +3,7 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { planBulkAdd } from "@/shared/utils/bulkAdd";
 
 const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 
@@ -134,14 +135,30 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     setBulkResult(null);
     let success = 0;
     let failed = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      let apiKey = "";
+
+    // Fetch existing connection names for this provider to avoid upsert collisions
+    let existingNames = [];
+    try {
+      const r = await fetch(`/api/providers?provider=${encodeURIComponent(provider)}`, { headers: { "Content-Type": "application/json" } });
+      if (r.ok) {
+        const data = await r.json();
+        existingNames = (data.connections || []).map(c => c.name).filter(Boolean);
+      }
+    } catch { /* ignore, planner falls back to batch-only gap-fill */ }
+
+    // Plan collision-free names (gap-fill against existing + earlier batch entries)
+    const planned = planBulkAdd(lines, existingNames);
+    const used = new Set(existingNames.map(n => String(n).toLowerCase()));
+
+    for (const entry of planned) {
+      let apiKey = entry.apiKey;
       let email = "";
-      let name = "";
+      let name = entry.name;
 
       if (provider === "codebuddy") {
-        const parts = line.includes("|") ? line.split("|") : line.split(":");
+        // codebuddy lines: email|apiKey or email:apiKey or apiKey-only
+        const srcLine = lines[planned.indexOf(entry)];
+        const parts = srcLine.includes("|") ? srcLine.split("|") : srcLine.split(":");
         if (parts.length >= 2) {
           if (parts.length === 3) {
             name = parts[0].trim();
@@ -150,18 +167,19 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
           } else {
             email = parts[0].trim();
             apiKey = parts[1].trim();
-            name = email;
+            name = `${email} ${gapFill("Key", used)}`;
           }
         } else {
           apiKey = parts[0].trim();
-          name = `Key ${i + 1}`;
+          name = `Key ${gapFill("Key", used)}`;
         }
-      } else {
-        const parts = line.split("|");
-        apiKey = parts.length >= 2 ? parts.slice(1).join("|").trim() : parts[0].trim();
-        const baseName = parts.length >= 2 ? parts[0].trim() : "Key";
-        name = `${baseName} ${i + 1}`;
       }
+
+      // ensure final name is collision-free within this batch
+      let finalName = name;
+      let g = 1;
+      while (used.has(finalName.toLowerCase())) { finalName = `${name} ${g++}`; }
+      used.add(finalName.toLowerCase());
 
       try {
         const res = await fetch("/api/providers", {
@@ -171,7 +189,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             provider,
             apiKey,
             email: email || undefined,
-            name,
+            name: finalName,
             priority: 1,
             testStatus: "unknown",
           }),
@@ -186,6 +204,13 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     setBulkResult({ success, failed });
     if (success > 0 && onBulkDone) onBulkDone();
   };
+
+  // gap-fill smallest free "<base> <n>" against `used` set
+  function gapFill(base, used) {
+    let idx = 1;
+    while (used.has(`${base} ${idx}`.toLowerCase())) idx++;
+    return idx;
+  }
 
   if (!provider) return null;
 
