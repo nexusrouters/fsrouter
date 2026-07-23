@@ -165,7 +165,7 @@ def create_api_key(page):
                 el = page.locator(sel).first
                 if el.count():
                     txt = el.input_value() if sel.startswith("input") else el.inner_text()
-                    m = re.search(r"(maa-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})", txt or "")
+                    m = re.search(r"\b(LLM_[A-Za-z0-9_]{15,80})\b", txt or "")
                     if m:
                         key = m.group(1)
                         break
@@ -174,7 +174,7 @@ def create_api_key(page):
         if not key:
             # fallback: scrape page text
             txt = page.content()
-            m = re.search(r"(maa-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})", txt)
+            m = re.search(r"\b(LLM_[A-Za-z0-9_]{15,80})\b", txt)
             if m:
                 key = m.group(1)
             else:
