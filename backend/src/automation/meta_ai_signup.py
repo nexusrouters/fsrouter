@@ -135,12 +135,31 @@ def gen_visa_card():
     return {"number": number, "exp": "05/31", "cvv": cvv}
 
 
+def handle_onboarding(page):
+    log("Checking if redirected to onboarding screen...")
+    try:
+        if page.locator('input[placeholder*="First name" i], input[name*="first" i]').count() > 0:
+            log("Onboarding screen detected. Filling First name & Last name...")
+            page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.fill("Fud")
+            import time
+            time.sleep(0.5)
+            page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
+            time.sleep(0.5)
+            page.get_by_role("button", name="Get started").first.click(timeout=5000)
+            time.sleep(8)
+            return True
+    except Exception as e:
+        pass
+    return False
+
 def create_api_key(page):
     """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key."""
     try:
         page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
-        time.sleep(3)
-        time.sleep(2)
+        time.sleep(5)
+        if handle_onboarding(page):
+            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
         log("Looking for main Create API key button...")
         
         clicked_main = False
@@ -227,8 +246,10 @@ def add_vcc(page):
     try:
         card = gen_visa_card()
         page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
-        time.sleep(3)
-        time.sleep(2)
+        time.sleep(5)
+        if handle_onboarding(page):
+            page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
         # click "Tambahkan metode pembayaran" / "Add payment method"
         try:
             page.get_by_text("Tambahkan metode pembayaran").first.click(timeout=5000)
