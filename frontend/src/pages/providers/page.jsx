@@ -105,6 +105,41 @@ export default function ProvidersPage() {
     useState(false);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
+  const [showMetaModal, setShowMetaModal] = useState(false);
+  const [metaEmail, setMetaEmail] = useState("");
+  const [metaPassword, setMetaPassword] = useState("");
+  const [metaProxy, setMetaProxy] = useState("");
+  const [metaRunning, setMetaRunning] = useState(false);
+  const [metaResult, setMetaResult] = useState(null);
+
+  async function startMetaAutoCreate() {
+    if (!metaEmail || !metaPassword) {
+      setMetaResult({ ok: false, error: "Email & password wajib diisi." });
+      return;
+    }
+    setMetaRunning(true);
+    setMetaResult(null);
+    try {
+      const r = await fetch("/api/automation/meta-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "signup",
+          email: metaEmail,
+          password: metaPassword,
+          proxy: metaProxy,
+          apikey: true,
+          vcc: false,
+        }),
+      });
+      const data = await r.json();
+      setMetaResult(data);
+    } catch (e) {
+      setMetaResult({ ok: false, error: e.message });
+    } finally {
+      setMetaRunning(false);
+    }
+  }
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
@@ -316,6 +351,22 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+      {/* Meta AI Auto-create banner */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border-subtle bg-bg-subtle p-4">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">psychology</span>
+            Meta AI — Auto-create account & API key
+          </h3>
+          <p className="text-text-muted text-sm mt-1">
+            Buat akun dev.meta.ai + API key otomatis ditambahkan ke provider Meta. Butuh residential proxy (US/EU).
+          </p>
+        </div>
+        <Button size="sm" icon="auto_awesome" onClick={() => { setMetaResult(null); setShowMetaModal(true); }}>
+          Auto-create Meta AI
+        </Button>
+      </div>
+
       {!hasAnyResult && (
         <div className="text-center py-8 border border-dashed border-border rounded-xl">
           <span className="material-symbols-outlined text-[32px] text-text-muted mb-2">
@@ -587,6 +638,47 @@ export default function ProvidersPage() {
           </div>
         </div>
       )}
+      {/* Meta AI Auto-create modal */}
+      <Modal isOpen={showMetaModal} onClose={() => setShowMetaModal(false)} title="Auto-create Meta AI">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-text-muted">Email</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-bg-subtle border border-border-subtle text-text-main"
+              placeholder="you@example.com"
+              value={metaEmail}
+              onChange={(e) => setMetaEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-muted">Password</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-bg-subtle border border-border-subtle text-text-main"
+              type="password"
+              placeholder="••••••••"
+              value={metaPassword}
+              onChange={(e) => setMetaPassword(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-muted">Residential Proxy (http://user:pass@host:port, US/EU)</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-bg-subtle border border-border-subtle text-text-main"
+              placeholder="wajib untuk region US/EU"
+              value={metaProxy}
+              onChange={(e) => setMetaProxy(e.target.value)}
+            />
+          </div>
+          <Button onClick={startMetaAutoCreate} disabled={metaRunning} fullWidth>
+            {metaRunning ? "Memproses…" : "Start Auto-Create"}
+          </Button>
+          {metaResult && (
+            <pre className="text-xs bg-bg-subtle p-3 rounded-lg overflow-auto whitespace-pre-wrap max-h-60">
+              {JSON.stringify(metaResult, null, 2)}
+            </pre>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
