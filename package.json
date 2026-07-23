@@ -18,6 +18,13 @@
     "concurrently": "^9.1.2"
   },
   "dependencies": {
-    "zod": "4.0.0"
+    "zod": "4.0.0",
+    "open": "*",
+    "ora": "*",
+    "chalk-animation": "*",
+    "figlet": "*",
+    "gradient-string": "*",
+    "boxen": "*",
+    "inquirer": "*"
   }
 }

@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import open from "open";
 import { GEMINI_CONFIG, getOAuthClientMetadata } from "../constants/oauth.js";
 import { getServerCredentials } from "../config/index.js";
 import { startLocalServer } from "../utils/server.js";
@@ -180,7 +179,7 @@ export class GeminiCLIService {
       console.log(`If browser doesn't open, visit:\n${authUrl}\n`);
 
       // Open browser
-      await open(authUrl);
+      console.log(`[oauth] Open this URL in your browser: authUrl`);
 
       // Wait for callback
       spinner.start("Waiting for Google authorization...");

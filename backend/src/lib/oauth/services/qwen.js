@@ -1,4 +1,3 @@
-import open from "open";
 import { QWEN_CONFIG } from "../constants/oauth.js";
 import { getServerCredentials } from "../config/index.js";
 import { generatePKCE } from "../utils/pkce.js";
@@ -140,9 +139,9 @@ export class QwenService {
 
       // Open browser
       if (deviceData.verification_uri_complete) {
-        await open(deviceData.verification_uri_complete);
+        console.log(`[oauth] Open this URL in your browser: deviceData.verification_uri_complete`);
       } else {
-        await open(deviceData.verification_uri);
+        console.log(`[oauth] Open this URL in your browser: deviceData.verification_uri`);
       }
 
       spinner.start("Waiting for authorization...");
