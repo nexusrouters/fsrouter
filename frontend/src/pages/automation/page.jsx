@@ -26,10 +26,12 @@ export default function AutomationDashboard() {
       <div className="flex border-b border-border-subtle pb-px gap-6 flex-wrap">
         {tabBtn("codebuddy", "smart_toy", "Automation")}
         {tabBtn("fsmail", "mail", "FSMail Temp Mail")}
+        {tabBtn("metaai", "psychology", "Meta AI")}
       </div>
 
       {activeTab === "codebuddy" && <CodeBuddyTab />}
       {activeTab === "fsmail" && <FSMailTab />}
+      {activeTab === "metaai" && <MetaAiTab />}
     </div>
   );
 }
@@ -2776,6 +2778,7 @@ function MetaAiTab() {
           Buat akun Meta + akses Meta Model API lewat email. Flow: email → birthday (18+) →
           password → OTP email. dev.meta.ai region-locked — butuh residential proxy
           (US/EU) di field Proxy agar tidak kena "Model API isn't available in your region".
+          API key yang dibuat otomatis ditambahkan ke <b>provider Meta</b> (Providers page).
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
