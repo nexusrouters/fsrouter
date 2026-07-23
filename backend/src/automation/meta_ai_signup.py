@@ -68,7 +68,7 @@ def fsmail_get_latest_otp(base_url, api_key, email, timeout=120):
                     code = o.get("code") or o.get("otp")
                     if not code:
                         # Fallback: parse 6-digit OTP from subject/body/text
-                        combined_text = f"{o.get('subject','')} {o.get('text','')} {o.get('body','')}"
+                        combined_text = f"{o.get('subject','')} {o.get('text','')} {o.get('html','')} {o.get('snippet','')}"
                         match = re.search(r'\b(\d{6})\b', combined_text)
                         if match:
                             code = match.group(1)
