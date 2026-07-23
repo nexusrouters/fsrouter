@@ -258,6 +258,7 @@ def run(args):
 
             result = {
                 "ok": True,
+                "status": "success",
                 "email": email,
                 "cookies": context.cookies(),
                 "note": "Meta account created.",
@@ -294,7 +295,10 @@ def main():
     ap.add_argument("--vcc", action="store_true", help="also add a VISA VCC at /billing")
     ap.add_argument("--headless", type=int, default=1)
     args = ap.parse_args()
-    print(json.dumps(run(args)))
+    res = run(args)
+    if not res.get("status"):
+        res["status"] = "success" if res.get("ok") else "error"
+    print(json.dumps(res))
 
 
 if __name__ == "__main__":
