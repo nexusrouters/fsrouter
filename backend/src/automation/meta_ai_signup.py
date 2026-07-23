@@ -102,7 +102,8 @@ def gen_visa_card():
 def create_api_key(page):
     """Navigate to /api-keys and click 'Create API key', return the key string."""
     try:
-        page.goto("https://dev.meta.ai/api-keys", wait_until="networkidle", timeout=30000)
+        page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
+        time.sleep(3)
         time.sleep(2)
         # dismiss any dialog
         try:
@@ -139,7 +140,8 @@ def add_vcc(page):
     """Navigate to /billing and add a VISA VCC. Returns ok/error."""
     try:
         card = gen_visa_card()
-        page.goto("https://dev.meta.ai/billing", wait_until="networkidle", timeout=30000)
+        page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
+        time.sleep(3)
         time.sleep(2)
         # click "Tambahkan metode pembayaran" / "Add payment method"
         try:
@@ -251,7 +253,8 @@ def run(args):
             # Di Camoufox persistent context, `browser` adalah `BrowserContext`
             context = browser
             page = browser.new_page()
-            page.goto("https://dev.meta.ai/", wait_until="networkidle", timeout=30000)
+            page.goto("https://dev.meta.ai/", wait_until="domcontentloaded", timeout=45000)
+            time.sleep(3)
             log("Waiting for Use mobile number or email button...")
             page.get_by_text("Use mobile number or email").click()
             time.sleep(1.2)
