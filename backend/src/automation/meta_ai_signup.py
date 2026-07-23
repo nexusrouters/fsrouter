@@ -347,17 +347,18 @@ def run(args):
             # Onboarding screen: First name / Last name
             log("Checking for onboarding screen...")
             try:
-                if page.locator('input[placeholder*="First name" i], input[name*="first" i]').count() > 0:
-                    log("Filling First name & Last name...")
-                    page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.fill("Fud")
-                    time.sleep(0.5)
-                    page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
-                    time.sleep(0.5)
-                    # "Get started" button
-                    page.get_by_role("button", name="Get started").first.click(timeout=10000)
-                    time.sleep(10)
+                # Menunggu field muncul dalam waktu maksimal 10 detik setelah submit OTP
+                page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.wait_for(state="visible", timeout=10000)
+                log("Onboarding screen detected. Filling First name & Last name...")
+                page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.fill("Fud")
+                time.sleep(0.5)
+                page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
+                time.sleep(0.5)
+                # "Get started" button
+                page.get_by_role("button", name="Get started").first.click(timeout=5000)
+                time.sleep(10)
             except Exception as e:
-                log(f"Onboarding screen handling error: {e}")
+                log(f"No onboarding screen detected or bypassed: {str(e)[:50]}")
 
             result = {
                 "ok": True,
