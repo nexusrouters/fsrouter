@@ -622,3 +622,51 @@ export async function refreshCodebuddyToken(refreshToken, log) {
     };
   }, log);
 }
+
+/**
+ * Nous Research (Nous Portal) OAuth token refresh.
+ * Device-code flow: refresh uses grant_type=refresh_token with only client_id
+ * (hermes-cli) — no client_secret required. Returns a fresh access token that
+ * is valid for inference-api.nousresearch.com.
+ */
+export async function refreshNousToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  const NOUS_REFRESH_URL = "https://portal.nousresearch.com/api/oauth/token";
+  const NOUS_CLIENT_ID = "hermes-cli";
+  return dedupRefresh(`nous:${NOUS_CLIENT_ID}`, refreshToken, async () => {
+    try {
+      const response = await fetch(NOUS_REFRESH_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: NOUS_CLIENT_ID,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        log?.error?.("TOKEN_REFRESH", "Failed to refresh Nous token", {
+          status: response.status,
+          error: errorText,
+        });
+        return null;
+      }
+      const tokens = await response.json();
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || refreshToken,
+        expiresIn: Number(tokens.expires_in) || 3600,
+        inferenceBaseUrl: tokens.inference_base_url || null,
+      };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", "Error refreshing Nous token", {
+        error: error.message,
+      });
+      return null;
+    }
+  }, log);
+}

@@ -12,6 +12,7 @@ import {
   refreshGitHubToken,
   refreshCopilotToken,
   refreshCodebuddyToken,
+  refreshNousToken,
   classifyOAuthRefreshError,
 } from "./tokenRefresh/providers.js";
 
@@ -133,6 +134,7 @@ const REFRESH_HANDLERS = {
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
   "codebuddy-cn": (c, log) => refreshCodebuddyToken(c.refreshToken, log),
+  "nous-research": (c, log) => refreshNousToken(c.refreshToken, log),
   vertex: vertexRefreshHandler,
   "vertex-partner": vertexRefreshHandler
 };
