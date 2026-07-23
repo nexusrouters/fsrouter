@@ -235,6 +235,13 @@ def add_vcc(page):
         except Exception:
             pass
         time.sleep(0.5)
+        # postal / zip code (FSRouter Stripe element zip code patch)
+        try:
+            target.locator('input[name*="postal" i], input[placeholder*="Kode Pos" i], input[placeholder*="Postal" i], input[placeholder*="ZIP" i], input[id*="postal" i], input[name*="zip" i]').first.press_sequentially("10001", delay=100)
+            log("Postal code filled successfully.")
+        except Exception as e:
+            log(f"Optional postal code field not found or skipped: {e}")
+        time.sleep(0.5)
         # "Berikutnya" / "Next" / "Save"
         try:
             page.get_by_text("Berikutnya").first.click(timeout=5000)
