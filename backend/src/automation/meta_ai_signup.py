@@ -148,16 +148,29 @@ def add_vcc(page):
             except Exception:
                 page.get_by_text("metode pembayaran").first.click()
         time.sleep(2)
-        # fill card fields
-        page.locator('input[name*="cardnumber" i], input[aria-label*="card" i], input[placeholder*="card" i], input[id*="card" i]').first.fill(card["number"])
+        # fill card fields (detect stripe or generic payment iframe)
+        target = page
+        for frame in page.frames:
+            if "stripe" in frame.url.lower() or "elements" in frame.url.lower():
+                target = frame
+                break
+        
+        # fallback: jika target main page tidak ada input tapi ada iframe, gunakan iframe pertama yang valid
+        if target == page:
+            for frame in page.frames:
+                if frame != page and (frame.locator('input').count() > 0 or "card" in frame.url.lower()):
+                    target = frame
+                    break
+
+        target.locator('input[name*="cardnumber" i], input[aria-label*="card" i], input[placeholder*="card" i], input[id*="card" i]').first.fill(card["number"])
         time.sleep(0.5)
-        page.locator('input[name*="exp" i], input[placeholder*="BB" i], input[aria-label*="expir" i]').first.fill(card["exp"])
+        target.locator('input[name*="exp" i], input[placeholder*="BB" i], input[aria-label*="expir" i], input[name*="expiry" i]').first.fill(card["exp"])
         time.sleep(0.5)
-        page.locator('input[name*="cvv" i], input[aria-label*="cvv" i], input[placeholder*="CVV" i]').first.fill(card["cvv"])
+        target.locator('input[name*="cvv" i], input[aria-label*="cvv" i], input[placeholder*="CVV" i], input[name*="cvc" i]').first.fill(card["cvv"])
         time.sleep(0.5)
         # name on card
         try:
-            page.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.fill("Fud One")
+            target.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.fill("Fud One")
         except Exception:
             pass
         time.sleep(0.5)
@@ -264,17 +277,17 @@ def run(args):
                 "note": "Meta account created.",
             }
 
-            # Step 7: create API key
+            # Step 7: add VCC (MUST BE BEFORE API KEY!)
+            if args.vcc:
+                vcc = add_vcc(page)
+                result["vcc"] = vcc
+
+            # Step 8: create API key
             if args.apikey:
                 key = create_api_key(page)
                 result["api_key"] = key
                 if not key:
                     result["api_key_error"] = "Could not extract key from /api-keys UI"
-
-            # Step 8: add VCC
-            if args.vcc:
-                vcc = add_vcc(page)
-                result["vcc"] = vcc
 
             browser.close()
     except Exception as e:
