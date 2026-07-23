@@ -333,13 +333,28 @@ def run(args):
             except Exception:
                 for i, d in enumerate(digits):
                     page.locator('input[inputmode="numeric"]').nth(i).fill(d)
-            time.sleep(3)
+            time.sleep(5)
 
             html2 = page.content()
             if "something went wrong" in html2.lower():
                 result = {"ok": False, "error": "OTP_FAILED: " + html2[:200]}
                 browser.close()
                 return result
+
+            # Onboarding screen: First name / Last name
+            log("Checking for onboarding screen...")
+            try:
+                if page.locator('input[placeholder*="First name" i], input[name*="first" i]').count() > 0:
+                    log("Filling First name & Last name...")
+                    page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.fill("Fud")
+                    time.sleep(0.5)
+                    page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
+                    time.sleep(0.5)
+                    # "Get started" button
+                    page.get_by_role("button", name="Get started").first.click()
+                    time.sleep(5)
+            except Exception as e:
+                log(f"Onboarding screen handling error: {e}")
 
             result = {
                 "ok": True,
