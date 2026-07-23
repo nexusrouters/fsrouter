@@ -152,6 +152,39 @@ def handle_onboarding(page):
         pass
     return False
 
+def handle_human_check(page):
+    """Click through Meta 'Confirm you\'re human' / 'Continue' gate if present.
+    Returns True if a human-check is currently showing (caller should re-check page after)."""
+    try:
+        if (page.get_by_text("Confirm you're human", exact=False).count() > 0 or
+                page.get_by_text("Confirm you’re human", exact=False).count() > 0):
+            log("Human-check gate detected. Clicking Continue (up to 3x)...")
+            for attempt in range(3):
+                clicked = False
+                for lbl in ["Continue", "Confirm", "Next", "Verify", "I am human", "I'm human"]:
+                    try:
+                        page.get_by_text(lbl).first.click(timeout=3000)
+                        clicked = True
+                        break
+                    except Exception:
+                        try:
+                            page.get_by_role("button", name=lbl).first.click(timeout=3000)
+                            clicked = True
+                            break
+                        except Exception:
+                            pass
+                time.sleep(5)
+                # jika setelah klik halaman sudah bukan human-check, selesai
+                if (page.get_by_text("Confirm you're human", exact=False).count() == 0 and
+                        page.get_by_text("Confirm you’re human", exact=False).count() == 0):
+                    log("Human-check passed after click.")
+                    return False
+            # masih human-check setelah 3x klik
+            return True
+    except Exception as e:
+        log(f"handle_human_check err: {e}")
+    return False
+
 def handle_otp_redirect(page, args):
     """If Meta redirects to an OTP confirmation screen, fill the latest code and submit."""
     try:
@@ -183,7 +216,7 @@ def handle_otp_redirect(page, args):
         log(f"handle_otp_redirect err: {e}")
     return False
 
-def create_api_key(page):
+def create_api_key(page, args=None):
     """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key."""
     try:
         page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
@@ -237,40 +270,75 @@ def create_api_key(page):
             if clicked_modal:
                 log("Modal submitted successfully.")
             else:
-                log("Fallback: trying to press Enter to submit modal.")
-                name_input.press("Enter")
-            time.sleep(5)
+                log("Fallback: trying to press Enter / click dialog button to submit modal.")
+                try:
+                    name_input.press("Enter")
+                except Exception:
+                    pass
+                # fallback: klik tombol biru manapun di dalam dialog
+                try:
+                    dlg = page.locator('[role="dialog"]')
+                    btns = dlg.locator('button')
+                    for i in range(btns.count()):
+                        try:
+                            btns.nth(i).click(timeout=2000)
+                            break
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            time.sleep(8)
         except Exception as e:
             log(f"No key name modal detected or bypassed: {str(e)[:50]}")
 
-        # 3. Extract key LLM_
+        # 3. Extract key LLM_ (poll up to 25s for the key to render)
         key = None
-        for sel in ['input[readonly]', 'code', 'pre', '.token', '[role="textbox"]']:
+        import time as _t
+        deadline = _t.time() + 25
+        while _t.time() < deadline:
+            # cek input/readonly/code/pre/div/span berisi LLM_
             try:
-                el = page.locator(sel).first
-                if el.count():
-                    txt = el.input_value() if sel.startswith("input") else el.inner_text()
-                    m = re.search(r"LLM_[A-Za-z0-9_]{15,80}", txt or "")
-                    if m:
-                        key = m.group(0)
-                        break
+                txt = page.content()
+                m = re.search(r"LLM_[A-Za-z0-9_]{15,80}", txt)
+                if m:
+                    key = m.group(0)
+                    break
             except Exception:
                 pass
-                
+            # juga coba baca value input apa pun
+            try:
+                for sel in ['input', 'code', 'pre', '.token', '[role="textbox"]', 'div', 'span']:
+                    try:
+                        els = page.locator(sel).all()
+                        for el in els[:50]:
+                            try:
+                                v = el.input_value() if sel == 'input' else el.inner_text()
+                            except Exception:
+                                v = ""
+                            if v and "LLM_" in v:
+                                mm = re.search(r"LLM_[A-Za-z0-9_]{15,80}", v)
+                                if mm:
+                                    key = mm.group(0)
+                                    break
+                        if key:
+                            break
+                    except Exception:
+                        pass
+                if key:
+                    break
+            except Exception:
+                pass
+            _t.sleep(2)
+        
         if not key:
-            # fallback: scrape page text
             txt = page.content()
-            m = re.search(r"LLM_[A-Za-z0-9_]{15,80}", txt)
-            if m:
-                key = m.group(0)
-            else:
-                log("API key not found in HTML. Saving debug screenshot to /tmp/apikey_not_found.png")
-                try: page.screenshot(path="/tmp/apikey_not_found.png")
-                except: pass
-                try: 
-                    with open("/tmp/apikey_not_found.html", "w") as f_out:
-                        f_out.write(txt)
-                except: pass
+            log("API key not found after polling. Saving debug screenshot.")
+            try: page.screenshot(path="/tmp/apikey_not_found.png")
+            except: pass
+            try:
+                with open("/tmp/apikey_not_found.html", "w") as f_out:
+                    f_out.write(txt)
+            except: pass
         
         if key: log(f"API key created successfully: {key[:10]}...")
         return key
@@ -278,13 +346,16 @@ def create_api_key(page):
         log(f"create_api_key err: {e}")
         return None
 
-def add_vcc(page):
+def add_vcc(page, args=None):
     """Navigate to /billing and add a VISA VCC. Returns ok/error."""
     try:
         card = gen_visa_card()
         page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
         time.sleep(5)
         if handle_onboarding(page):
+            page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+        if handle_human_check(page):
             page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
         if handle_otp_redirect(page, args):
@@ -501,14 +572,18 @@ def run(args):
 
             # Step 7: add VCC (MUST BE BEFORE API KEY!)
             if args.vcc:
-                vcc = add_vcc(page)
+                vcc = add_vcc(page, args)
                 result["vcc"] = vcc
 
             # Step 8: create API key
             if args.apikey:
-                key = create_api_key(page)
-                result["api_key"] = key
-                if not key:
+                key = create_api_key(page, args)
+                if key == "NEEDS_HUMAN_VERIFY":
+                    result["needs_human_verify"] = True
+                    result["api_key_error"] = "Blocked by Meta human verification. Complete it manually, then re-run."
+                else:
+                    result["api_key"] = key
+                if not key or key == "NEEDS_HUMAN_VERIFY":
                     result["api_key_error"] = "Could not extract key from /api-keys UI"
 
             browser.close()
