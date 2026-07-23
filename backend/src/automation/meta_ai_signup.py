@@ -357,6 +357,16 @@ def run(args):
             except Exception:
                 for i, d in enumerate(digits):
                     page.locator('input[inputmode="numeric"]').nth(i).fill(d)
+            time.sleep(1)
+            # Klik Next untuk mensubmit kode OTP
+            log("Submitting OTP code...")
+            try:
+                page.get_by_text("Next").first.click(timeout=5000)
+            except Exception:
+                try:
+                    page.get_by_role("button", name="Next").first.click(timeout=5000)
+                except Exception:
+                    page.keyboard.press("Enter")
             time.sleep(5)
 
             html2 = page.content()
