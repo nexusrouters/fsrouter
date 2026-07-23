@@ -141,12 +141,23 @@ def create_api_key(page):
         page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
         time.sleep(3)
         time.sleep(2)
-        # dismiss any dialog
+        log("Looking for Create API key button...")
         try:
             page.get_by_text("Create API key").first.click(timeout=5000)
         except Exception:
-            page.get_by_text("Create API key").first.click(timeout=5000)
-        time.sleep(2.5)
+            try:
+                page.get_by_text("Buat kunci API").first.click(timeout=5000)
+            except Exception:
+                try:
+                    page.get_by_role("button", name="Create").first.click(timeout=5000)
+                except Exception:
+                    try:
+                        page.get_by_role("button", name="Buat").first.click(timeout=5000)
+                    except Exception:
+                        log("Could not find Create API key button. Trying to proceed anyway...")
+                        pass
+        log("Waiting for modal/key generation...")
+        time.sleep(5)
         # key usually shown in a <code> or input or pre
         key = None
         for sel in ['input[readonly]', 'code', 'pre', '.token', '[role="textbox"]']:
@@ -166,6 +177,16 @@ def create_api_key(page):
             m = re.search(r"(maa-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})", txt)
             if m:
                 key = m.group(1)
+            else:
+                log("API key not found in HTML. Saving debug screenshot to /tmp/apikey_not_found.png")
+                try: page.screenshot(path="/tmp/apikey_not_found.png")
+                except: pass
+                try: 
+                    with open("/tmp/apikey_not_found.html", "w") as f_out:
+                        f_out.write(txt)
+                except: pass
+        
+        if key: log(f"API key created successfully: {key[:10]}...")
         return key
     except Exception as e:
         log(f"create_api_key err: {e}")
