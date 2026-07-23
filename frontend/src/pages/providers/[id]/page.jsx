@@ -1160,6 +1160,9 @@ export default function ProviderDetailPage() {
     if (providerId === "weavy") {
       return "/providers/weavy.jpeg";
     }
+    if (AI_PROVIDERS[providerId]?.logo) {
+      return AI_PROVIDERS[providerId].logo;
+    }
     if (providerInfo?.logo) {
       return providerInfo.logo;
     }
