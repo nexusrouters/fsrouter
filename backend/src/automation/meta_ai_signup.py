@@ -44,7 +44,11 @@ except ImportError:
 
 
 def log(msg):
-    print(f"[meta-signup] {msg}", flush=True)
+    # Print normal log
+    sys.stderr.write(f"[meta-signup] {msg}\n")
+    sys.stderr.flush()
+    # Print JSON step for FSRouter UI
+    print(json.dumps({"step": msg}), flush=True)
 
 
 def fsmail_get_latest_otp(base_url, api_key, email, timeout=120):
@@ -62,8 +66,18 @@ def fsmail_get_latest_otp(base_url, api_key, email, timeout=120):
             for o in reversed(otps):
                 if o.get("email") == email and not o.get("used"):
                     code = o.get("code") or o.get("otp")
+                    if not code:
+                        # Fallback: parse 6-digit OTP from subject/body/text
+                        combined_text = f"{o.get('subject','')} {o.get('text','')} {o.get('body','')}"
+                        match = re.search(r'\b(\d{6})\b', combined_text)
+                        if match:
+                            code = match.group(1)
+                            log(f"Extracted 6-digit OTP from email text: {code}")
                     if code:
                         return code
+            if otps:
+                subjects = [o.get("subject") for o in otps]
+                log(f"Active emails polled but no OTP matched. Subjects: {subjects}")
         except Exception as e:
             log(f"fsmail poll err: {e}")
         time.sleep(5)
