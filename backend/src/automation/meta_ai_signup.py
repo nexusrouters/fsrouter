@@ -143,9 +143,9 @@ def create_api_key(page):
         time.sleep(2)
         # dismiss any dialog
         try:
-            page.get_by_role("button", name="Create API key").first.click()
+            page.get_by_text("Create API key").first.click(timeout=5000)
         except Exception:
-            page.get_by_text("Create API key").first.click()
+            page.get_by_text("Create API key").first.click(timeout=5000)
         time.sleep(2.5)
         # key usually shown in a <code> or input or pre
         key = None
@@ -181,12 +181,12 @@ def add_vcc(page):
         time.sleep(2)
         # click "Tambahkan metode pembayaran" / "Add payment method"
         try:
-            page.get_by_text("Tambahkan metode pembayaran").first.click()
+            page.get_by_text("Tambahkan metode pembayaran").first.click(timeout=5000)
         except Exception:
             try:
-                page.get_by_role("button", name="Add payment method").first.click()
+                page.get_by_text("Add payment method").first.click(timeout=5000)
             except Exception:
-                page.get_by_text("metode pembayaran").first.click()
+                page.get_by_text("metode pembayaran").first.click(timeout=5000)
         time.sleep(2)
         # fill card fields (detect stripe or generic payment iframe)
         target = page
@@ -214,14 +214,17 @@ def add_vcc(page):
         except Exception:
             pass
         time.sleep(0.5)
-        # "Berikutnya" / "Next"
+        # "Berikutnya" / "Next" / "Save"
         try:
-            page.get_by_role("button", name="Berikutnya").first.click()
+            page.get_by_text("Berikutnya").first.click(timeout=5000)
         except Exception:
             try:
-                page.get_by_role("button", name="Next").first.click()
+                page.get_by_text("Next").first.click(timeout=5000)
             except Exception:
-                page.get_by_text("Berikutnya").first.click()
+                try:
+                    page.get_by_text("Save").first.click(timeout=5000)
+                except Exception:
+                    pass
         time.sleep(4)
         html = page.content()
         ok = ("berhasil" in html.lower() or "saved" in html.lower() or "success" in html.lower()
@@ -351,8 +354,8 @@ def run(args):
                     page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
                     time.sleep(0.5)
                     # "Get started" button
-                    page.get_by_role("button", name="Get started").first.click()
-                    time.sleep(5)
+                    page.get_by_role("button", name="Get started").first.click(timeout=10000)
+                    time.sleep(10)
             except Exception as e:
                 log(f"Onboarding screen handling error: {e}")
 
@@ -360,7 +363,7 @@ def run(args):
                 "ok": True,
                 "status": "success",
                 "email": email,
-                "cookies": context.cookies(),
+                "cookies": page.context.cookies(),
                 "note": "Meta account created.",
             }
 
