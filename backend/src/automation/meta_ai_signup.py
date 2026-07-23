@@ -195,6 +195,10 @@ def add_vcc(page):
 def run(args):
     import urllib.parse
 
+    if getattr(args, "stagger_delay", 0) > 0:
+        log(f"Stagger delay active: sleeping for {args.stagger_delay}s before browser launch")
+        time.sleep(args.stagger_delay)
+
     email = args.email
     password = args.password
     try:
@@ -303,10 +307,13 @@ def main():
     ap.add_argument("--proxy", default="")
     ap.add_argument("--fsmail-base-url", default="https://fsmail.nguprus.app")
     ap.add_argument("--fsmail-api-key", default="")
+    ap.add_argument("--fsmail-domain", default="")
     ap.add_argument("--otp-timeout", type=int, default=120)
     ap.add_argument("--apikey", action="store_true", help="also create an API key at /api-keys")
     ap.add_argument("--vcc", action="store_true", help="also add a VISA VCC at /billing")
     ap.add_argument("--headless", action="store_true", default=False)
+    ap.add_argument("--profiles-dir", default="")
+    ap.add_argument("--stagger-delay", type=int, default=0)
     args = ap.parse_args()
     res = run(args)
     if not res.get("status"):
