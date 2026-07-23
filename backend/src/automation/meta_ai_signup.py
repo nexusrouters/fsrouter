@@ -152,11 +152,48 @@ def handle_onboarding(page):
         pass
     return False
 
+def handle_otp_redirect(page, args):
+    """If Meta redirects to an OTP confirmation screen, fill the latest code and submit."""
+    try:
+        if page.get_by_text("Enter the confirmation code", exact=False).count() > 0 or \
+           page.get_by_text("confirmation code", exact=False).count() > 0:
+            log("OTP re-prompt detected on sensitive page. Fetching latest OTP...")
+            otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=args.otp_timeout) if args.fsmail_api_key else None
+            if not otp:
+                log("No OTP available for re-prompt.")
+                return False
+            digits = re.findall(r"\d", otp)[:6]
+            box = page.locator('input[inputmode="numeric"], input[maxlength="1"], input[name*="code" i]').first
+            try:
+                box.fill("".join(digits))
+            except Exception:
+                for i, d in enumerate(digits):
+                    page.locator('input[inputmode="numeric"]').nth(i).fill(d)
+            time.sleep(1)
+            try:
+                page.get_by_text("Next").first.click(timeout=5000)
+            except Exception:
+                try:
+                    page.get_by_role("button", name="Next").first.click(timeout=5000)
+                except Exception:
+                    page.keyboard.press("Enter")
+            time.sleep(6)
+            return True
+    except Exception as e:
+        log(f"handle_otp_redirect err: {e}")
+    return False
+
 def create_api_key(page):
     """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key."""
     try:
         page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
         time.sleep(5)
+        if handle_onboarding(page):
+            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+        if handle_otp_redirect(page, args):
+            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
         if handle_onboarding(page):
             page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
@@ -247,6 +284,12 @@ def add_vcc(page):
         card = gen_visa_card()
         page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
         time.sleep(5)
+        if handle_onboarding(page):
+            page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
+        if handle_otp_redirect(page, args):
+            page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(5)
         if handle_onboarding(page):
             page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
