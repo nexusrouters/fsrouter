@@ -162,15 +162,15 @@ def add_vcc(page):
                     target = frame
                     break
 
-        target.locator('input[name*="cardnumber" i], input[aria-label*="card" i], input[placeholder*="card" i], input[id*="card" i]').first.fill(card["number"])
+        target.locator('input[name*="cardnumber" i], input[aria-label*="card" i], input[placeholder*="card" i], input[id*="card" i]').first.press_sequentially(card["number"], delay=100)
         time.sleep(0.5)
-        target.locator('input[name*="exp" i], input[placeholder*="BB" i], input[aria-label*="expir" i], input[name*="expiry" i]').first.fill(card["exp"])
+        target.locator('input[name*="exp" i], input[placeholder*="BB" i], input[aria-label*="expir" i], input[name*="expiry" i]').first.press_sequentially("0531", delay=100)
         time.sleep(0.5)
-        target.locator('input[name*="cvv" i], input[aria-label*="cvv" i], input[placeholder*="CVV" i], input[name*="cvc" i]').first.fill(card["cvv"])
+        target.locator('input[name*="cvv" i], input[aria-label*="cvv" i], input[placeholder*="CVV" i], input[name*="cvc" i]').first.press_sequentially(card["cvv"], delay=100)
         time.sleep(0.5)
         # name on card
         try:
-            target.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.fill("Fud One")
+            target.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.press_sequentially("Fud One", delay=100)
         except Exception:
             pass
         time.sleep(0.5)
