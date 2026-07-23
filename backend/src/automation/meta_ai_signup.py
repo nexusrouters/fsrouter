@@ -138,18 +138,49 @@ def gen_visa_card():
 def handle_onboarding(page):
     log("Checking if redirected to onboarding screen...")
     try:
-        if page.locator('input[placeholder*="First name" i], input[name*="first" i]').count() > 0:
+        # Meta renders label[for=...] "First name" / "Last name" (no placeholder)
+        first_label = page.locator('//label[contains(., "First name")]')
+        if first_label.count() > 0:
             log("Onboarding screen detected. Filling First name & Last name...")
-            page.locator('input[placeholder*="First name" i], input[name*="first" i]').first.fill("Fud")
-            import time
+            # input terkait ada di id dari atribut for, atau sibling
+            for_attr = first_label.first.get_attribute("for")
+            if for_attr:
+                first_input = page.locator(f'input#{for_attr}')
+            else:
+                first_input = page.locator('//label[contains(., "First name")]/following::input[1]')
+            last_label = page.locator('//label[contains(., "Last name")]')
+            if last_label.count() > 0:
+                la = last_label.first.get_attribute("for")
+                if la:
+                    last_input = page.locator(f'input#{la}')
+                else:
+                    last_input = page.locator('//label[contains(., "Last name")]/following::input[1]')
+            else:
+                last_input = first_input
+            first_input.first.fill("Fud")
             time.sleep(0.5)
-            page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first.fill("One")
+            last_input.first.fill("One")
             time.sleep(0.5)
-            page.get_by_role("button", name="Get started").first.click(timeout=5000)
+            # klik Get started / Continue / Submit
+            clicked = False
+            for lbl in ["Get started", "Continue", "Submit", "Next", "Mulai", "Lanjut"]:
+                try:
+                    page.get_by_text(lbl).first.click(timeout=3000)
+                    clicked = True
+                    break
+                except Exception:
+                    try:
+                        page.get_by_role("button", name=lbl).first.click(timeout=3000)
+                        clicked = True
+                        break
+                    except Exception:
+                        pass
+            if not clicked:
+                page.keyboard.press("Enter")
             time.sleep(8)
             return True
     except Exception as e:
-        pass
+        log(f"handle_onboarding err: {e}")
     return False
 
 def handle_human_check(page):
@@ -256,25 +287,52 @@ def create_api_key(page, args=None):
            page.get_by_text("Confirm you’re human", exact=False).count() > 0:
             log("Still blocked by human verification after retries.")
             return "NEEDS_HUMAN_VERIFY"
+        log(f"DEBUG api-keys URL: {page.url}")
+        dbg_html = page.content()
+        log(f"DEBUG api-keys html length: {len(dbg_html)}")
+        dbg_text = re.sub(r"<[^>]+>", " ", dbg_html)
+        dbg_text = re.sub(r"\s+", " ", dbg_text)
+        log(f"DEBUG has 'Create API key': {'Create API key' in dbg_text}")
+        log(f"DEBUG has 'human': {'human' in dbg_text.lower()}")
+        log(f"DEBUG visible text snippet: {dbg_text[:300]}")
         log("Looking for main Create API key button...")
+        # tunggu loading selesai
+        try:
+            page.wait_for_load_state("networkidle", timeout=20000)
+        except Exception:
+            pass
+        time.sleep(3)
         
         clicked_main = False
         for btn_text in ["Create API key", "Buat kunci API", "Create new API key", "Create", "Buat"]:
             try:
-                page.get_by_text(btn_text).first.click(timeout=3000)
+                # coba div/button berisi teks (Meta pakai div, bukan button)
+                el = page.locator(f'div:has-text("{btn_text}")').first
+                el.wait_for(state="visible", timeout=5000)
+                el.click(timeout=5000, force=True)
                 clicked_main = True
                 break
             except Exception:
-                pass
+                try:
+                    page.get_by_text(btn_text, exact=False).first.click(timeout=5000, force=True)
+                    clicked_main = True
+                    break
+                except Exception:
+                    try:
+                        page.get_by_role("button", name=btn_text).first.click(timeout=5000)
+                        clicked_main = True
+                        break
+                    except Exception:
+                        pass
                 
         if not clicked_main:
             log("Could not find main button. Attempting to proceed...")
 
         time.sleep(2)
 
-        # 2. Handle modal "Create new API key"
+        # 2. Handle modal "Create new API key" (only inside a dialog)
         try:
-            name_input = page.locator('input[placeholder*="name" i], input[placeholder*="nama" i], input[type="text"]').first
+            name_input = page.locator('[role="dialog"] input[placeholder*="name" i], [role="dialog"] input[placeholder*="nama" i], [role="dialog"] input[type="text"]').first
             name_input.wait_for(state="visible", timeout=5000)
             log("Modal detected. Filling Key name...")
             name_input.fill("FSRouter")
