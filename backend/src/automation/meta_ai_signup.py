@@ -436,6 +436,19 @@ def add_vcc(page, args=None):
         card = gen_visa_card()
         page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
         time.sleep(5)
+        try:
+            page.wait_for_load_state("networkidle", timeout=20000)
+        except Exception:
+            pass
+        time.sleep(3)
+        bhtml = page.content()
+        btext = re.sub(r"<[^>]+>", " ", bhtml)
+        btext = re.sub(r"\s+", " ", btext)
+        log(f"DEBUG billing URL: {page.url}")
+        log(f"DEBUG billing has 'Add payment method': {'Add payment method' in btext}")
+        log(f"DEBUG billing has 'Tambahkan metode pembayaran': {'Tambahkan metode pembayaran' in btext}")
+        log(f"DEBUG billing has 'Verifikasi': {'Verifikasi' in btext}")
+        log(f"DEBUG billing snippet: {btext[:200]}")
         if handle_onboarding(page):
             page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=30000)
             time.sleep(5)
