@@ -209,7 +209,7 @@ def run(args):
     if args.proxy:
         proxy = {"server": args.proxy}
 
-    launch_kwargs = {"headless": args.headless == 1, "args": ["--no-sandbox", "--disable-setuid-sandbox"]}
+    launch_kwargs = {"headless": args.headless, "args": ["--no-sandbox", "--disable-setuid-sandbox"]}
     if proxy:
         launch_kwargs["proxy"] = proxy
 
@@ -306,7 +306,7 @@ def main():
     ap.add_argument("--otp-timeout", type=int, default=120)
     ap.add_argument("--apikey", action="store_true", help="also create an API key at /api-keys")
     ap.add_argument("--vcc", action="store_true", help="also add a VISA VCC at /billing")
-    ap.add_argument("--headless", type=int, default=1)
+    ap.add_argument("--headless", action="store_true", default=False)
     args = ap.parse_args()
     res = run(args)
     if not res.get("status"):
