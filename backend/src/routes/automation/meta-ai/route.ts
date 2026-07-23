@@ -40,6 +40,8 @@ export async function POST(req: any, res: any) {
       `--fsmail-base-url=${fsmailBaseUrl || "https://fsmail.nguprus.app"}`,
       `--headless=1`,
     ];
+    if (body.apikey) args.push("--apikey");
+    if (body.vcc) args.push("--vcc");
 
     const child = spawn("python3", args, { cwd: process.cwd() });
     let out = "";

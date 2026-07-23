@@ -7,6 +7,8 @@ export default function MetaAiPage() {
   const [birthday, setBirthday] = useState("1990-01-15");
   const [proxy, setProxy] = useState("");
   const [fsmailKey, setFsmailKey] = useState("");
+  const [makeApiKey, setMakeApiKey] = useState(true);
+  const [addVcc, setAddVcc] = useState(true);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
 
@@ -28,6 +30,8 @@ export default function MetaAiPage() {
           birthday,
           proxy,
           fsmailApiKey: fsmailKey,
+          apikey: makeApiKey,
+          vcc: addVcc,
         }),
       });
       const data = await r.json();
@@ -93,6 +97,16 @@ export default function MetaAiPage() {
               value={fsmailKey}
               onChange={(e) => setFsmailKey(e.target.value)}
             />
+          </div>
+          <div className="md:col-span-2 flex flex-wrap gap-4 mt-1">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={makeApiKey} onChange={(e) => setMakeApiKey(e.target.checked)} />
+              Create API key (dev.meta.ai/api-keys)
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={addVcc} onChange={(e) => setAddVcc(e.target.checked)} />
+              Add VCC (free credit, /billing)
+            </label>
           </div>
         </div>
         <div className="mt-4">

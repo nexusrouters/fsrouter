@@ -3,13 +3,15 @@
 meta_ai_signup.py — Auto-create a Meta account + dev.meta.ai (Meta Model API) access.
 Adapted from the Grok GAC signup pattern (backend/src/automation/grok_cli_gac.py).
 
-Flow (verified manually 2026-07-22):
+Flow (verified manually 2026-07-22 / 07-23):
   1. GET https://dev.meta.ai/  -> redirects to auth.meta.com
   2. Click "Use mobile number or email"
   3. Type email -> Continue
   4. "Create a new account" -> pick birthday (18+) via custom dropdowns + password -> Confirm
   5. OTP sent to email -> poll Fsmail (or IMAP) for the 6-digit code -> submit
-  6. Account created. Session cookies returned.
+  6. Account created.
+  7. (optional --apikey)  GET /api-keys -> click "Create API key" -> copy key
+  8. (optional --vcc)     GET /billing  -> add VCC (VISA) -> Berikutnya (no OTP needed)
 
 NOTE: dev.meta.ai (Meta Model API) is REGION-LOCKED. Running from a datacenter
 IP yields "Model API isn't available in your region". Pass --proxy with a
@@ -20,7 +22,7 @@ Usage:
     --email=you@example.com --password='...' --birthday=1990-01-15 \
     --proxy=http://user:pass@host:port \
     --fsmail-base-url=https://fsmail.nguprus.app --fsmail-api-key=XXX \
-    --headless=1
+    --apikey --vcc --headless=1
 """
 import argparse
 import json
@@ -29,6 +31,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import random
 from datetime import datetime, timedelta
 
 try:
@@ -77,17 +80,115 @@ def pick_dropdown(page, combo_index, value_text):
         return False
 
 
+def gen_visa_card():
+    """Generate a VISA test card from BIN 539371000872 + 4 random digits.
+    Expiry fixed 05/31, CVV random 3 digits."""
+    body = "539371000872" + "".join(random.choice("0123456789") for _ in range(4))
+    # Luhn check digit
+    def luhn(num):
+        digits = [int(d) for d in num]
+        odd = digits[-1::-2]
+        even = digits[-2::-2]
+        total = sum(odd) + sum(sum(divmod(d * 2, 10)) for d in even)
+        return (10 - (total % 10)) % 10
+    check = luhn(body)
+    number = body + str(check)
+    cvv = "".join(random.choice("0123456789") for _ in range(3))
+    return {"number": number, "exp": "05/31", "cvv": cvv}
+
+
+def create_api_key(page):
+    """Navigate to /api-keys and click 'Create API key', return the key string."""
+    try:
+        page.goto("https://dev.meta.ai/api-keys", wait_until="networkidle", timeout=30000)
+        time.sleep(2)
+        # dismiss any dialog
+        try:
+            page.get_by_role("button", name="Create API key").first.click()
+        except Exception:
+            page.get_by_text("Create API key").first.click()
+        time.sleep(2.5)
+        # key usually shown in a <code> or input or pre
+        key = None
+        for sel in ['input[readonly]', 'code', 'pre', '.token', '[role="textbox"]']:
+            try:
+                el = page.locator(sel).first
+                if el.count():
+                    txt = el.input_value() if sel.startswith("input") else el.inner_text()
+                    m = re.search(r"(maa-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})", txt or "")
+                    if m:
+                        key = m.group(1)
+                        break
+            except Exception:
+                pass
+        if not key:
+            # fallback: scrape page text
+            txt = page.content()
+            m = re.search(r"(maa-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})", txt)
+            if m:
+                key = m.group(1)
+        return key
+    except Exception as e:
+        log(f"create_api_key err: {e}")
+        return None
+
+
+def add_vcc(page):
+    """Navigate to /billing and add a VISA VCC. Returns ok/error."""
+    try:
+        card = gen_visa_card()
+        page.goto("https://dev.meta.ai/billing", wait_until="networkidle", timeout=30000)
+        time.sleep(2)
+        # click "Tambahkan metode pembayaran" / "Add payment method"
+        try:
+            page.get_by_text("Tambahkan metode pembayaran").first.click()
+        except Exception:
+            try:
+                page.get_by_role("button", name="Add payment method").first.click()
+            except Exception:
+                page.get_by_text("metode pembayaran").first.click()
+        time.sleep(2)
+        # fill card fields
+        page.locator('input[name*="cardnumber" i], input[aria-label*="card" i], input[placeholder*="card" i], input[id*="card" i]').first.fill(card["number"])
+        time.sleep(0.5)
+        page.locator('input[name*="exp" i], input[placeholder*="BB" i], input[aria-label*="expir" i]').first.fill(card["exp"])
+        time.sleep(0.5)
+        page.locator('input[name*="cvv" i], input[aria-label*="cvv" i], input[placeholder*="CVV" i]').first.fill(card["cvv"])
+        time.sleep(0.5)
+        # name on card
+        try:
+            page.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.fill("Fud One")
+        except Exception:
+            pass
+        time.sleep(0.5)
+        # "Berikutnya" / "Next"
+        try:
+            page.get_by_role("button", name="Berikutnya").first.click()
+        except Exception:
+            try:
+                page.get_by_role("button", name="Next").first.click()
+            except Exception:
+                page.get_by_text("Berikutnya").first.click()
+        time.sleep(4)
+        html = page.content()
+        ok = ("berhasil" in html.lower() or "saved" in html.lower() or "success" in html.lower()
+              or "metode pembayaran" in html.lower())
+        return {"ok": ok, "card": card["number"], "exp": card["exp"], "cvv": card["cvv"], "note": "VCC added (no OTP required per user)."}
+    except Exception as e:
+        log(f"add_vcc err: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def run(args):
     import urllib.parse
 
     email = args.email
     password = args.password
-    # birthday -> month/day/year
     try:
         bd = datetime.strptime(args.birthday, "%Y-%m-%d")
     except Exception:
         bd = datetime(1990, 1, 15)
-    month_name = bd.strftime("%B")  # "January"
+    month_name = bd.strftime("%B")
     day_str = str(bd.day)
     year_str = str(bd.year)
 
@@ -113,7 +214,6 @@ def run(args):
             page.get_by_role("button", name="Continue").click()
             time.sleep(2.5)
 
-            # birthday
             pick_dropdown(page, 0, month_name)
             pick_dropdown(page, 1, day_str)
             pick_dropdown(page, 2, year_str)
@@ -133,17 +233,14 @@ def run(args):
                 browser.close()
                 return result
 
-            # OTP
             otp = None
             if args.fsmail_api_key:
                 otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, email, timeout=args.otp_timeout)
             if not otp:
-                # try generic 6-digit from page hint / manual
                 result = {"ok": False, "error": "OTP_NOT_RECEIVED", "need_otp": True}
                 browser.close()
                 return result
 
-            # input OTP (digits)
             digits = re.findall(r"\d", otp)[:6]
             otp_box = page.locator('input[inputmode="numeric"], input[maxlength="1"], input[name*="code" i]').first
             try:
@@ -153,21 +250,31 @@ def run(args):
                     page.locator('input[inputmode="numeric"]').nth(i).fill(d)
             time.sleep(3)
 
-            # check success
             html2 = page.content()
             if "something went wrong" in html2.lower():
                 result = {"ok": False, "error": "OTP_FAILED: " + html2[:200]}
                 browser.close()
                 return result
 
-            # grab cookies
-            cookies = context.cookies()
             result = {
                 "ok": True,
                 "email": email,
-                "cookies": cookies,
-                "note": "Meta account created. Use dev.meta.ai to generate a Model API key.",
+                "cookies": context.cookies(),
+                "note": "Meta account created.",
             }
+
+            # Step 7: create API key
+            if args.apikey:
+                key = create_api_key(page)
+                result["api_key"] = key
+                if not key:
+                    result["api_key_error"] = "Could not extract key from /api-keys UI"
+
+            # Step 8: add VCC
+            if args.vcc:
+                vcc = add_vcc(page)
+                result["vcc"] = vcc
+
             browser.close()
     except Exception as e:
         result = {"ok": False, "error": str(e)}
@@ -183,6 +290,8 @@ def main():
     ap.add_argument("--fsmail-base-url", default="https://fsmail.nguprus.app")
     ap.add_argument("--fsmail-api-key", default="")
     ap.add_argument("--otp-timeout", type=int, default=120)
+    ap.add_argument("--apikey", action="store_true", help="also create an API key at /api-keys")
+    ap.add_argument("--vcc", action="store_true", help="also add a VISA VCC at /billing")
     ap.add_argument("--headless", type=int, default=1)
     args = ap.parse_args()
     print(json.dumps(run(args)))
