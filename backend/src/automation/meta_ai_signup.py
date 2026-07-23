@@ -216,20 +216,46 @@ def handle_otp_redirect(page, args):
         log(f"handle_otp_redirect err: {e}")
     return False
 
+def open_api_keys(page):
+    """Try navigating to /api-keys via in-app link first, fallback to goto."""
+    # coba klik link "API keys" di sidebar/menu
+    for lbl in ["API keys", "API Keys", "Model API keys", "Api keys"]:
+        try:
+            page.get_by_text(lbl, exact=False).first.click(timeout=3000)
+            time.sleep(4)
+            if "api-keys" in page.url:
+                return
+        except Exception:
+            pass
+    page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
+    time.sleep(5)
+
 def create_api_key(page, args=None):
-    """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key."""
+    """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key.
+    Returns 'NEEDS_HUMAN_VERIFY' if blocked by Meta human verification."""
     try:
-        page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
-        time.sleep(5)
-        if handle_onboarding(page):
-            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
-            time.sleep(5)
-        if handle_otp_redirect(page, args):
-            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
-            time.sleep(5)
-        if handle_onboarding(page):
-            page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=30000)
-            time.sleep(5)
+        open_api_keys(page)
+        # retry loop: human-check kadang hilang setelah tunggu
+        for attempt in range(3):
+            if handle_onboarding(page):
+                open_api_keys(page)
+            if handle_otp_redirect(page, args):
+                open_api_keys(page)
+            if handle_onboarding(page):
+                open_api_keys(page)
+            # cek human-check
+            if page.get_by_text("Confirm you're human", exact=False).count() > 0 or \
+               page.get_by_text("Confirm you’re human", exact=False).count() > 0:
+                log(f"Human-check present (attempt {attempt+1}/3). Waiting then retrying...")
+                time.sleep(20)
+                open_api_keys(page)
+                continue
+            break
+        # final human-check check
+        if page.get_by_text("Confirm you're human", exact=False).count() > 0 or \
+           page.get_by_text("Confirm you’re human", exact=False).count() > 0:
+            log("Still blocked by human verification after retries.")
+            return "NEEDS_HUMAN_VERIFY"
         log("Looking for main Create API key button...")
         
         clicked_main = False
@@ -561,6 +587,10 @@ def run(args):
                 time.sleep(10)
             except Exception as e:
                 log(f"No onboarding screen detected or bypassed: {str(e)[:50]}")
+
+            # Beri jeda agar session Meta "settle" dan mengurangi human-check challenge
+            log("Letting session settle before opening billing/api-keys...")
+            time.sleep(30)
 
             result = {
                 "ok": True,

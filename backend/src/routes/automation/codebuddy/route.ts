@@ -1078,6 +1078,14 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
                 status: "running",
                 step: "Canva Enrolled. Menghubungkan ke Leonardo AI..."
               });
+            } else if (parsed.needs_human_verify) {
+              done = true;
+              await updateResult( {
+                email: account.email,
+                status: "needs_human",
+                step: "Blocked by Meta human verification. Open account in a real browser, complete the challenge, then Retry.",
+                lastError: parsed.api_key_error || "needs_human_verify"
+              });
             } else if (parsed.status === "success") {
               done = true;
               const apiKeyToSave = (isLeonardo || isWeavy) ? parsed.cookie : parsed.api_key;
