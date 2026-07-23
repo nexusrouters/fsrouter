@@ -52,32 +52,54 @@ def log(msg):
 
 
 def fsmail_get_latest_otp(base_url, api_key, email, timeout=120):
-    """Poll Fsmail for the most recent OTP addressed to `email`."""
+    """Poll Fsmail inbox messages directly and parse OTP from content."""
     deadline = time.time() + timeout
+    alias = email.split('@')[0]
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) FSRouterBot/1.0"
+    }
+    
+    def strip_html(html_content):
+        if not html_content: return ""
+        text = re.sub(r'<style[\s\S]*?<\/style>', ' ', html_content, flags=re.I)
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = text.replace("&nbsp;", " ").replace("&amp;", "&").replace("&quot;", '"')
+        return re.sub(r'\s+', ' ', text).strip()
+    
+    checked_msg_ids = set()
+    
     while time.time() < deadline:
         try:
-            req = urllib.request.Request(
-                f"{base_url}/api/otps?email={urllib.parse.quote(email)}",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            )
+            url = f"{base_url}/api/inboxes/{urllib.parse.quote(alias)}/messages"
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode())
-            otps = data.get("otps") or data.get("data") or []
-            for o in reversed(otps):
-                if o.get("email") == email and not o.get("used"):
-                    code = o.get("code") or o.get("otp")
-                    if not code:
-                        # Fallback: parse 6-digit OTP from subject/body/text
-                        combined_text = f"{o.get('subject','')} {o.get('text','')} {o.get('html','')} {o.get('snippet','')}"
-                        match = re.search(r'\b(\d{6})\b', combined_text)
-                        if match:
-                            code = match.group(1)
-                            log(f"Extracted 6-digit OTP from email text: {code}")
-                    if code:
+            
+            messages = data.get("messages") or []
+            for msg in messages:
+                msg_id = msg.get("id")
+                if msg_id and msg_id not in checked_msg_ids:
+                    detail_url = f"{base_url}/api/messages/{msg_id}"
+                    detail_req = urllib.request.Request(detail_url, headers=headers)
+                    with urllib.request.urlopen(detail_req, timeout=15) as dr:
+                        detail_data = json.loads(dr.read().decode())
+                    
+                    message_info = detail_data.get("message") or {}
+                    subject = message_info.get("subject", "") or ""
+                    html = message_info.get("html", "") or ""
+                    text = message_info.get("text", "") or ""
+                    
+                    cleaned_html = strip_html(html)
+                    combined_text = f"{subject} {text} {cleaned_html}"
+                    match = re.search(r'\b(\d{6})\b', combined_text)
+                    if match:
+                        code = match.group(1)
+                        log(f"Extracted 6-digit OTP from email detail: {code}")
                         return code
-            if otps:
-                subjects = [o.get("subject") for o in otps]
-                log(f"Active emails polled but no OTP matched. Subjects: {subjects}")
+                    
+                    checked_msg_ids.add(msg_id)
         except Exception as e:
             log(f"fsmail poll err: {e}")
         time.sleep(5)
