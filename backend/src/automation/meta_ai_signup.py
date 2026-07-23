@@ -136,47 +136,77 @@ def gen_visa_card():
 
 
 def create_api_key(page):
-    """Navigate to /api-keys and click 'Create API key', return the key string."""
+    """Navigate to /api-keys, click 'Create API key', fill key name in modal, submit, and return key."""
     try:
         page.goto("https://dev.meta.ai/api-keys", wait_until="domcontentloaded", timeout=45000)
         time.sleep(3)
         time.sleep(2)
-        log("Looking for Create API key button...")
-        try:
-            page.get_by_text("Create API key").first.click(timeout=5000)
-        except Exception:
+        log("Looking for main Create API key button...")
+        
+        clicked_main = False
+        for btn_text in ["Create API key", "Buat kunci API", "Create new API key", "Create", "Buat"]:
             try:
-                page.get_by_text("Buat kunci API").first.click(timeout=5000)
+                page.get_by_text(btn_text).first.click(timeout=3000)
+                clicked_main = True
+                break
             except Exception:
+                pass
+                
+        if not clicked_main:
+            log("Could not find main button. Attempting to proceed...")
+
+        time.sleep(2)
+
+        # 2. Handle modal "Create new API key"
+        try:
+            name_input = page.locator('input[placeholder*="name" i], input[placeholder*="nama" i], input[type="text"]').first
+            name_input.wait_for(state="visible", timeout=5000)
+            log("Modal detected. Filling Key name...")
+            name_input.fill("FSRouter")
+            time.sleep(0.5)
+            # Klik tombol Create di modal
+            clicked_modal = False
+            for btn_text in ["Create API key", "Buat kunci API", "Create", "Buat", "Confirm", "Konfirmasi"]:
                 try:
-                    page.get_by_role("button", name="Create").first.click(timeout=5000)
+                    page.get_by_role("button", name=btn_text).first.click(timeout=2000)
+                    clicked_modal = True
+                    break
                 except Exception:
                     try:
-                        page.get_by_role("button", name="Buat").first.click(timeout=5000)
+                        page.get_by_text(btn_text).first.click(timeout=2000)
+                        clicked_modal = True
+                        break
                     except Exception:
-                        log("Could not find Create API key button. Trying to proceed anyway...")
                         pass
-        log("Waiting for modal/key generation...")
-        time.sleep(5)
-        # key usually shown in a <code> or input or pre
+            if clicked_modal:
+                log("Modal submitted successfully.")
+            else:
+                log("Fallback: trying to press Enter to submit modal.")
+                name_input.press("Enter")
+            time.sleep(5)
+        except Exception as e:
+            log(f"No key name modal detected or bypassed: {str(e)[:50]}")
+
+        # 3. Extract key LLM_
         key = None
         for sel in ['input[readonly]', 'code', 'pre', '.token', '[role="textbox"]']:
             try:
                 el = page.locator(sel).first
                 if el.count():
                     txt = el.input_value() if sel.startswith("input") else el.inner_text()
-                    m = re.search(r"\b(LLM_[A-Za-z0-9_]{15,80})\b", txt or "")
+                    m = re.search(r"LLM_[A-Za-z0-9_]{15,80}", txt or "")
                     if m:
-                        key = m.group(1)
+                        key = m.group(0)
                         break
             except Exception:
                 pass
+                
         if not key:
             # fallback: scrape page text
             txt = page.content()
-            m = re.search(r"\b(LLM_[A-Za-z0-9_]{15,80})\b", txt)
+            m = re.search(r"LLM_[A-Za-z0-9_]{15,80}", txt)
             if m:
-                key = m.group(1)
+                key = m.group(0)
             else:
                 log("API key not found in HTML. Saving debug screenshot to /tmp/apikey_not_found.png")
                 try: page.screenshot(path="/tmp/apikey_not_found.png")
@@ -191,7 +221,6 @@ def create_api_key(page):
     except Exception as e:
         log(f"create_api_key err: {e}")
         return None
-
 
 def add_vcc(page):
     """Navigate to /billing and add a VISA VCC. Returns ok/error."""
