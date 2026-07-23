@@ -1,3 +1,5 @@
+from camoufox.sync_api import Camoufox
+import traceback
 #!/usr/bin/env python3
 """
 meta_ai_signup.py — Auto-create a Meta account + dev.meta.ai (Meta Model API) access.
@@ -211,19 +213,46 @@ def run(args):
 
     proxy = None
     if args.proxy:
-        proxy = {"server": args.proxy}
+        try:
+            if "@" in args.proxy:
+                # parse http://user:pass@host:port
+                left, right = args.proxy.split("@")
+                scheme = "http"
+                if args.proxy.startswith("https"):
+                    scheme = "https"
+                elif args.proxy.startswith("socks5"):
+                    scheme = "socks5"
+                
+                left_clean = left.replace("http://", "").replace("https://", "").replace("socks5://", "")
+                user, pw = left_clean.split(":")
+                proxy = {
+                    "server": f"{scheme}://{right}",
+                    "username": user,
+                    "password": pw
+                }
+            else:
+                proxy = {"server": args.proxy}
+        except Exception as e:
+            log(f"Failed to parse proxy string: {e}")
+            proxy = {"server": args.proxy}
 
-    launch_kwargs = {"headless": args.headless, "args": ["--no-sandbox", "--disable-setuid-sandbox"]}
-    if proxy:
-        launch_kwargs["proxy"] = proxy
+    launch_kwargs = {
+        "headless": args.headless,
+        "proxy": proxy,
+        "geoip": True,
+        "humanize": True,
+    }
+    # Clean up None values
+    launch_kwargs = {k: v for k, v in launch_kwargs.items() if v is not None}
 
     result = {"ok": False}
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(**launch_kwargs)
-            context = browser.new_context()
-            page = context.new_page()
+        with Camoufox(**launch_kwargs) as browser:
+            # Di Camoufox persistent context, `browser` adalah `BrowserContext`
+            context = browser
+            page = browser.new_page()
             page.goto("https://dev.meta.ai/", wait_until="networkidle", timeout=30000)
+            log("Waiting for Use mobile number or email button...")
             page.get_by_text("Use mobile number or email").click()
             time.sleep(1.2)
             page.locator('input[type="text"], input:not([type])').first.fill(email)
@@ -295,6 +324,7 @@ def run(args):
 
             browser.close()
     except Exception as e:
+        traceback.print_exc()
         result = {"ok": False, "error": str(e)}
     return result
 
