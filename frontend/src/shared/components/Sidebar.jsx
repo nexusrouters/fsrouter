@@ -43,6 +43,7 @@ const debugItems = [
 const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
   { href: "/dashboard/automation", label: "Automation", icon: "smart_toy" },
+  { href: "/dashboard/meta-ai", label: "Meta AI", icon: "psychology" },
   { href: "/dashboard/skills", label: "Skills", icon: "extension" },
   { href: "/dashboard/backup-restore", label: "Backup & Restore", icon: "backup" },
   { href: "/dashboard/update", label: "Update", icon: "system_update" },

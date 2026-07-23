@@ -21,6 +21,7 @@ const Translator      = lazy(() => import("./pages/translator/page"));
 const CliTools        = lazy(() => import("./pages/cli-tools/page"));
 const CliToolDetail   = lazy(() => import("./pages/cli-tools/[toolId]/page"));
 const Automation      = lazy(() => import("./pages/automation/page"));
+const MetaAi          = lazy(() => import("./pages/meta-ai/page"));
 const BasicChat       = lazy(() => import("./pages/basic-chat/page"));
 const Mitm            = lazy(() => import("./pages/mitm/page"));
 const Profile         = lazy(() => import("./pages/profile/page"));
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="cli-tools"       element={<CliTools />} />
             <Route path="cli-tools/:toolId" element={<CliToolDetail />} />
             <Route path="automation"      element={<Automation />} />
+            <Route path="meta-ai"         element={<MetaAi />} />
             <Route path="automation/fsmail-tutorial" element={<FSMailTutorial />} />
             <Route path="basic-chat"      element={<BasicChat />} />
             <Route path="mitm"            element={<Mitm />} />
