@@ -21,6 +21,7 @@ import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { MimoFreeExecutor } from "./mimo-free.js";
 import { CodeBuddyExecutor } from "./codebuddy-cn.js";
 import { DefaultExecutor } from "./default.js";
+import { PROVIDERS } from "../providers/index.js";
 
 const executors = {
   antigravity: new AntigravityExecutor(),
