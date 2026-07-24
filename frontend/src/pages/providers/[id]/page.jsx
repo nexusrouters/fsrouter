@@ -29,7 +29,8 @@ export default function ProviderDetailPage() {
   const navigate = useNavigate();
   const providerId = params.id;
   const [connections, setConnections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
   const [providerNode, setProviderNode] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
@@ -244,6 +245,7 @@ export default function ProviderDetailPage() {
       if (connectionsRes.ok) {
         const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
         setConnections(filtered);
+        setPage(1);
       }
       if (proxyPoolsRes.ok) {
         setProxyPools(proxyPoolsData.proxyPools || []);
@@ -778,48 +780,79 @@ export default function ProviderDetailPage() {
   const connectionsList = (
     <div className="flex min-w-0 flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
       {connections
-        .map((conn, index) => (
-          <div key={conn.id} className="flex min-w-0 items-stretch">
-            <div className="flex-1 min-w-0">
-              <ConnectionRow
-                connection={conn}
-                proxyPools={proxyPools}
-                isOAuth={isOAuth}
-                isFirst={index === 0}
-                isLast={index === connections.length - 1}
-                onMoveUp={() => handleSwapPriority(index, index - 1)}
-                onMoveDown={() => handleSwapPriority(index, index + 1)}
-                onToggleActive={(isActive) => handleUpdateConnectionStatus(conn.id, isActive)}
-                onUpdateProxy={async (proxyPoolId) => {
-                  try {
-                    const res = await fetch(`/api/providers/${conn.id}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ proxyPoolId: proxyPoolId || null }),
-                    });
-                    if (res.ok) {
-                      setConnections(prev => prev.map(c =>
-                        c.id === conn.id
-                          ? { ...c, providerSpecificData: { ...c.providerSpecificData, proxyPoolId: proxyPoolId || null } }
-                          : c
-                      ));
-                    }
-                  } catch (error) {
-                    console.log("Error updating proxy:", error);
-                  }
-                }}
-                onEdit={() => {
-                  setSelectedConnection(conn);
-                  setShowEditModal(true);
-                }}
-                onDelete={() => handleDelete(conn.id)}
-                oneByOneStatus={oneByOneResults[conn.id] || null}
-                isSelected={isSelected(conn.id)}
-                onSelect={() => toggleSelectConnection(conn.id)}
-              />
-            </div>
-          </div>
-        ))}
+        .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+        .map((conn, idx) => {
+          const index = (page - 1) * PAGE_SIZE + idx;
+          return (
+      <div key={conn.id} className="flex min-w-0 items-stretch">
+        <div className="flex-1 min-w-0">
+          <ConnectionRow
+            connection={conn}
+            proxyPools={proxyPools}
+            isOAuth={isOAuth}
+            isFirst={index === 0}
+            isLast={index === connections.length - 1}
+            onMoveUp={() => handleSwapPriority(index, index - 1)}
+            onMoveDown={() => handleSwapPriority(index, index + 1)}
+            onToggleActive={(isActive) => handleUpdateConnectionStatus(conn.id, isActive)}
+            onUpdateProxy={async (proxyPoolId) => {
+              try {
+                const res = await fetch(`/api/providers/${conn.id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ proxyPoolId: proxyPoolId || null }),
+                });
+                if (res.ok) {
+                  setConnections(prev => prev.map(c =>
+                    c.id === conn.id
+                      ? { ...c, providerSpecificData: { ...c.providerSpecificData, proxyPoolId: proxyPoolId || null } }
+                      : c
+                  ));
+                }
+              } catch (error) {
+                console.log("Error updating proxy:", error);
+              }
+            }}
+            onEdit={() => {
+              setSelectedConnection(conn);
+              setShowEditModal(true);
+            }}
+            onDelete={() => handleDelete(conn.id)}
+            oneByOneStatus={oneByOneResults[conn.id] || null}
+            isSelected={isSelected(conn.id)}
+            onSelect={() => toggleSelectConnection(conn.id)}
+          />
+        </div>
+      </div>
+          );
+        })}
+    </div>
+  );
+
+  const connectionsPagination = connections.length > PAGE_SIZE && (
+    <div className="mt-4 flex items-center justify-between gap-2">
+      <span className="text-xs text-text-muted">
+        Showing {Math.min((page - 1) * PAGE_SIZE + 1, connections.length)}–{Math.min(page * PAGE_SIZE, connections.length)} of {connections.length}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page <= 1}
+          className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-muted hover:text-primary hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Prev
+        </button>
+        <span className="px-2 py-1 text-xs text-text-muted font-medium">
+          {page} / {Math.ceil(connections.length / PAGE_SIZE)}
+        </span>
+        <button
+          onClick={() => setPage((p) => Math.min(Math.ceil(connections.length / PAGE_SIZE), p + 1))}
+          disabled={page >= Math.ceil(connections.length / PAGE_SIZE)}
+          className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-muted hover:text-primary hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 
@@ -1556,6 +1589,7 @@ export default function ProviderDetailPage() {
               )}
 
               {connectionsList}
+              {connectionsPagination}
               {!isCompatible && (
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:flex">
                   {providerId === "iflow" && (
