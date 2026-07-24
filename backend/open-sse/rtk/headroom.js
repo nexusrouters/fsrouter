@@ -5,7 +5,7 @@ import {
   openaiToOpenAIResponsesRequest,
 } from "../translator/request/openai-responses.js";
 
-const DEFAULT_TIMEOUT_MS = 3000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 function jsonBytes(value) {
   try {
@@ -199,33 +199,52 @@ function applyKiroHeadroomMessages(projection, compressedMessages, diagnostics) 
 }
 
 // POST messages to Headroom /v1/compress; returns compressed messages + stats or null.
+// Uses core http module (family:4, 127.0.0.1) because undici fetch fails to reach
+// the loopback headroom proxy under PM2 (ECONNREFUSED on localhost).
+import http from "http";
+import https from "https";
+function normalizeHost(h) {
+  const x = String(h).replace(/^\[|\]$/g, "").toLowerCase();
+  return x === "localhost" || x === "::1" ? "127.0.0.1" : x;
+}
 async function callCompress(url, messages, model, timeoutMs, compressUserMessages, diagnostics) {
-  const endpoint = buildCompressEndpoint(url);
-  diagnostics.endpoint = maskEndpoint(endpoint);
+  const endpoint = new URL(buildCompressEndpoint(url));
+  endpoint.hostname = normalizeHost(endpoint.hostname);
+  diagnostics.endpoint = maskEndpoint(endpoint.toString());
   const payload = { messages, model };
   if (compressUserMessages) payload.config = { compress_user_messages: true };
-  let res;
-  try {
-    res = await fetch(endpoint, {
+  const bodyStr = JSON.stringify(payload);
+  const lib = endpoint.protocol === "https:" ? https : http;
+  return new Promise((resolve) => {
+    const options = {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(timeoutMs),
+      hostname: endpoint.hostname,
+      port: endpoint.port || (endpoint.protocol === "https:" ? 443 : 80),
+      path: endpoint.pathname + endpoint.search,
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(bodyStr) },
+      family: 4,
+      timeout: timeoutMs,
+    };
+    const req = lib.request(options, (resp) => {
+      const chunks = [];
+      resp.on("data", (c) => chunks.push(c));
+      resp.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        if (resp.statusCode < 200 || resp.statusCode >= 300) {
+          setDiagnostic(diagnostics, `proxy returned HTTP ${resp.statusCode}`);
+          return resolve(null);
+        }
+        let data;
+        try { data = JSON.parse(raw); } catch { setDiagnostic(diagnostics, "proxy response not JSON"); return resolve(null); }
+        if (!Array.isArray(data?.messages)) { setDiagnostic(diagnostics, "proxy response missing messages[]"); return resolve(null); }
+        resolve(data);
+      });
     });
-  } catch (error) {
-    setDiagnostic(diagnostics, `request failed: ${describeFetchError(error)}`);
-    return null;
-  }
-  if (!res.ok) {
-    setDiagnostic(diagnostics, `proxy returned HTTP ${res.status}`);
-    return null;
-  }
-  const data = await res.json();
-  if (!Array.isArray(data?.messages)) {
-    setDiagnostic(diagnostics, "proxy response missing messages[]");
-    return null;
-  }
-  return data;
+    req.on("timeout", () => { req.destroy(); setDiagnostic(diagnostics, "request failed: timeout"); resolve(null); });
+    req.on("error", (error) => { setDiagnostic(diagnostics, `request failed: ${describeFetchError(error)}`); resolve(null); });
+    req.write(bodyStr);
+    req.end();
+  });
 }
 
 // Compress request body via Headroom proxy. Fail-open: returns null on any error.

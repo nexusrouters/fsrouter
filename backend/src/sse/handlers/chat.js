@@ -257,6 +257,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       userAgent,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
+      // tokenSaver master switch: enable when user turned on Headroom (or any saver).
+      // Without this, chatCore's `enabled: tokenSaverEnabled && headroomEnabled` is falsy
+      // and Headroom compression is silently skipped even though headroomEnabled=true.
+      tokenSaverEnabled: !!(
+        chatSettings.tokenSaverEnabled ||
+        chatSettings.headroomEnabled ||
+        chatSettings.cavemanEnabled ||
+        chatSettings.ponytailEnabled
+      ),
       rtkEnabled: !!chatSettings.rtkEnabled,
       cavemanEnabled: !!chatSettings.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
