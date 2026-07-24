@@ -365,6 +365,8 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
   const [providerStickyLimit, setProviderStickyLimit] = useState("1");
   const [confirmState, setConfirmState] = useState(null);
   const [resettingAll, setResettingAll] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const fetch_ = useCallback(async () => {
     try {
@@ -378,6 +380,8 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
       if (connRes.ok) setConnections((connData.connections || []).filter((c) => c.provider === providerId));
       if (proxyRes.ok) setProxyPools(proxyData.proxyPools || []);
+      // Reset to first page whenever the connection list is refreshed (avoids stale page after add/delete)
+      setPage(1);
       const override = (settingsData.providerStrategies || {})[providerId] || {};
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
@@ -533,23 +537,54 @@ export default function ConnectionsCard({ providerId, isOAuth }) {
         ) : (
           <>
             <div className="flex flex-col divide-y divide-black/[0.03] dark:divide-white/[0.03]">
-              {connections.map((conn, idx) => (
-                <ConnectionRow
-                  key={conn.id}
-                  connection={conn}
-                  proxyPools={proxyPools}
-                  isOAuth={isOAuth}
-                  isFirst={idx === 0}
-                  isLast={idx === connections.length - 1}
-                  onMoveUp={() => handleSwapPriority(idx, idx - 1)}
-                  onMoveDown={() => handleSwapPriority(idx, idx + 1)}
-                  onToggleActive={(isActive) => handleToggleActive(conn.id, isActive)}
-                  onUpdateProxy={(poolId) => handleUpdateProxy(conn.id, poolId)}
-                  onEdit={() => { setSelectedConnection(conn); setShowEditModal(true); }}
-                  onDelete={() => handleDelete(conn.id)}
-                />
-              ))}
+              {connections
+                .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+                .map((conn, idx) => {
+                  const realIdx = (page - 1) * PAGE_SIZE + idx;
+                  return (
+                    <ConnectionRow
+                      key={conn.id}
+                      connection={conn}
+                      proxyPools={proxyPools}
+                      isOAuth={isOAuth}
+                      isFirst={realIdx === 0}
+                      isLast={realIdx === connections.length - 1}
+                      onMoveUp={() => handleSwapPriority(realIdx, realIdx - 1)}
+                      onMoveDown={() => handleSwapPriority(realIdx, realIdx + 1)}
+                      onToggleActive={(isActive) => handleToggleActive(conn.id, isActive)}
+                      onUpdateProxy={(poolId) => handleUpdateProxy(conn.id, poolId)}
+                      onEdit={() => { setSelectedConnection(conn); setShowEditModal(true); }}
+                      onDelete={() => handleDelete(conn.id)}
+                    />
+                  );
+                })}
             </div>
+            {connections.length > PAGE_SIZE && (
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <span className="text-xs text-text-muted">
+                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, connections.length)}–{Math.min(page * PAGE_SIZE, connections.length)} of {connections.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-muted hover:text-primary hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Prev
+                  </button>
+                  <span className="px-2 py-1 text-xs text-text-muted font-medium">
+                    {page} / {Math.ceil(connections.length / PAGE_SIZE)}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(Math.ceil(connections.length / PAGE_SIZE), p + 1))}
+                    disabled={page >= Math.ceil(connections.length / PAGE_SIZE)}
+                    className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-muted hover:text-primary hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="mt-4 flex justify-stretch sm:justify-start">
               <Button size="sm" icon="add" onClick={() => setShowAddModal(true)}>Add</Button>
             </div>
