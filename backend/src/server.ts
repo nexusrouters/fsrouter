@@ -71,6 +71,31 @@ async function bootstrapTunnel() {
   }
 }
 
+// ─── Auto-start Headroom proxy on boot if enabled ───────────────────────────
+import { getManagedPid, isPidAlive } from "./lib/headroom/process.js";
+import { startHeadroomProxy } from "./lib/headroom/process.js";
+import { DEFAULT_HEADROOM_URL } from "./lib/headroom/detect.js";
+async function bootstrapHeadroom() {
+  console.log("[server] bootstrapHeadroom: invoked");
+  try {
+    const settings = await getSettings();
+    console.log("[server] bootstrapHeadroom: headroomEnabled=", settings?.headroomEnabled);
+    if (settings?.headroomEnabled !== true) return;
+    // Prefer the persisted managed pid (instant, survives detached spawn) over
+    // a slow network probe. Only start if no live managed process exists.
+    const pid = getManagedPid();
+    if (pid && isPidAlive(pid)) {
+      console.log("[server] headroom already running (managed pid) → skip auto-start");
+      return;
+    }
+    const url = settings?.headroomUrl || DEFAULT_HEADROOM_URL;
+    console.log("[server] headroomEnabled=true → auto-starting headroom proxy");
+    await startHeadroomProxy({ port: Number(new URL(url).port) || 8787 });
+  } catch (e) {
+    console.warn("[server] headroom bootstrap error:", e?.message || e);
+  }
+}
+
 // ─── Auth Middleware ───────────────────────────────────────────────────────────
 app.use(authMiddleware);
 
@@ -107,6 +132,10 @@ async function start() {
     console.log(`   Environment: ${process.env.NODE_ENV || "development"}\n`);
     // Auto-start tunnel if it was enabled before restart (avoids "Tunnel checking..." stuck)
     bootstrapTunnel();
+    // Auto-start headroom proxy if it was enabled before restart (survives PM2 restart)
+    Promise.resolve().then(bootstrapHeadroom).catch((e) =>
+      console.warn("[server] headroom bootstrap threw:", e?.message || e),
+    );
   });
 }
 
