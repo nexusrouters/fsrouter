@@ -48,6 +48,23 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", version: getAppVersion(), ts: Date.now() });
 });
 
+// ─── Auto-start tunnel on boot if previously enabled ─────────────────────────
+import { getSettings } from "./lib/localDb.js";
+import { enableTunnel } from "./lib/tunnel/cloudflare/manager.js";
+async function bootstrapTunnel() {
+  try {
+    const settings = await getSettings();
+    if (settings?.tunnelEnabled === true) {
+      console.log("[server] tunnel settingsEnabled=true → auto-starting cloudflared");
+      enableTunnel(Number(process.env.PORT) || 3001).catch((e) =>
+        console.warn("[server] tunnel auto-start failed:", e?.message || e)
+      );
+    }
+  } catch (e) {
+    console.warn("[server] tunnel bootstrap error:", e?.message || e);
+  }
+}
+
 // ─── Auth Middleware ───────────────────────────────────────────────────────────
 app.use(authMiddleware);
 
@@ -82,6 +99,8 @@ async function start() {
     console.log(`\n🚀 9Router Backend v2 running on http://localhost:${PORT}`);
     console.log(`   Frontend origin: ${FRONTEND_ORIGIN}`);
     console.log(`   Environment: ${process.env.NODE_ENV || "development"}\n`);
+    // Auto-start tunnel if it was enabled before restart (avoids "Tunnel checking..." stuck)
+    bootstrapTunnel();
   });
 }
 
