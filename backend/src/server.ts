@@ -51,25 +51,16 @@ app.get("/api/health", (_req, res) => {
 // ─── Auto-start tunnel on boot if previously enabled ─────────────────────────
 import { getSettings } from "./lib/localDb.js";
 import { enableTunnel } from "./lib/tunnel/cloudflare/manager.js";
-import { isCloudflaredRunning, killCloudflared } from "./lib/tunnel/cloudflare/cloudflared.js";
-import { existsSync, mkdirSync } from "fs";
-import { writeFileSync } from "fs";
-const TUNNEL_BOOTSTRAP_LOCK = "/tmp/fsrouter-tunnel-bootstrap.lock";
+import { isCloudflaredRunning } from "./lib/tunnel/cloudflare/cloudflared.js";
 async function bootstrapTunnel() {
   try {
     const settings = await getSettings();
     if (settings?.tunnelEnabled !== true) return;
-    // Only ONE PM2 instance may own the tunnel bootstrap (avoid two instances killing each other's cloudflared)
-    if (existsSync(TUNNEL_BOOTSTRAP_LOCK)) {
-      console.log("[server] tunnel bootstrap lock held by another instance → skip");
-      return;
-    }
-    try { writeFileSync(TUNNEL_BOOTSTRAP_LOCK, String(process.pid)); } catch {}
-    // Kill any orphan cloudflared from a previous restart so we spawn a fresh one
+    // Cloudflared is spawned detached (daemon) → it survives PM2 restarts on its own.
+    // Only enable if NOT already running (avoid duplicate spawn / fighting).
     if (isCloudflaredRunning()) {
-      console.log("[server] killing orphan cloudflared before re-spawn");
-      try { killCloudflared(Number(process.env.PORT) || 3001); } catch {}
-      await new Promise((r) => setTimeout(r, 1500));
+      console.log("[server] tunnel already running (detached daemon) → skip auto-start");
+      return;
     }
     console.log("[server] tunnel settingsEnabled=true → auto-starting cloudflared");
     enableTunnel(Number(process.env.PORT) || 3001).catch((e) =>

@@ -292,7 +292,7 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
   const requestedProtocol = String(process.env.TUNNEL_TRANSPORT_PROTOCOL || process.env.CLOUDFLARED_PROTOCOL || DEFAULT_QUICK_TUNNEL_PROTOCOL).trim().toLowerCase();
   const tunnelProtocol = QUICK_TUNNEL_PROTOCOLS.has(requestedProtocol) ? requestedProtocol : DEFAULT_QUICK_TUNNEL_PROTOCOL;
   const child = spawn(binaryPath, ["tunnel", "--url", `http://127.0.0.1:${localPort}`, "--config", configPath, "--no-autoupdate", "--retries", "99"], {
-    detached: false,
+    detached: true,
     windowsHide: true,
     cwd: os.tmpdir(),
     env: {
@@ -301,6 +301,8 @@ export async function spawnQuickTunnel(localPort, onUrlUpdate) {
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
+  // Detach + unref → cloudflared survives parent (PM2) restart instead of being killed with it
+  child.unref();
 
   cloudflaredProcess = child;
   savePid(child.pid);
