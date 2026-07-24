@@ -51,15 +51,30 @@ app.get("/api/health", (_req, res) => {
 // ─── Auto-start tunnel on boot if previously enabled ─────────────────────────
 import { getSettings } from "./lib/localDb.js";
 import { enableTunnel } from "./lib/tunnel/cloudflare/manager.js";
+import { isCloudflaredRunning, killCloudflared } from "./lib/tunnel/cloudflare/cloudflared.js";
+import { existsSync, mkdirSync } from "fs";
+import { writeFileSync } from "fs";
+const TUNNEL_BOOTSTRAP_LOCK = "/tmp/fsrouter-tunnel-bootstrap.lock";
 async function bootstrapTunnel() {
   try {
     const settings = await getSettings();
-    if (settings?.tunnelEnabled === true) {
-      console.log("[server] tunnel settingsEnabled=true → auto-starting cloudflared");
-      enableTunnel(Number(process.env.PORT) || 3001).catch((e) =>
-        console.warn("[server] tunnel auto-start failed:", e?.message || e)
-      );
+    if (settings?.tunnelEnabled !== true) return;
+    // Only ONE PM2 instance may own the tunnel bootstrap (avoid two instances killing each other's cloudflared)
+    if (existsSync(TUNNEL_BOOTSTRAP_LOCK)) {
+      console.log("[server] tunnel bootstrap lock held by another instance → skip");
+      return;
     }
+    try { writeFileSync(TUNNEL_BOOTSTRAP_LOCK, String(process.pid)); } catch {}
+    // Kill any orphan cloudflared from a previous restart so we spawn a fresh one
+    if (isCloudflaredRunning()) {
+      console.log("[server] killing orphan cloudflared before re-spawn");
+      try { killCloudflared(Number(process.env.PORT) || 3001); } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    console.log("[server] tunnel settingsEnabled=true → auto-starting cloudflared");
+    enableTunnel(Number(process.env.PORT) || 3001).catch((e) =>
+      console.warn("[server] tunnel auto-start failed:", e?.message || e)
+    );
   } catch (e) {
     console.warn("[server] tunnel bootstrap error:", e?.message || e);
   }
