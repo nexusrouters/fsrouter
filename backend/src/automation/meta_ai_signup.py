@@ -35,6 +35,7 @@ import urllib.request
 import urllib.error
 import random
 from datetime import datetime, timedelta
+import os
 
 try:
     from playwright.sync_api import sync_playwright
@@ -49,6 +50,18 @@ def log(msg):
     sys.stderr.flush()
     # Print JSON step for FSRouter UI
     print(json.dumps({"step": msg}), flush=True)
+
+
+try:
+    from mailtm_mail import generate_email as mailtm_generate_email, get_inbox as mailtm_get_inbox
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from mailtm_mail import generate_email as mailtm_generate_email, get_inbox as mailtm_get_inbox
+
+
+def ncaori_get_otp(email, timeout=120):
+    # legacy alias; mail.tm requires password, handled in run_meta via mailtm_get_inbox
+    return None
 
 
 def fsmail_get_latest_otp(base_url, api_key, email, timeout=120):
@@ -183,6 +196,68 @@ def handle_onboarding(page):
         log(f"handle_onboarding err: {e}")
     return False
 
+def handle_welcome_modal(page):
+    """Click 'Continue' on the 'Welcome to Meta Model API' onboarding modal if present."""
+    try:
+        if page.get_by_text("Welcome to Meta Model API").count() > 0:
+            log("Welcome modal detected — clicking Continue...")
+            for lbl in ["Continue", "Get started", "Mulai"]:
+                try:
+                    page.get_by_text(lbl).first.click(timeout=4000)
+                    time.sleep(5)
+                    return True
+                except Exception:
+                    try:
+                        page.get_by_role("button", name=lbl).first.click(timeout=4000)
+                        time.sleep(5)
+                        return True
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return False
+
+def handle_finish_creating(page):
+    """Fill 'Finish creating your Model API account' form (First/Last name) + click 'Get started'."""
+    try:
+        if page.get_by_text("Finish creating your Model API account").count() > 0:
+            log("Finish-creating screen detected. Filling First/Last name...")
+            fn = page.locator('input[placeholder*="First name" i], input[name*="first" i]').first
+            ln = page.locator('input[placeholder*="Last name" i], input[name*="last" i]').first
+            if fn.count() > 0:
+                fn.fill("Fud")
+                time.sleep(0.5)
+            if ln.count() > 0:
+                ln.fill("One")
+                time.sleep(0.5)
+            for lbl in ["Get started", "Continue", "Submit", "Mulai", "Lanjut"]:
+                try:
+                    page.get_by_text(lbl).first.click(timeout=4000)
+                    time.sleep(6)
+                    return True
+                except Exception:
+                    try:
+                        page.get_by_role("button", name=lbl).first.click(timeout=4000)
+                        time.sleep(6)
+                        return True
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return False
+
+def dismiss_onboarding_gates(page, rounds=4):
+    """Loop through all onboarding/welcome/finish modals in any order until none remain."""
+    for _ in range(rounds):
+        did = False
+        if handle_welcome_modal(page):
+            did = True
+        if handle_finish_creating(page):
+            did = True
+        if not did:
+            break
+    return True
+
 def handle_human_check(page):
     """Click through Meta 'Confirm you\'re human' / 'Continue' gate if present.
     Returns True if a human-check is currently showing (caller should re-check page after)."""
@@ -222,7 +297,7 @@ def handle_otp_redirect(page, args):
         if page.get_by_text("Enter the confirmation code", exact=False).count() > 0 or \
            page.get_by_text("confirmation code", exact=False).count() > 0:
             log("OTP re-prompt detected on sensitive page. Fetching latest OTP...")
-            otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=args.otp_timeout) if args.fsmail_api_key else None
+            otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, args.email, timeout=args.otp_timeout)
             if not otp:
                 log("No OTP available for re-prompt.")
                 return False
@@ -249,6 +324,10 @@ def handle_otp_redirect(page, args):
 
 def open_api_keys(page):
     """Try navigating to /api-keys via in-app link first, fallback to goto."""
+    try:
+        dismiss_onboarding_gates(page)
+    except Exception:
+        pass
     # coba klik link "API keys" di sidebar/menu
     for lbl in ["API keys", "API Keys", "Model API keys", "Api keys"]:
         try:
@@ -302,6 +381,27 @@ def create_api_key(page, args=None):
         except Exception:
             pass
         time.sleep(3)
+        
+        # CHECK: tombol "Create API key" disabled? (Meta wajib billing aktif dulu)
+        # Retry beberapa kali — setelah submit kartu, tombol butuh 2-5s buat enable.
+        billing_required = False
+        for _ in range(4):
+            try:
+                disabled_btn = page.locator('div:has-text("Create API key"), button:has-text("Create API key")').first
+                if disabled_btn.count() > 0:
+                    is_disabled = disabled_btn.is_disabled() or bool(disabled_btn.get_attribute("aria-disabled"))
+                    if is_disabled:
+                        billing_required = True
+                        time.sleep(4)
+                        continue
+                billing_required = False
+                break
+            except Exception:
+                billing_required = False
+                break
+        if billing_required:
+            log("Create API key button is DISABLED — billing/payment method not active yet.")
+            return "BILLING_REQUIRED"
         
         clicked_main = False
         for btn_text in ["Create API key", "Buat kunci API", "Create new API key", "Create", "Buat"]:
@@ -431,9 +531,30 @@ def create_api_key(page, args=None):
         return None
 
 def add_vcc(page, args=None):
-    """Navigate to /billing and add a VISA VCC. Returns ok/error."""
+    """Navigate to /billing and add a payment method. Meta REQUIRES a valid CC
+    before the API key button is enabled. Use --cc-number (real card) or --fake-cc (test only)."""
     try:
-        card = gen_visa_card()
+        dismiss_onboarding_gates(page)
+    except Exception:
+        pass
+    try:
+        if args and getattr(args, "cc_number", ""):
+            # REAL card from args
+            exp = (args.cc_exp or "05/31").replace("/", "")
+            card = {
+                "number": args.cc_number,
+                "exp": exp,
+                "cvv": args.cc_cvc or "123",
+                "name": args.cc_name or "Fud One",
+                "postal": args.cc_postal or "10001",
+            }
+            log(f"add_vcc: using REAL card ending {card['number'][-4:]}")
+        elif args and getattr(args, "fake_cc", False):
+            card = gen_visa_card()
+            log("add_vcc: using FAKE test card (Meta will likely reject)")
+        else:
+            log("add_vcc: NO card provided. Pass --cc-number <real> or --fake-cc. Cannot add billing.")
+            return {"ok": False, "error": "NO_CARD_PROVIDED"}
         page.goto("https://dev.meta.ai/billing", wait_until="domcontentloaded", timeout=45000)
         time.sleep(5)
         try:
@@ -492,13 +613,13 @@ def add_vcc(page, args=None):
         time.sleep(0.5)
         # name on card
         try:
-            target.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.press_sequentially("Fud One", delay=100)
+            target.locator('input[name*="name" i], input[aria-label*="name" i], input[placeholder*="Nama" i]').first.press_sequentially(card["name"], delay=100)
         except Exception:
             pass
         time.sleep(0.5)
         # postal / zip code (FSRouter Stripe element zip code patch)
         try:
-            target.locator('input[name*="postal" i], input[placeholder*="Kode Pos" i], input[placeholder*="Postal" i], input[placeholder*="ZIP" i], input[id*="postal" i], input[name*="zip" i]').first.press_sequentially("10001", delay=100)
+            target.locator('input[name*="postal" i], input[placeholder*="Kode Pos" i], input[placeholder*="Postal" i], input[placeholder*="ZIP" i], input[id*="postal" i], input[name*="zip" i]').first.press_sequentially(card["postal"], delay=100)
             log("Postal code filled successfully.")
         except Exception as e:
             log(f"Optional postal code field not found or skipped: {e}")
@@ -610,9 +731,7 @@ def run(args):
                 browser.close()
                 return result
 
-            otp = None
-            if args.fsmail_api_key:
-                otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, email, timeout=args.otp_timeout)
+            otp = fsmail_get_latest_otp(args.fsmail_base_url, args.fsmail_api_key, email, timeout=args.otp_timeout)
             if not otp:
                 result = {"ok": False, "error": "OTP_NOT_RECEIVED", "need_otp": True}
                 browser.close()
@@ -659,9 +778,14 @@ def run(args):
             except Exception as e:
                 log(f"No onboarding screen detected or bypassed: {str(e)[:50]}")
 
+            # Welcome to Meta Model API modal (muncul setelah Get started)
+            dismiss_onboarding_gates(page)
+
             # Beri jeda agar session Meta "settle" dan mengurangi human-check challenge
             log("Letting session settle before opening billing/api-keys...")
             time.sleep(30)
+            # Coba lagi kalau welcome modal muncul setelah settle
+            dismiss_onboarding_gates(page)
 
             result = {
                 "ok": True,
@@ -676,16 +800,19 @@ def run(args):
                 vcc = add_vcc(page, args)
                 result["vcc"] = vcc
 
-            # Step 8: create API key
+            # Step 8: create API key (requires billing done first)
             if args.apikey:
                 key = create_api_key(page, args)
                 if key == "NEEDS_HUMAN_VERIFY":
                     result["needs_human_verify"] = True
                     result["api_key_error"] = "Blocked by Meta human verification. Complete it manually, then re-run."
+                elif key == "BILLING_REQUIRED":
+                    result["api_key_error"] = "BILLING_REQUIRED: payment method not active. Provide a valid CC (--cc-number) or complete billing manually, then re-run."
                 else:
                     result["api_key"] = key
-                if not key or key == "NEEDS_HUMAN_VERIFY":
-                    result["api_key_error"] = "Could not extract key from /api-keys UI"
+                if not key or key in ("NEEDS_HUMAN_VERIFY", "BILLING_REQUIRED"):
+                    if "api_key_error" not in result:
+                        result["api_key_error"] = "Could not extract key from /api-keys UI"
 
             browser.close()
     except Exception as e:
@@ -703,9 +830,16 @@ def main():
     ap.add_argument("--fsmail-base-url", default="https://fsmail.nguprus.app")
     ap.add_argument("--fsmail-api-key", default="")
     ap.add_argument("--fsmail-domain", default="")
+    ap.add_argument("--tempmail-password", default="", help="mail.tm account password for OTP polling")
     ap.add_argument("--otp-timeout", type=int, default=120)
     ap.add_argument("--apikey", action="store_true", help="also create an API key at /api-keys")
-    ap.add_argument("--vcc", action="store_true", help="also add a VISA VCC at /billing")
+    ap.add_argument("--vcc", action="store_true", help="also add a payment method at /billing (REQUIRED before API key)")
+    ap.add_argument("--cc-number", default=os.environ.get("META_CC_NUMBER", "4426010011350623"), help="REAL Visa/Mastercard number for billing (Meta requires valid CC)")
+    ap.add_argument("--cc-exp", default=os.environ.get("META_CC_EXP", "06/29"), help="CC expiry MM/YY, e.g. 05/31")
+    ap.add_argument("--cc-cvc", default=os.environ.get("META_CC_CVC", "552"), help="CC CVC")
+    ap.add_argument("--cc-name", default=os.environ.get("META_CC_NAME", "Mahfud"), help="CC holder name")
+    ap.add_argument("--cc-postal", default=os.environ.get("META_CC_POSTAL", "56318"), help="CC postal/ZIP code")
+    ap.add_argument("--fake-cc", action="store_true", help="use generated FAKE test card (Meta will reject; testing only)")
     ap.add_argument("--headless", action="store_true", default=False)
     ap.add_argument("--profiles-dir", default="")
     ap.add_argument("--stagger-delay", type=int, default=0)

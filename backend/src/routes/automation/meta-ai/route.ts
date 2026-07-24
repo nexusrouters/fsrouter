@@ -26,7 +26,7 @@ export async function POST(req: any, res: any) {
     if (action !== "signup") {
       return res.status(400).json({ error: "Unknown action" });
     }
-    const { email, password, birthday, proxy, fsmailApiKey, fsmailBaseUrl } = body;
+    const { email, password, birthday, proxy, fsmailApiKey, fsmailBaseUrl, ccNumber, ccExp, ccCvc, ccName, ccPostal } = body;
     if (!email || !password) {
       return res.status(400).json({ error: "email & password required" });
     }
@@ -44,6 +44,11 @@ export async function POST(req: any, res: any) {
     ];
     if (body.apikey) args.push("--apikey");
     if (body.vcc) args.push("--vcc");
+    if (ccNumber) args.push(`--cc-number=${ccNumber}`);
+    if (ccExp) args.push(`--cc-exp=${ccExp}`);
+    if (ccCvc) args.push(`--cc-cvc=${ccCvc}`);
+    if (ccName) args.push(`--cc-name=${ccName}`);
+    if (ccPostal) args.push(`--cc-postal=${ccPostal}`);
 
     const child = spawn("python3", args, { cwd: process.cwd() });
     let out = "";
