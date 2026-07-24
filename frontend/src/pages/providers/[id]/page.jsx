@@ -29,6 +29,7 @@ export default function ProviderDetailPage() {
   const navigate = useNavigate();
   const providerId = params.id;
   const [connections, setConnections] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
   const [providerNode, setProviderNode] = useState(null);
