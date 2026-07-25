@@ -67,6 +67,19 @@ export function createSSEStream(options = {}) {
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
 
+  // Idempotent pending-request decrement. The counter is incremented when the
+  // stream starts; it MUST be decremented on EVERY termination path — both a
+  // normal [DONE] flush AND an abnormal abort/cancel (upstream hung, client
+  // disconnected, stall timeout). Without the cancel() hook the counter was
+  // never released when upstream stopped without a clean [DONE], leaving a
+  // phantom "streaming" entry stuck on /dashboard/usage.
+  let pendingFinalized = false;
+  const finalizePending = () => {
+    if (pendingFinalized) return;
+    pendingFinalized = true;
+    try { trackPendingRequest(model, provider, connectionId, false); } catch { /* best-effort */ }
+  };
+
   // Track Responses API event framing for same-format passthrough (codex)
   let currentOpenAIResponsesEvent = null;
   let openAIResponsesTerminalSeen = false;
@@ -338,6 +351,7 @@ export function createSSEStream(options = {}) {
       const evtSummary = Object.entries(eventTypeCounts).map(([k, v]) => `${k}=${v}`).join(",") || "none";
       dbg("SSE", `flush | provider=${provider} | model=${model} | recvLines=${sseLineCount} | emitted=${sseEmittedCount} | events=[${evtSummary}]`);
       trackPendingRequest(model, provider, connectionId, false);
+      finalizePending();
       try {
         const remaining = decoder.decode();
         if (remaining) buffer += remaining;
@@ -460,6 +474,15 @@ export function createSSEStream(options = {}) {
       } catch (error) {
         console.log("Error in flush:", error);
       }
+    },
+
+    // Called when the stream is cancelled/aborted (upstream hung, client
+    // disconnected, stall timeout). Releases the pending-request counter so a
+    // phantom "streaming" entry doesn't stick on /dashboard/usage after the
+    // model has actually stopped.
+    cancel(reason) {
+      dbg("SSE", `cancel | provider=${provider} | model=${model} | reason=${reason || "unknown"}`);
+      finalizePending();
     }
   });
 }
