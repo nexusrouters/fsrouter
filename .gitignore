@@ -37,3 +37,7 @@ out/
 backend/profiles/
 backend/canva_debug/
 har/
+
+# local test artifacts (may contain tokens)
+results.json
+/tmp/

@@ -3,7 +3,7 @@
   "version": "0.6.232",
   "private": true,
   "type": "module",
-  "description": "9Router v2 \u2014 Express Backend (API, SSE, DB, Auth, MITM)",
+  "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
   "main": "src/server.ts",
   "bin": {
     "amrouter": "bin/cli.cjs"
@@ -34,7 +34,9 @@
     "sql.js": "^1.14.1",
     "undici": "^7.10.0",
     "uuid": "^11.1.0",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1"
   },
   "imports": {
     "@/*": "./dist/*",

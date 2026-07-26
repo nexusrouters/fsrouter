@@ -62,11 +62,10 @@ def fsmail_request(base_url, api_key, path, method="GET", data=None, host_header
         return json.loads(resp.read())
 
 def create_fsmail_inbox(base_url, api_key, email):
-    """Create inbox by splitting email into alias + domain."""
+    """Create inbox using the full email address (worker honors body.address)."""
     try:
-        alias, domain = email.split("@", 1)
         fsmail_request(base_url, api_key, "/inboxes", method="POST",
-                       data={"alias": alias, "domain": domain})
+                       data={"address": email})
     except Exception:
         pass  # might already exist
 
@@ -232,15 +231,61 @@ def solve_turnstile_2captcha(api_key, page_url, sitekey, timeout=120, action=Non
         log_step(f"2Captcha error: {e}")
         return None
 
+def solve_turnstile_patchright(page_url, sitekey, timeout=60, action=None, data=None):
+    """Solve Turnstile via local patchright Turnstile-Solver API (no 2captcha needed)."""
+    import os
+    import urllib.request as _urllib_req
+    host = os.environ.get("TURNSTILE_SOLVER_URL", "http://127.0.0.1:5000")
+    try:
+        qs = urllib.parse.urlencode({"url": page_url, "sitekey": sitekey})
+        if action:
+            qs += "&action=" + urllib.parse.quote(action)
+        if data:
+            qs += "&cdata=" + urllib.parse.quote(data)
+        req = _urllib_req.Request(f"{host}/turnstile?{qs}")
+        with _urllib_req.urlopen(req, timeout=15) as r:
+            resp = json.loads(r.read())
+        task_id = resp.get("task_id")
+        if not task_id:
+            log_step(f"Patchright solver submit error: {resp}")
+            return None
+        log_step(f"Patchright solver task: {task_id}")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                rreq = _urllib_req.Request(f"{host}/result?id={task_id}")
+                with _urllib_req.urlopen(rreq, timeout=15) as r2:
+                    res = json.loads(r2.read())
+                if "value" in res:
+                    log_step("Patchright solver: Turnstile solved!")
+                    return res["value"]
+            except Exception:
+                pass
+            time.sleep(2)
+        log_step("Patchright solver: timeout")
+        return None
+    except Exception as e:
+        log_step(f"Patchright solver error: {e}")
+        return None
+
+def solve_turnstile_any(api_key, page_url, sitekey, timeout=120, action=None, data=None):
+    """Use 2captcha if a key is configured, otherwise fall back to local patchright solver."""
+    if api_key:
+        return solve_turnstile_2captcha(api_key, page_url, sitekey, timeout, action, data)
+    return solve_turnstile_patchright(page_url, sitekey, min(timeout, 60), action, data)
+
 def inject_turnstile_token(page, token):
-    """Inject solved Turnstile token into the page."""
+    """Inject solved Turnstile token into the page and notify React."""
     try:
         page.evaluate(f"""
         (function() {{
-            // Set cf-turnstile-response hidden input
             var inputs = document.querySelectorAll('input[name="cf-turnstile-response"], input[name="cf_challenge_response"]');
             inputs.forEach(function(el) {{ el.value = '{token}'; }});
-            // Also try window.turnstile callback
+            // Notify React so the form enables submit
+            inputs.forEach(function(el) {{
+                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }});
             if (window.turnstile && window.turnstile.getResponse) {{
                 try {{ window.turnstile.execute(); }} catch(e) {{}}
             }}
@@ -323,14 +368,45 @@ def try_click_turnstile_checkbox(page) -> bool:
         except Exception:
             pass
     for iframe_sel in ["iframe[src*='challenges.cloudflare.com']", "iframe[src*='turnstile']"]:
-        for cb_sel in ["input[type='checkbox']", "[role='checkbox']"]:
-            try:
-                box = page.frame_locator(iframe_sel).locator(cb_sel).first
-                if box.count() > 0:
-                    box.click(timeout=3000)
+        try:
+            fr = page.frame_locator(iframe_sel)
+            cb = fr.locator("input[type='checkbox'], [role='checkbox'], div.ctp-checkbox-label, label").first
+            if cb.count() > 0:
+                try:
+                    cb.scroll_into_view_if_needed(timeout=2000)
+                except Exception:
+                    pass
+                try:
+                    cb.hover(timeout=2000)
+                except Exception:
+                    pass
+                # Human-like: move then click with a small delay so the event looks real
+                try:
+                    cb.click(delay=120, timeout=3000)
+                except Exception:
+                    # Fallback: real mouse click on the element's center
+                    try:
+                        box = cb.bounding_box(timeout=2000)
+                        if box:
+                            cx = box["x"] + box["width"] / 2
+                            cy = box["y"] + box["height"] / 2
+                            page.mouse.move(cx, cy, steps=25)
+                            time.sleep(0.4)
+                            page.mouse.click(cx, cy)
+                    except Exception:
+                        pass
+                # Wait for the Turnstile token to actually be issued
+                try:
+                    page.wait_for_function(
+                        "() => { const el = document.getElementsByName('cf-turnstile-response')[0] || document.getElementById('cf-turnstile-response'); return el && el.value && el.value.length > 10; }",
+                        timeout=15000,
+                    )
                     return True
-            except Exception:
-                continue
+                except Exception:
+                    pass
+                return True
+        except Exception:
+            continue
     return False
 
 def wait_for_cf_clearance(page, timeout=45.0):
@@ -340,6 +416,17 @@ def wait_for_cf_clearance(page, timeout=45.0):
     deadline = time.time() + timeout
     click_attempts = 0
     next_click_at = time.time() + 4.0
+    # First, give Cloudflare a chance to auto-solve (no click) — sometimes the
+    # challenge resolves on its own when the browser fingerprint looks human.
+    try:
+        page.wait_for_function(
+            "() => { const el = document.getElementsByName('cf-turnstile-response')[0] || document.getElementById('cf-turnstile-response'); return el && el.value && el.value.length > 10; }",
+            timeout=30000,
+        )
+        log_step("Turnstile auto-solved (no click needed).")
+        return True
+    except Exception:
+        log_step("Turnstile tidak auto-solve, coba klik checkbox...")
     while time.time() < deadline:
         time.sleep(2.0)
         if not is_on_turnstile_page(page):
@@ -350,12 +437,24 @@ def wait_for_cf_clearance(page, timeout=45.0):
                 pass
             return True
         now = time.time()
-        if click_attempts < 5 and now >= next_click_at:
+        if click_attempts < 8 and now >= next_click_at:
             click_attempts += 1
-            log_step(f"Klik Turnstile checkbox (attempt {click_attempts}/5)...")
+            log_step(f"Klik Turnstile checkbox (attempt {click_attempts}/8)...")
             try_click_turnstile_checkbox(page)
-            next_click_at = now + 8.0
-            time.sleep(2.0)
+            next_click_at = now + 6.0
+            # After clicking, Turnstile solves asynchronously — wait for the response token
+            # to be populated in the hidden cf-turnstile-response input.
+            try:
+                page.wait_for_function(
+                    "() => { const el = document.getElementsByName('cf-turnstile-response')[0] || document.getElementById('cf-turnstile-response'); return el && el.value && el.value.length > 10; }",
+                    timeout=8000,
+                )
+                log_step("Turnstile token diterima setelah klik.")
+                time.sleep(1.0)
+                return True
+            except Exception:
+                log_step("Turnstile token belum ada, klik ulang...")
+                time.sleep(2.0)
     return False
 
 # ── Cloudflare API ─────────────────────────────────────────────────────────────
@@ -615,6 +714,7 @@ def main():
     parser.add_argument("--fsmail-domain", default="")
     parser.add_argument("--profiles-dir", default="profiles/cloudflare")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--engine", default="camoufox", choices=["camoufox", "patchright"])
     parser.add_argument("--proxy-server")
     parser.add_argument("--proxy-user")
     parser.add_argument("--proxy-pass")
@@ -692,14 +792,27 @@ def main():
                 return Camoufox(**kw)
 
     try:
-        browser_ctx = _make_camoufox(dict(launch_kwargs))
+        if getattr(args, "engine", "camoufox") == "patchright":
+            from patchright.sync_api import sync_playwright
+            pwp = sync_playwright().start()
+            _pw_kw = dict(headless=args.headless, args=["--no-sandbox"])
+            if proxy_dict:
+                _pw_kw["proxy"] = {"server": proxy_dict["server"], "username": proxy_dict.get("username"), "password": proxy_dict.get("password")}
+            browser_ctx = pwp.chromium.launch_persistent_context(str(profiles_dir / args.email), **_pw_kw)
+        else:
+            browser_ctx = _make_camoufox(dict(launch_kwargs))
     except Exception as _pe:
         _ps = str(_pe)
         if proxy_dict and any(k in _ps for k in ("InvalidProxy","Tunnel connection","Failed to connect to proxy","ProxyError")):
             log_step(f"Proxy dead ({proxy_dict.get('server','?')}) — fallback tanpa proxy")
             launch_kwargs.pop("proxy", None)
             launch_kwargs.pop("geoip", None)
-            browser_ctx = _make_camoufox(dict(launch_kwargs))
+            if getattr(args, "engine", "camoufox") == "patchright":
+                from patchright.sync_api import sync_playwright
+                pwp = sync_playwright().start()
+                browser_ctx = pwp.chromium.launch_persistent_context(str(profiles_dir / args.email), headless=args.headless, args=["--no-sandbox"])
+            else:
+                browser_ctx = _make_camoufox(dict(launch_kwargs))
         else:
             raise
 
@@ -852,21 +965,37 @@ def main():
         # Scrape actual sitekey from page (not hardcode)
         actual_sitekey = get_turnstile_sitekey(page)
 
-        # Fallback: 2Captcha
-        if not turnstile_solved and args.captcha_key:
-            log_step("Turnstile belum solved, pakai 2Captcha...")
-            token_2c = solve_turnstile_2captcha(
-                args.captcha_key,
-                CF_SIGNUP_PAGE_URL,
-                actual_sitekey,
-                timeout=150,
-            )
-            if token_2c:
-                inject_turnstile_token(page, token_2c)
-                turnstile_solved = True
-                time.sleep(1)
+        # Fallback: 2Captcha (if key set) or local patchright solver (no key needed)
+        if not turnstile_solved:
+            if getattr(args, "engine", "camoufox") == "patchright":
+                # Solve Turnstile IN-SESSION (patchright chromium is trusted by CF)
+                log_step("Patchright engine: klik Turnstile checkbox in-session...")
+                try_click_turnstile_checkbox(page)
+                # wait for token to appear in the hidden field (no cross-session injection)
+                for _w in range(20):
+                    try:
+                        _tv = page.evaluate("() => { const el = document.querySelector('input[name=\"cf-turnstile-response\"]'); return el && el.value ? el.value : ''; }")
+                        if _tv and len(_tv.strip()) > 10:
+                            turnstile_solved = True
+                            log_step("Turnstile solved in-session!")
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(3)
             else:
-                log_step("2Captcha gagal, tetap coba submit...")
+                log_step("Turnstile belum solved, coba solver (2Captcha/patchright)...")
+                token_2c = solve_turnstile_any(
+                    args.captcha_key,
+                    CF_SIGNUP_PAGE_URL,
+                    actual_sitekey,
+                    timeout=150,
+                )
+                if token_2c:
+                    inject_turnstile_token(page, token_2c)
+                    turnstile_solved = True
+                    time.sleep(1)
+                else:
+                    log_step("2Captcha gagal, tetap coba submit...")
         elif not turnstile_solved:
             log_step("Tidak ada 2Captcha key, lanjut submit tanpa solve...")
 
@@ -966,6 +1095,24 @@ def main():
                 pass
 
         time.sleep(3)
+
+        # ── Handle post-submit Cloudflare managed challenge ("security verification") ──
+        # CF shows "performing security verification" / "Just a moment..." right after
+        # submit. Just WAIT it out (reloading can reset the submission, so we avoid it);
+        # CF clears the challenge on its own once it deems the session human. Up to 240s.
+        _ch_wait_deadline = time.time() + 240
+        while time.time() < _ch_wait_deadline:
+            try:
+                _t = (page.title() or "").lower()
+                _c = (page.evaluate("document.body.innerText") or "").lower()[:300]
+            except Exception:
+                _t, _c = "", ""
+            if "security verification" in _t or "just a moment" in _t or "verify you are human" in _c or "performing security" in _c:
+                time.sleep(8)
+                continue
+            # Not on a challenge page — break out and continue normal flow
+            break
+        log_step(f"Post-challenge URL: {page.url[:80]}")
 
         # Check for errors (email already registered, etc.)
         # Use JS to get all visible text — catch any wording CF uses
@@ -1327,7 +1474,7 @@ def main():
                         if not login_turnstile_solved and args.captcha_key:
                             log_step("Solve Turnstile login via 2Captcha...")
                             login_sitekey = get_turnstile_sitekey(page)
-                            login_token = solve_turnstile_2captcha(
+                            login_token = solve_turnstile_any(
                                 args.captcha_key,
                                 "https://dash.cloudflare.com/login",
                                 login_sitekey,
@@ -2070,7 +2217,7 @@ def main():
                                             _gak_sitekey = get_turnstile_sitekey(page)
                                             _gak_action = get_turnstile_action(page, default="managed")
                                             log_step(f"GAK TS action: {_gak_action}")
-                                            _gak_ts_tok = solve_turnstile_2captcha(
+                                            _gak_ts_tok = solve_turnstile_any(
                                                 args.captcha_key,
                                                 "https://dash.cloudflare.com/profile/api-tokens",
                                                 _gak_sitekey,
