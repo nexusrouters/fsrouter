@@ -1,6 +1,6 @@
 {
   "name": "9router-backend",
-  "version": "0.6.232",
+  "version": "0.6.235",
   "private": true,
   "type": "module",
   "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
@@ -36,7 +36,8 @@
     "uuid": "^11.1.0",
     "zod": "3.25.76",
     "chalk": "^4.1.2",
-    "ora": "^5.4.1"
+    "ora": "^5.4.1",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "imports": {
     "@/*": "./dist/*",
