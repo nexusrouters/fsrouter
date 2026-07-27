@@ -1,153 +1,105 @@
 import fs from "fs";
 import path from "path";
 
-const srcDir = path.join(process.cwd(), "src");
-const distDir = path.join(process.cwd(), "dist");
+const rootDir = process.cwd();
+const distDir = path.join(rootDir, "dist");
 
-function rewriteImports(content, filePath, isJsCopy = false) {
-  const dir = path.dirname(filePath);
-  const relToRoot = path.relative(dir, process.cwd()).replace(/\\/g, '/') || '.';
-  const relToDist = path.relative(dir, distDir).replace(/\\/g, '/') || '.';
+function transformNamedImports(importStr) {
+  return importStr
+    .split(",")
+    .map(part => {
+      const p = part.trim();
+      if (!p) return "";
+      if (p.includes(" as ")) {
+        const [orig, alias] = p.split(/\s+as\s+/);
+        return `${orig.trim()}: ${alias.trim()}`;
+      }
+      return p;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function fixDistImports(filePath) {
+  let content = fs.readFileSync(filePath, "utf8");
+  const fileDir = path.dirname(filePath);
+  const relFromDist = path.relative(distDir, fileDir).replace(/\\/g, "/");
+  
+  let toDistRoot = ".";
+  if (relFromDist && relFromDist !== ".") {
+    const depth = relFromDist.split("/").length;
+    toDistRoot = Array(depth).fill("..").join("/");
+  }
 
   let updated = content;
+  let needsRequireShim = false;
 
-  // 1. Fix @/ shared/lib/store/etc -> relative imports
-  // If we are copying JS/TS files to dist, they need to resolve relative to dist root
-  updated = updated.replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, impPath) => {
-    let resolved = impPath;
-    if (!resolved.endsWith('.js') && !resolved.endsWith('.ts') && !resolved.endsWith('.json')) {
-      resolved += '.js';
+  const replaceCjsImport = (pkgName) => {
+    const regexDefault = new RegExp(`import\\s+([a-zA-Z0-9_$]+)\\s+from\\s+['"]${pkgName}['"];?`, 'g');
+    const regexNamed = new RegExp(`import\\s+\\{\\s*([^}]+)\\s*\\}\\s+from\\s+['"]${pkgName}['"];?`, 'g');
+
+    if (regexDefault.test(updated) || regexNamed.test(updated)) {
+      needsRequireShim = true;
+      updated = updated.replace(regexDefault, `const $1 = __require("${pkgName}");`);
+      updated = updated.replace(regexNamed, (m, names) => `const { ${transformNamedImports(names)} } = __require("${pkgName}");`);
     }
-    return `from '${relToDist}/lib/${resolved}'`;
-  });
-  updated = updated.replace(/from\s+['"]@\/lib['"]/g, `from '${relToDist}/lib'`);
-  updated = updated.replace(/require\(['"]@\/lib\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/lib/${impPath}')`);
-  updated = updated.replace(/require\(['"]@\/lib['"]\)/g, `require('${relToDist}/lib')`);
-
-  updated = updated.replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, impPath) => {
-    let resolved = impPath;
-    if (!resolved.endsWith('.js') && !resolved.endsWith('.ts') && !resolved.endsWith('.json')) {
-      resolved += '.js';
-    }
-    return `from '${relToDist}/shared/${resolved}'`;
-  });
-  updated = updated.replace(/require\(['"]@\/shared\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/shared/${impPath}')`);
-
-  updated = updated.replace(/from\s+['"]@\/store\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/store/${impPath}'`);
-  updated = updated.replace(/require\(['"]@\/store\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/store/${impPath}')`);
-
-  updated = updated.replace(/from\s+['"]@\/services\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/services/${impPath}'`);
-  updated = updated.replace(/require\(['"]@\/services\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/services/${impPath}')`);
-
-  updated = updated.replace(/from\s+['"]@\/utils\/([^'"]+)['"]/g, (m, impPath) => `from '${relToDist}/utils/${impPath}'`);
-  updated = updated.replace(/require\(['"]@\/utils\/([^'"]+)['"]\)/g, (m, impPath) => `require('${relToDist}/utils/${impPath}')`);
-
-  // Rel to root points to package root. open-sse is at package root.
-  const relToPkgRoot = relToRoot;
-  
-  updated = updated.replace(/from\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
-    return `from '${relToPkgRoot}/open-sse/${impPath}'`;
-  });
-  updated = updated.replace(/from\s+['"]open-sse['"]/g, (m) => {
-    return `from '${relToPkgRoot}/open-sse/index.js'`;
-  });
-  updated = updated.replace(/import\s+['"]open-sse\/([^'"]+)['"]/g, (m, impPath) => {
-    return `import '${relToPkgRoot}/open-sse/${impPath}'`;
-  });
-  updated = updated.replace(/import\s+['"]open-sse['"]/g, (m) => {
-    return `import '${relToPkgRoot}/open-sse/index.js'`;
-  });
-
-  // 3. Fix local relative imports that mistakenly double dist
-  updated = updated.replace(/\.\.\/\.\.\/\.\.\/src\//g, '../../../');
-  updated = updated.replace(/\.\.\/\.\.\/src\//g, '../../');
-  
-  // 4. Fix open-sse files referencing ../../../src/lib/* or ../../../dist/lib/*
-  //    (from dist/open-sse/services/tokenRefresh/providers.js, ../../../ = dist/open-sse/services/,
-  //     so ../../../dist/lib/ becomes dist/open-sse/services/dist/lib/ → DOUBLE dist)
-  //    The correct path is ../../../../dist/lib/ = package_root/dist/lib/
-  //    Match both src/lib and dist/lib source patterns (rewriteSseImports may have written either)
-  const fixSrcLib = (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `'../../../../dist/lib/${resolved}'`;
   };
-  const fixImportSrcLib = (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `import('../../../../dist/lib/${resolved}')`;
-  };
-  updated = updated.replace(/['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, fixSrcLib);
-  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, fixImportSrcLib);
-  updated = updated.replace(/['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, fixSrcLib);
-  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, fixImportSrcLib);
-  // ../../src/lib/ → ../../dist/lib/ (files at dist/open-sse/ level)
-  updated = updated.replace(/['"]\.\.\/\.\.\/src\/lib\/([^'"]+)['"]/g, (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `'../../dist/lib/${resolved}'`;
-  });
-  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/src\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `import('../../dist/lib/${resolved}')`;
-  });
-  // ../../dist/lib/ (double dist at depth=2) → ../../../dist/lib/
-  updated = updated.replace(/['"]\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]/g, (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `'../../../dist/lib/${resolved}'`;
-  });
-  updated = updated.replace(/import\(\s*['"]\.\.\/\.\.\/dist\/lib\/([^'"]+)['"]\s*\)/g, (m, imp) => {
-    const resolved = imp.endsWith('.js') ? imp : imp + '.js';
-    return `import('../../../dist/lib/${resolved}')`;
-  });
-  // Specific fix for tokenRefresh/providers
-  if (filePath.includes('tokenRefresh')) {
-    updated = updated.replace(/\.\.\/\.\.\/\.\.\/dist\/lib\/oauth\/kiroExternalIdp.js/g, '../../../dist/lib/oauth/kiroExternalIdp.js');
+
+  const CJS_PACKAGES = ["bcryptjs", "better-sqlite3", "node-machine-id", "node-forge", "confbox", "uuid", "jose", "undici"];
+  for (const pkg of CJS_PACKAGES) {
+    replaceCjsImport(pkg);
   }
 
-  return updated;
+  if (needsRequireShim && !updated.includes("const __require =")) {
+    const shim = `import { createRequire as __cr } from "module"; const __require = __cr(import.meta.url);\n`;
+    updated = shim + updated;
+  }
+
+  // 1. Replace @/ aliases only if it targets root dist folders
+  updated = updated.replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/lib/${p.endsWith('.js')?p:p+'.js'}'`);
+  updated = updated.replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/shared/${p.endsWith('.js')?p:p+'.js'}'`);
+  updated = updated.replace(/from\s+['"]@\/open-sse\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/open-sse/${p.endsWith('.js')?p:p+'.js'}'`);
+
+  // 2. Fix escaping imports ONLY when they go out of bounds of dist (too many ../)
+  const relDepth = relFromDist === "." ? 0 : relFromDist.split("/").length;
+  
+  updated = updated.replace(/(['"])((?:\.\.\/)+)(src\/|dist\/)([^'"]+)(['"])/g, (m, q1, dots, prefix, sub, q2) => {
+    const upCount = (dots.match(/\.\.\//g) || []).length;
+    if (upCount > relDepth) {
+      // It escapes dist/ root! Remap to dist root
+      let cleanPrefix = 'lib';
+      const parts = sub.split('/');
+      if (['lib', 'shared', 'open-sse', 'routes'].includes(parts[0])) {
+        cleanPrefix = parts[0];
+        sub = parts.slice(1).join('/');
+      }
+      let ext = (sub.endsWith('.js') || sub.endsWith('.json') || sub.endsWith('.ts')) ? '' : '.js';
+      return `${q1}${toDistRoot}/${cleanPrefix}/${sub}${ext}${q1}`;
+    }
+    return m;
+  });
+
+  updated = updated.replace(/(['"])(?:\.\.\/)+open-sse\/index(?:\.js)?(['"])/g, `$1${toDistRoot}/open-sse/index.js$2`);
+
+  if (updated !== content) {
+    fs.writeFileSync(filePath, updated, "utf8");
+  }
 }
 
-function copyFiles(src, dist) {
-  if (!fs.existsSync(src)) return;
-  if (!fs.existsSync(dist)) {
-    fs.mkdirSync(dist, { recursive: true });
-  }
-
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-
+function processDirectory(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const distPath = path.join(dist, entry.name);
-
+    const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === "node_modules" || entry.name === "dist") continue;
-      copyFiles(srcPath, distPath);
-    } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".json"))) {
-      let content = fs.readFileSync(srcPath, 'utf8');
-      content = rewriteImports(content, distPath, true);
-      fs.writeFileSync(distPath, content);
+      if (entry.name === "node_modules") continue;
+      processDirectory(fullPath);
+    } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".cjs"))) {
+      fixDistImports(fullPath);
     }
   }
 }
 
-// Copy open-sse directory recursively to dist
-function copyDirRecursive(src, dest) {
-  if (!fs.existsSync(src)) return;
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
-  }
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      let content = fs.readFileSync(srcPath, 'utf8');
-      content = rewriteImports(content, destPath, false);
-      fs.writeFileSync(destPath, content);
-    }
-  }
-}
-copyDirRecursive(path.join(process.cwd(), "open-sse"), path.join(distDir, "open-sse"));
-
-copyFiles(srcDir, distDir);
-console.log("Copied all JS files from src/ to dist/ with resolved path imports successfully!");
+// Reset dist first from global backup
+processDirectory(distDir);
+console.log("Successfully fixed CJS interop and imports in dist/!");

@@ -38,7 +38,8 @@
     "log-wrapper": "*",
     "node-forge": "*",
     "puppeteer-core": "*",
-    "ws": "*"
+    "ws": "*",
+    "@modelcontextprotocol/sdk": "*"
   },
   "bin": {
     "amrouter": "bin/cli.cjs",
