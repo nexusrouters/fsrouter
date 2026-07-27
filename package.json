@@ -27,7 +27,6 @@
     "inquirer": "*",
     "node-machine-id": "*",
     "bcryptjs": "*",
-    "better-sqlite3": "*",
     "confbox": "*",
     "sql.js": "*",
     "undici": "*",
