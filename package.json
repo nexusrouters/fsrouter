@@ -1,7 +1,6 @@
 {
-  "name": "amrouter",
-  "private": true,
-  "version": "0.6.235",
+  "name": "@fudrouter/fsrouter",
+  "version": "0.6.258",
   "description": "9Router v2 — Monorepo (frontend + backend)",
   "workspaces": [
     "frontend",
@@ -25,6 +24,20 @@
     "figlet": "*",
     "gradient-string": "*",
     "boxen": "*",
-    "inquirer": "*"
-  }
+    "inquirer": "*",
+    "node-machine-id": "*"
+  },
+  "bin": {
+    "amrouter": "bin/cli.cjs",
+    "fsrouter": "bin/cli.cjs"
+  },
+  "files": [
+    "dist",
+    "public",
+    "automation",
+    "bin",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ]
 }
