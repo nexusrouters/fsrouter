@@ -44,14 +44,6 @@ export default {
   },
   transports: [
     {
-      format: "openai",
-      baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/v1/chat/completions",
-      headers: {
-        "User-Agent": "ZCode/3.5.2",
-      },
-      auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
-    },
-    {
       format: "claude",
       baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
       headers: {
