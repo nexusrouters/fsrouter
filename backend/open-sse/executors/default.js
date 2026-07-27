@@ -8,6 +8,42 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 
+// --- ZCode Aliyun captcha bridge (only meaningful from a residential IP) ---
+// When an upstream ZCode request returns 400 {code:3007} (captcha verify
+// failed), we call the local captcha solver bridge once to mint a fresh
+// X-Aliyun-Captcha-Verify-Param, cache it, and retry the request.
+const ZCODE_BRIDGE = `http://127.0.0.1:${process.env.ZCODE_CAPTCHA_PORT || 18765}/solve`;
+let ZCODE_CAPTCHA_CACHE = null; // { token, region, expires }
+let ZCODE_CAPTCHA_INFLIGHT = null;
+
+async function solveZcodeCaptcha(log) {
+  if (ZCODE_CAPTCHA_CACHE && Date.now() < ZCODE_CAPTCHA_CACHE.expires) {
+    return ZCODE_CAPTCHA_CACHE;
+  }
+  if (ZCODE_CAPTCHA_INFLIGHT) return ZCODE_CAPTCHA_INFLIGHT;
+  ZCODE_CAPTCHA_INFLIGHT = (async () => {
+    try {
+      const r = await fetch(ZCODE_BRIDGE, { method: "POST", timeout: 120000 });
+      if (!r.ok) throw new Error(`bridge ${r.status}`);
+      const j = await r.json();
+      if (!j.token) throw new Error(j.error || "no_token");
+      ZCODE_CAPTCHA_CACHE = {
+        token: j.token,
+        region: j.region || "sgp",
+        expires: Date.now() + 55000,
+      };
+      log?.info?.("ZCODE", "captcha verify param minted from solver bridge");
+      return ZCODE_CAPTCHA_CACHE;
+    } finally {
+      ZCODE_CAPTCHA_INFLIGHT = null;
+    }
+  })().catch((e) => {
+    log?.warn?.("ZCODE", `captcha solve failed: ${e.message}`);
+    return null;
+  });
+  return ZCODE_CAPTCHA_INFLIGHT;
+}
+
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
 const XAPIKEY = { combined: true, header: "x-api-key", scheme: "raw" };
@@ -213,6 +249,11 @@ export class DefaultExecutor extends BaseExecutor {
     }
 
     if (stream) headers["Accept"] = "text/event-stream";
+    // ZCode Aliyun captcha: attach cached verify param if present
+    if (this.provider === "zcode" && ZCODE_CAPTCHA_CACHE && Date.now() < ZCODE_CAPTCHA_CACHE.expires) {
+      headers["X-Aliyun-Captcha-Verify-Param"] = ZCODE_CAPTCHA_CACHE.token;
+      headers["X-Aliyun-Captcha-Verify-Region"] = ZCODE_CAPTCHA_CACHE.region || "sgp";
+    }
     return headers;
   }
 
@@ -337,6 +378,33 @@ export class DefaultExecutor extends BaseExecutor {
   async refreshKilocode(refreshToken, proxyOptions = null) {
     // Kilocode uses device code flow, no refresh token support
     return null;
+  }
+
+  // ZCode captcha retry: on 400 {code:3007} we mint a fresh Aliyun
+  // verify param via the local solver bridge and retry the request once.
+  // Only does something from a residential IP (laptop); from a datacenter
+  // VPS the bridge returns no token and we fall through to normal 400 handling.
+  shouldRetry(status, urlIndex) {
+    if (this.provider === "zcode" && status === 400) return true;
+    return super.shouldRetry(status, urlIndex);
+  }
+
+  async computeRetryDelay(response, attempt, delayMs) {
+    if (this.provider !== "zcode" || !response) return delayMs;
+    // only act on 3007 captcha errors
+    let is3007 = false;
+    try {
+      const buf = await response.clone().text();
+      is3007 = /3007/.test(buf) || /captcha verify failed/i.test(buf);
+    } catch { /* ignore */ }
+    if (!is3007) return false; // not a captcha error → don't retry
+    const cap = await solveZcodeCaptcha(this.log);
+    if (cap?.token) {
+      ZCODE_CAPTCHA_CACHE = cap;
+      this.log?.info?.("ZCODE", "retrying with fresh captcha verify param");
+      return 800; // small pause then retry
+    }
+    return false; // solver unavailable → give up, surface 400 to client
   }
 }
 
