@@ -83,10 +83,15 @@ export function agentProxy(req: Request, res: Response, _next: NextFunction) {
       res.setHeader("Content-Security-Policy-Report-Only", cspRo);
       delete (proxyRes.headers as any)["content-security-policy-report-only"];
     }
+    // Drop X-Frame-Options so fsrouter can embed Hermes in a same-origin iframe.
+    if (proxyRes.headers["x-frame-options"]) {
+      delete (proxyRes.headers as any)["x-frame-options"];
+    }
     Object.entries(proxyRes.headers).forEach(([k, v]) => {
-      if (k.toLowerCase() === "location" || k.toLowerCase() === "content-security-policy") return;
+      if (k.toLowerCase() === "location" || k.toLowerCase() === "content-security-policy" || k.toLowerCase() === "x-frame-options") return;
       if (v !== undefined) res.setHeader(k, v as any);
     });
+    res.removeHeader("X-Frame-Options");
     res.statusCode = proxyRes.statusCode || 502;
 
     if (!isText) {
