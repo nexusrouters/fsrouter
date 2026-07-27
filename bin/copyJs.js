@@ -34,39 +34,55 @@ function fixDistImports(filePath) {
   let updated = content;
   let needsRequireShim = false;
 
-  const replaceCjsImport = (pkgName) => {
+  const CJS_PACKAGES = ["bcryptjs", "better-sqlite3", "node-machine-id", "node-forge", "confbox", "uuid", "jose", "undici"];
+
+  for (const pkgName of CJS_PACKAGES) {
     const regexDefault = new RegExp(`import\\s+([a-zA-Z0-9_$]+)\\s+from\\s+['"]${pkgName}['"];?`, 'g');
     const regexNamed = new RegExp(`import\\s+\\{\\s*([^}]+)\\s*\\}\\s+from\\s+['"]${pkgName}['"];?`, 'g');
+    const regexCjsDefault = new RegExp(`const\\s+([a-zA-Z0-9_$]+)\\s*=\\s*(?:__require|require)\\(['"]${pkgName}['"]\\);?`, 'g');
+    const regexCjsNamed = new RegExp(`const\\s+\\{\\s*([^}]+)\\s*\\}\\s*=\\s*(?:__require|require)\\(['"]${pkgName}['"]\\);?`, 'g');
 
-    if (regexDefault.test(updated) || regexNamed.test(updated)) {
+    const varPkg = `__pkg_${pkgName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    if (regexDefault.test(updated)) {
       needsRequireShim = true;
-      updated = updated.replace(regexDefault, `const $1 = __require("${pkgName}");`);
-      updated = updated.replace(regexNamed, (m, names) => `const { ${transformNamedImports(names)} } = __require("${pkgName}");`);
+      updated = updated.replace(regexDefault, (m, varName) => `let ${varName} = null; try { ${varName} = __require("${pkgName}"); } catch(_) {};`);
     }
-  };
-
-  const CJS_PACKAGES = ["bcryptjs", "better-sqlite3", "node-machine-id", "node-forge", "confbox", "uuid", "jose", "undici"];
-  for (const pkg of CJS_PACKAGES) {
-    replaceCjsImport(pkg);
+    if (regexNamed.test(updated)) {
+      needsRequireShim = true;
+      updated = updated.replace(regexNamed, (m, names) => `let ${varPkg} = {}; try { ${varPkg} = __require("${pkgName}"); } catch(_) {}; const { ${transformNamedImports(names)} } = ${varPkg} || {};`);
+    }
+    if (regexCjsDefault.test(updated)) {
+      needsRequireShim = true;
+      updated = updated.replace(regexCjsDefault, (m, varName) => `let ${varName} = null; try { ${varName} = __require("${pkgName}"); } catch(_) {};`);
+    }
+    if (regexCjsNamed.test(updated)) {
+      needsRequireShim = true;
+      updated = updated.replace(regexCjsNamed, (m, names) => `let ${varPkg} = {}; try { ${varPkg} = __require("${pkgName}"); } catch(_) {}; const { ${transformNamedImports(names)} } = ${varPkg} || {};`);
+    }
   }
+
+  // Fail-open for pattern: const { ... } = nodeMachineId;
+  updated = updated.replace(/const\s+\{\s*([^}]+)\s*\}\s*=\s*nodeMachineId;?/g, (m, names) => {
+    return `const { ${transformNamedImports(names)} } = nodeMachineId || {};`;
+  });
 
   if (needsRequireShim && !updated.includes("const __require =")) {
     const shim = `import { createRequire as __cr } from "module"; const __require = __cr(import.meta.url);\n`;
     updated = shim + updated;
   }
 
-  // 1. Replace @/ aliases only if it targets root dist folders
+  // 1. Replace @/ aliases
   updated = updated.replace(/from\s+['"]@\/lib\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/lib/${p.endsWith('.js')?p:p+'.js'}'`);
   updated = updated.replace(/from\s+['"]@\/shared\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/shared/${p.endsWith('.js')?p:p+'.js'}'`);
   updated = updated.replace(/from\s+['"]@\/open-sse\/([^'"]+)['"]/g, (m, p) => `from '${toDistRoot}/open-sse/${p.endsWith('.js')?p:p+'.js'}'`);
 
-  // 2. Fix escaping imports ONLY when they go out of bounds of dist (too many ../)
+  // 2. Fix escaping imports
   const relDepth = relFromDist === "." ? 0 : relFromDist.split("/").length;
   
   updated = updated.replace(/(['"])((?:\.\.\/)+)(src\/|dist\/)([^'"]+)(['"])/g, (m, q1, dots, prefix, sub, q2) => {
     const upCount = (dots.match(/\.\.\//g) || []).length;
     if (upCount > relDepth) {
-      // It escapes dist/ root! Remap to dist root
       let cleanPrefix = 'lib';
       const parts = sub.split('/');
       if (['lib', 'shared', 'open-sse', 'routes'].includes(parts[0])) {
@@ -100,6 +116,5 @@ function processDirectory(dir) {
   }
 }
 
-// Reset dist first from global backup
 processDirectory(distDir);
 console.log("Successfully fixed CJS interop and imports in dist/!");
