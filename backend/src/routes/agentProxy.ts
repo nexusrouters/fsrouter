@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import http from "http";
+import https from "https";
 
 /**
  * Reverse proxy that mounts the standalone Hermes WebUI (Python service,
@@ -26,9 +27,13 @@ function rewriteBody(chunk: string): string {
   s = s.split('href="manifest.json"').join('href="/agent/manifest.json"');
   s = s.split('href="favicon').join('href="/agent/favicon');
   s = s.split('src="favicon').join('src="/agent/favicon');
-  // JS string literals: "/api/..." and '/api/...' (only if not already prefixed)
-  s = s.split('"/api/').join('"/agent/api/');
-  s = s.split("'/api/").join("'/agent/api/");
+  // Strip SRI integrity/crossorigin so CDN assets load even if hash mismatches
+  // (Hermes pins sha384; a CDN byte difference would otherwise block the file).
+  s = s.replace(/\s+integrity="[^"]*"/g, "");
+  s = s.replace(/\s+crossorigin="[^"]*"/g, "");
+  // Rewrite CDN (jsdelivr) URLs to same-origin /agent/cdn/ so they are fetched
+  // by the fsrouter backend (which can reach the CDN) instead of the client.
+  s = s.split("https://cdn.jsdelivr.net/").join("/agent/cdn/");
   return s;
 }
 
@@ -104,9 +109,10 @@ export function agentProxy(req: Request, res: Response, _next: NextFunction) {
     proxyRes.on("end", () => {
       const buf = Buffer.concat(chunks);
       try {
-        res.send(rewriteBody(buf.toString("utf8")));
+        const rewritten = rewriteBody(buf.toString("utf8"));
+        res.type(contentType).send(rewritten);
       } catch {
-        res.send(buf);
+        res.type(contentType).send(buf);
       }
     });
   });
@@ -114,6 +120,52 @@ export function agentProxy(req: Request, res: Response, _next: NextFunction) {
   proxyReq.on("error", (err) => {
     if (!res.headersSent) {
       res.status(502).json({ error: "Agent service unreachable", detail: err.message });
+    } else {
+      res.end();
+    }
+  });
+
+  req.pipe(proxyReq);
+}
+
+/**
+ * Proxies CDN assets (jsdelivr) requested by the Hermes WebUI through the
+ * fsrouter backend, so the client does not need direct CDN reachability.
+ * Mounted at /agent/cdn/* → https://cdn.jsdelivr.net/*
+ */
+const CDN_HOST = "cdn.jsdelivr.net";
+
+export function agentCdnProxy(req: Request, res: Response, _next: NextFunction) {
+  let upstream = req.url || "/";
+  if (upstream.startsWith("/agent/cdn/")) {
+    upstream = upstream.slice("/agent/cdn".length) || "/";
+  }
+  if (!upstream.startsWith("/")) upstream = "/" + upstream;
+
+  const options: http.RequestOptions = {
+    host: CDN_HOST,
+    port: 443,
+    path: upstream,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: CDN_HOST,
+    },
+    protocol: "https:" as any,
+  };
+  delete (options.headers as any)["connection"];
+
+  const proxyReq = https.request(options, (proxyRes) => {
+    Object.entries(proxyRes.headers).forEach(([k, v]) => {
+      if (v !== undefined) res.setHeader(k, v as any);
+    });
+    res.statusCode = proxyRes.statusCode || 502;
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on("error", (err) => {
+    if (!res.headersSent) {
+      res.status(502).json({ error: "CDN unreachable", detail: err.message });
     } else {
       res.end();
     }
