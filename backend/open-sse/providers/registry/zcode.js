@@ -44,7 +44,18 @@ export default {
   },
   transports: [
     {
+      format: "openai",
+      targetFormat: "claude",
+      baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
+      headers: {
+        "anthropic-version": "2023-06-01",
+        "User-Agent": "ZCode/3.5.2",
+      },
+      auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
+    },
+    {
       format: "claude",
+      targetFormat: "claude",
       baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
       headers: {
         "anthropic-version": "2023-06-01",
