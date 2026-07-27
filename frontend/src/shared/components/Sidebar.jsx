@@ -19,7 +19,6 @@ const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "trave
 const navItems = [
   { href: "/dashboard/endpoint", label: "Endpoint", icon: "api" },
   { href: "/dashboard/token-saver", label: "Token Saver", icon: "bolt" },
-  { href: "/dashboard/ai-agent", label: "AI Agent", icon: "smart_toy" },
   { href: "/dashboard/mcp", label: "MCP Server", icon: "hub" },
   { href: "/dashboard/providers", label: "Providers", icon: "dns" },
   // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
