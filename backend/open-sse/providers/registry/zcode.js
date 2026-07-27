@@ -36,6 +36,7 @@ export default {
       combined: true,
       header: "Authorization",
       scheme: "bearer",
+      hooks: ["zcodeHeaders"],
     },
     usage: {
       url: "https://api.z.ai/api/monitor/usage/quota/limit",
@@ -45,7 +46,7 @@ export default {
     {
       format: "openai",
       baseUrl: "https://api.z.ai/api/coding/paas/v4/chat/completions",
-      auth: { combined: true, header: "Authorization", scheme: "bearer" },
+      auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
     },
     {
       format: "claude",
@@ -54,7 +55,7 @@ export default {
       headers: {
         "anthropic-version": "2023-06-01",
       },
-      auth: { combined: true, header: "Authorization", scheme: "bearer" },
+      auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
     },
   ],
   models: [

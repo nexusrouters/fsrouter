@@ -38,6 +38,14 @@ function applyAuth(headers, desc, credentials) {
 
 // Provider-specific header quirks kept as small hooks (not pure auth).
 const HEADER_HOOKS = {
+  zcodeHeaders: (h, c) => {
+    const jwtToken = c.providerSpecificData?.zcodeJwtToken || c.providerSpecificData?.token || c.accessToken;
+    if (jwtToken) {
+      h["zcodejwttoken"] = jwtToken;
+      h["Authorization"] = `Bearer ${jwtToken}`;
+      h["x-api-key"] = jwtToken;
+    }
+  },
   kimiHeaders: (h) => Object.assign(h, buildKimiHeaders()),
   clineHeaders: (h, c) => Object.assign(h, buildClineHeaders(c.apiKey || c.accessToken)),
   kilocodeOrg: (h, c) => { if (c.providerSpecificData?.orgId) h["X-Kilocode-OrganizationID"] = c.providerSpecificData.orgId; },
