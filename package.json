@@ -25,7 +25,13 @@
     "gradient-string": "*",
     "boxen": "*",
     "inquirer": "*",
-    "node-machine-id": "*"
+    "node-machine-id": "*",
+    "bcryptjs": "*",
+    "better-sqlite3": "*",
+    "confbox": "*",
+    "sql.js": "*",
+    "undici": "*",
+    "uuid": "*"
   },
   "bin": {
     "amrouter": "bin/cli.cjs",
