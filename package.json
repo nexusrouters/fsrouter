@@ -47,9 +47,13 @@
   },
   "files": [
     "dist",
+    "dist/**/*",
     "public",
+    "public/**/*",
     "automation",
+    "automation/**/*",
     "bin",
+    "bin/**/*",
     "package.json",
     "README.md",
     "LICENSE"
