@@ -112,8 +112,8 @@ export default function DashboardLayout() {
         {/* Faint grid background */}
         <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
-        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" ? "flex flex-col overflow-hidden" : ""}`}>
-          <div className={`${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}><Outlet /></div>
+        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" || pathname === "/dashboard/ai-agent" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" || pathname === "/dashboard/ai-agent" ? "flex flex-col overflow-hidden" : ""}`}>
+          <div className={`${pathname === "/dashboard/basic-chat" || pathname === "/dashboard/docs" || pathname === "/dashboard/ai-agent" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}><Outlet /></div>
         </div>
       </main>
 

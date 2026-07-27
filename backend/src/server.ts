@@ -96,7 +96,14 @@ async function bootstrapHeadroom() {
   }
 }
 
-// ─── Auth Middleware ───────────────────────────────────────────────────────────
+// ─── Hermes WebUI (AI Agent) reverse proxy → mounted at /agent ───────────────
+import { agentProxy } from "./routes/agentProxy.js";
+app.use("/agent", (req, res, next) => {
+  // Skip fsrouter auth for the agent surface; Hermes WebUI has its own auth.
+  agentProxy(req, res, next);
+});
+
+// ─── Auth Middleware ─────────────────────────────────────────────────────────
 app.use(authMiddleware);
 
 // ─── Auto-mount all routes ────────────────────────────────────────────────────
