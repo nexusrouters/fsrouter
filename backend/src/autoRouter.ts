@@ -97,6 +97,7 @@ export async function buildAutoRouter(): Promise<Router> {
     const expressPath: string | RegExp = isCatchAll
       ? toCatchAllRegex(pathPart)
       : "/" + pathPart.split("/").map(nextToExpress).join("/");
+    console.log(`[router] File: ${rel} -> expressPath: ${expressPath}`);
 
     let mod: Record<string, unknown>;
     try {
@@ -117,6 +118,7 @@ export async function buildAutoRouter(): Promise<Router> {
            console.log(`DEBUG: Mounted ${method} ${expressPath}`);
         }
         router[expressMethod](expressPath, async (req: Request, res: Response) => {
+          console.log(`[router] Matched ${method} ${req.url} -> ${expressPath}`);
           try {
             const params: Record<string, any> = { ...req.params };
             if (isCatchAll) {
