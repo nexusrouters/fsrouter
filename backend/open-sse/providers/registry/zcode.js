@@ -26,11 +26,11 @@ export default {
     scope: "openid profile email",
   },
   transport: {
-    baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
+    baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
     format: "claude",
-    urlSuffix: "?beta=true",
     headers: {
       "anthropic-version": "2023-06-01",
+      "User-Agent": "ZCode/3.5.2",
     },
     auth: {
       combined: true,
@@ -39,21 +39,24 @@ export default {
       hooks: ["zcodeHeaders"],
     },
     usage: {
-      url: "https://api.z.ai/api/monitor/usage/quota/limit",
+      url: "https://zcode.z.ai/api/v1/zcode-plan/billing/balance",
     },
   },
   transports: [
     {
       format: "openai",
-      baseUrl: "https://api.z.ai/api/coding/paas/v4/chat/completions",
+      baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/v1/chat/completions",
+      headers: {
+        "User-Agent": "ZCode/3.5.2",
+      },
       auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
     },
     {
       format: "claude",
-      baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
-      urlSuffix: "?beta=true",
+      baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
       headers: {
         "anthropic-version": "2023-06-01",
+        "User-Agent": "ZCode/3.5.2",
       },
       auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["zcodeHeaders"] },
     },

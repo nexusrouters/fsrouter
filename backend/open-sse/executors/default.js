@@ -43,7 +43,9 @@ const HEADER_HOOKS = {
     if (jwtToken) {
       h["zcodejwttoken"] = jwtToken;
       h["Authorization"] = `Bearer ${jwtToken}`;
-      h["x-api-key"] = jwtToken;
+      h["User-Agent"] = "ZCode/3.5.2";
+      h["HTTP-Referer"] = "https://zcode.z.ai";
+      h["X-Title"] = "Z Code@electron";
     }
   },
   kimiHeaders: (h) => Object.assign(h, buildKimiHeaders()),
