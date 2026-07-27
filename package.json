@@ -30,7 +30,15 @@
     "confbox": "*",
     "sql.js": "*",
     "undici": "*",
-    "uuid": "*"
+    "uuid": "*",
+    "jose": "*",
+    "@aws-sdk/client-bedrock-runtime": "*",
+    "bottleneck": "*",
+    "express": "*",
+    "log-wrapper": "*",
+    "node-forge": "*",
+    "puppeteer-core": "*",
+    "ws": "*"
   },
   "bin": {
     "amrouter": "bin/cli.cjs",
