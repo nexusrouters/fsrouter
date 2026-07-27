@@ -1621,33 +1621,40 @@ const PROVIDERS = {
       const targetRedirect = config.redirectUri || redirectUri;
       return `${config.authorizeUrl}?response_type=code&client_id=${encodeURIComponent(config.clientId)}&redirect_uri=${encodeURIComponent(targetRedirect)}&state=${encodeURIComponent(state)}`;
     },
-    exchangeToken: async (config, code, redirectUri) => {
+    exchangeToken: async (config, code, redirectUri, _codeVerifier, state) => {
+      const targetRedirect = config.redirectUri || redirectUri;
       const response = await fetch(config.tokenUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: config.clientId,
+        body: JSON.stringify({
+          provider: "zai",
           code,
-          redirect_uri: config.redirectUri || redirectUri,
+          redirect_uri: targetRedirect,
+          state: state || "",
         }),
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`ZCode token exchange failed: ${errorText}`);
+      const data = await response.json();
+      if (!response.ok || data.code !== 0) {
+        throw new Error(data.msg || `ZCode token exchange failed (code: ${data.code})`);
       }
-      return await response.json();
+      return data;
     },
-    mapTokens: (tokens) => {
+    mapTokens: (res) => {
+      const data = res?.data || {};
+      const token = data.token || "";
+      const zai = data.zai || {};
+      const accessToken = zai.access_token || token;
+      const refreshToken = zai.refresh_token || null;
       return {
-        accessToken: tokens.access_token || tokens.token || tokens.jwt,
-        refreshToken: tokens.refresh_token || null,
-        expiresIn: tokens.expires_in || 2592000,
+        accessToken,
+        refreshToken,
+        expiresIn: zai.expires_in || 2592000,
         providerSpecificData: {
-          zcodeJwtToken: tokens.zcodejwttoken || tokens.jwt || tokens.access_token,
+          zcodeJwtToken: token,
+          token,
         },
       };
     },
