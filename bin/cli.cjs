@@ -455,11 +455,46 @@ if (!fs.existsSync(serverPath)) {
   process.exit(1);
 }
 
+// Auto-start the ZCode Aliyun captcha solver bridge (only meaningful from a
+// residential IP; on a datacenter VPS the solver simply returns no token and
+// the upstream 3007 path falls through). Spawns the Node bridge in the
+// background so `fsrouter` works out-of-the-box without manual setup.
+function ensureCaptchaBridge() {
+  const port = process.env.ZCODE_CAPTCHA_PORT || "18765";
+  process.env.ZCODE_CAPTCHA_PORT = port;
+  const net = require("net");
+  const test = net.connect(Number(port), "127.0.0.1");
+  const done = (start) => {
+    test.removeAllListeners();
+    test.destroy();
+    if (start) {
+      try {
+        const bridge = path.join(__dirname, "..", "automation", "zcodeCaptchaServer.js");
+        if (fs.existsSync(bridge)) {
+          const child = spawn(RUNTIME, [bridge], {
+            cwd: standaloneDir,
+            stdio: "ignore",
+            detached: true,
+            windowsHide: true,
+            env: { ...process.env, ZCODE_CAPTCHA_PORT: port }
+          });
+          child.unref();
+        }
+      } catch (_) { /* best-effort */ }
+    }
+  };
+  test.setTimeout(400);
+  test.once("connect", () => done(false)); // already running
+  test.once("error", () => done(true));     // start it
+  test.once("timeout", () => done(true));
+}
+
 // Check for updates FIRST, then start server
 checkForUpdate().then((latestVersion) => {
   killAllAppProcesses(port).then(() => {
     return killProcessOnPort(port);
   }).then(() => {
+    ensureCaptchaBridge();
     startServer(latestVersion);
   });
 });
