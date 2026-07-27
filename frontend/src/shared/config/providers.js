@@ -381,9 +381,9 @@ export const PROVIDERS = {
     authType: "cookie"
   },
   "grok-cli": {
-    baseUrl: "https://api.x.ai/v1",
+    baseUrl: "https://cli-chat-proxy.grok.com/v1",
     format: "openai",
-    authType: "apiKey"
+    authType: "oauth"
   },
   "perplexity-web": {
     baseUrl: "https://www.perplexity.ai/rest/sse/perplexity_ask",

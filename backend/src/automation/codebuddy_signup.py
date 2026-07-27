@@ -341,6 +341,12 @@ def main():
     parser.add_argument("--proxy-pass")
     parser.add_argument("--profiles-dir", required=True)
     parser.add_argument("--headless", action="store_true", default=False)
+    parser.add_argument("--fsmail-base-url", default="")
+    parser.add_argument("--fsmail-api-key", default="")
+    parser.add_argument("--fsmail-domain", default="")
+    parser.add_argument("--stagger-delay", type=int, default=0)
+    parser.add_argument("--2captcha-key", default="")
+    parser.add_argument("--engine", default="patchright", choices=["camoufox", "patchright"])
     args = parser.parse_args()
 
     profiles_root = Path(args.profiles_dir)

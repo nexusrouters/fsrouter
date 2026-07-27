@@ -1,0 +1,1192 @@
+// Parse any proxy string format → { server, username, password }
+function parseProxyString(raw) {
+    if (!raw)
+        return null;
+    raw = raw.trim();
+    // Malformed: http://host:port:user:pass (saved wrong to DB)
+    const badUrl = raw.match(/^(https?|socks[45]?):\/\/([^:]+):(\d+):([^:]+):(.+)$/);
+    if (badUrl) {
+        const [, proto, host, port, user, pass] = badUrl;
+        return { server: `http://${host}:${port}`, username: user, password: pass };
+    }
+    // Correct URL: http://user:pass@host:port
+    const goodUrl = raw.match(/^(socks[45]?|https?|http):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/);
+    if (goodUrl) {
+        const [, proto, user, pass, host, port] = goodUrl;
+        const r = { server: `${proto}://${host}:${port}` };
+        if (user)
+            r.username = user;
+        if (pass)
+            r.password = pass;
+        return r;
+    }
+    // Plain: host:port:user:pass
+    const parts = raw.split(":");
+    if (parts.length === 4 && /^\d+$/.test(parts[1])) {
+        return { server: `http://${parts[0]}:${parts[1]}`, username: parts[2], password: parts[3] };
+    }
+    // Plain: host:port
+    if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+        return { server: `http://${parts[0]}:${parts[1]}` };
+    }
+    return null;
+}
+import { spawn } from "child_process";
+import path from "path";
+import fs from "fs";
+import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
+import { getSettings, updateSettings } from "../../../lib/localDb.js";
+import { getFsmailClientFromSettings } from "../../../lib/automation/fsmailClient.js";
+import { listCodeBuddyAccounts, getCodeBuddyAccount, insertCodeBuddyAccount, bulkDeleteCodeBuddyAccounts, deleteCodeBuddyAccount, markCodeBuddyRunning, markCodeBuddySuccess, markCodeBuddyError, markCanvaEnrolled, createCodeBuddyJob, getCodeBuddyJob, updateCodeBuddyJobStatus, updateCodeBuddyJobResult, createProviderConnection, getProviderConnections, updateProviderConnection, deleteProviderConnectionByEmailAndProvider } from "../../../lib/db/index.js";
+// ── Human-like alias generator (ported from leoapi-main/app/store.py) ──
+const _HUMAN_FIRST_NAMES = [
+    "daniel", "nisa", "alif", "rahma", "rifki", "putri", "andi", "budi",
+    "citra", "dewi", "eka", "fitri", "galih", "hana", "indra", "joko",
+    "kiki", "lina", "maya", "nanda", "okta", "putu", "rendi", "sari",
+    "tania", "umar", "vina", "wawan", "yusuf", "zahra", "anggi", "bagas",
+    "dimas", "elis", "farah", "gita", "hadi", "iman", "jihan", "khalid",
+    "luna", "mira", "naufal", "olivia", "rizki", "salsa", "tegar", "yoga",
+    "ayu", "rama", "lia", "yanto", "wati", "rian", "intan", "sigit",
+    "alex", "chris", "emma", "james", "kate", "leo", "mike", "nora",
+    "oliver", "paula", "quinn", "ryan", "sara", "tom", "vera", "will",
+];
+function generateHumanAlias() {
+    const pick = (arr) => arr[crypto.randomInt(arr.length)];
+    const digits = (n) => Array.from({ length: n }, () => crypto.randomInt(10)).join("");
+    const first = pick(_HUMAN_FIRST_NAMES);
+    const style = crypto.randomInt(4);
+    const dLen = 2 + crypto.randomInt(3); // 2-4 digits
+    // Generate a random 8-character unique alphanumeric string to prevent collisions on Cloudflare
+    const uniqueSuffix = Math.random().toString(36).substring(2, 10);
+    if (style === 0)
+        return `${first}${digits(dLen)}-${uniqueSuffix}`;
+    if (style === 1)
+        return `${first}.${digits(dLen)}-${uniqueSuffix}`;
+    if (style === 2)
+        return `${first}_${digits(dLen)}-${uniqueSuffix}`;
+    let second = pick(_HUMAN_FIRST_NAMES);
+    while (second === first)
+        second = pick(_HUMAN_FIRST_NAMES);
+    return `${first}.${second}${digits(1 + crypto.randomInt(3))}-${uniqueSuffix}`;
+}
+function generateStrongPassword(length = 16) {
+    const lower = "abcdefghijklmnopqrstuvwxyz";
+    const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const digit = "0123456789";
+    const special = "!@#$%"; // CF requires special chars, keep these shell-safe
+    const all = lower + upper + digit + special;
+    const pick = (s) => s[crypto.randomInt(s.length)];
+    // Ensure at least 1 of each category (CF requirement)
+    const chars = [pick(lower), pick(upper), pick(digit), pick(special)];
+    for (let i = 4; i < length; i++)
+        chars.push(pick(all));
+    // Fisher-Yates shuffle
+    for (let i = chars.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join("");
+}
+// Global job runner state
+if (!global._codebuddyState) {
+    global._codebuddyState = {
+        activeJobId: null,
+        stopFlag: false,
+        activeProcesses: new Set()
+    };
+}
+else if (!global._codebuddyState.activeProcesses) {
+    global._codebuddyState.activeProcesses = new Set();
+}
+export const dynamic = "force-dynamic";
+export async function GET(req, res) {
+    try {
+        const { getAdapter } = await import("../../../lib/db/driver.js");
+        const db = await getAdapter();
+        let activeJobId = global._codebuddyState.activeJobId || "";
+        // Heal dangling running state for jobs & accounts when no job is active in memory
+        if (!activeJobId) {
+            try {
+                db.run("UPDATE codebuddyAccounts SET apiKeyStatus = 'failed', lastError = 'Job terhenti atau di-stop.' WHERE apiKeyStatus = 'running'");
+                const lastJob = db.get("SELECT * FROM codebuddyJobs ORDER BY createdAt DESC LIMIT 1");
+                if (lastJob) {
+                    let results = [];
+                    try {
+                        results = JSON.parse(lastJob.resultsJson || "[]");
+                    }
+                    catch (e) { }
+                    let modified = false;
+                    for (const r of results) {
+                        if (r && r.status === "running") {
+                            r.status = "failed";
+                            r.error = "Dihentikan oleh pengguna atau server restart.";
+                            r.ok = false;
+                            modified = true;
+                        }
+                    }
+                    const newStatus = lastJob.status === "running" ? "stopped" : lastJob.status;
+                    if (lastJob.status === "running" || modified) {
+                        db.run("UPDATE codebuddyJobs SET status = ?, resultsJson = ? WHERE id = ?", [newStatus, JSON.stringify(results), lastJob.id]);
+                    }
+                }
+            }
+            catch (e) {
+                console.error("Heal dangling states error:", e);
+            }
+        }
+        const accounts = await listCodeBuddyAccounts();
+        const settings = await getSettings();
+        let activeJob = null;
+        if (activeJobId) {
+            const job = await getCodeBuddyJob(activeJobId);
+            if (job) {
+                activeJob = {
+                    id: job.id,
+                    status: job.status,
+                    count: job.count,
+                    completed: job.completed || 0,
+                    success: job.success || 0,
+                    failed: job.failed || 0,
+                    progress: job.progress || 0,
+                    results: job.results || [],
+                    createdAt: job.createdAt,
+                };
+            }
+        }
+        else {
+            // Get the last job from DB to show completion stats
+            try {
+                const job = db.get("SELECT * FROM codebuddyJobs WHERE status != 'dismissed' ORDER BY createdAt DESC LIMIT 1");
+                if (job) {
+                    let results = [];
+                    try {
+                        results = JSON.parse(job.resultsJson || "[]");
+                    }
+                    catch (e) { }
+                    activeJob = {
+                        id: job.id,
+                        status: job.status,
+                        count: job.count,
+                        completed: job.completed || 0,
+                        success: job.success || 0,
+                        failed: job.failed || 0,
+                        progress: job.progress || 0,
+                        results: results,
+                        createdAt: job.createdAt,
+                    };
+                }
+            }
+            catch (e) {
+                console.error("Failed to load last job from DB:", e);
+            }
+        }
+        return res.json({
+            accounts: accounts.map(a => ({
+                id: a.id,
+                email: a.email,
+                api_key: a.apiKey,
+                api_key_status: a.apiKeyStatus,
+                last_error: a.lastError,
+                provider: a.provider || "codebuddy",
+            })),
+            active_job_id: activeJobId,
+            active_job: activeJob,
+            settings: {
+                auto_fsrouter: settings.codebuddy_auto_9router || "0",
+                browser_headless: settings.codebuddy_browser_headless !== "0",
+                debug_mode: settings.codebuddy_debug_mode === "1",
+                leave_canva_team: settings.codebuddy_leave_canva_team || "0",
+                proxy_enabled: settings.codebuddy_proxy_enabled === "1",
+                proxy_pool: settings.codebuddy_proxy_pool || "[]",
+                leonardo_invite_link: settings.leonardo_invite_link || "",
+                codebuddy_2captcha_api_key: settings.codebuddy_2captcha_api_key || "",
+                grok_router_url: settings.grok_router_url || "",
+                grok_router_password: settings.grok_router_password || "",
+            }
+        });
+    }
+    catch (error) {
+        console.error("Error in GET /api/automation/codebuddy:", error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+export async function POST_handler(req, res) {
+    try {
+        const body = req.body;
+        const { action } = body;
+        // ── Action: Settings ─────────────────────────────────────────────
+        if (action === "settings") {
+            const { auto_fsrouter, auto_9router, browser_headless, debug_mode, leave_canva_team, proxy_enabled, proxy_pool, leonardo_invite_link, codebuddy_2captcha_api_key, grok_router_url, grok_router_password } = body;
+            const updates = {};
+            const effectiveAutoRouterSetting = auto_fsrouter !== undefined ? auto_fsrouter : auto_9router;
+            if (effectiveAutoRouterSetting !== undefined)
+                updates.codebuddy_auto_9router = effectiveAutoRouterSetting ? "1" : "0";
+            if (browser_headless !== undefined)
+                updates.codebuddy_browser_headless = browser_headless ? "1" : "0";
+            if (debug_mode !== undefined)
+                updates.codebuddy_debug_mode = debug_mode ? "1" : "0";
+            if (leave_canva_team !== undefined)
+                updates.codebuddy_leave_canva_team = leave_canva_team ? "1" : "0";
+            if (proxy_enabled !== undefined)
+                updates.codebuddy_proxy_enabled = proxy_enabled ? "1" : "0";
+            if (proxy_pool !== undefined)
+                updates.codebuddy_proxy_pool = proxy_pool;
+            if (leonardo_invite_link !== undefined)
+                updates.leonardo_invite_link = leonardo_invite_link;
+            if (codebuddy_2captcha_api_key !== undefined)
+                updates.codebuddy_2captcha_api_key = codebuddy_2captcha_api_key;
+            if (grok_router_url !== undefined)
+                updates.grok_router_url = grok_router_url;
+            if (grok_router_password !== undefined)
+                updates.grok_router_password = grok_router_password;
+            await updateSettings(updates);
+            return res.json({ ok: true });
+        }
+        // ── Action: Auto Generate Email ──────────────────────────────────
+        if (action === "auto-generate-email") {
+            const { count, provider, run_now, concurrency, domain } = body;
+            const targetProvider = provider || "leonardo";
+            console.log(`[AUTO-GEN-EMAIL] provider from body: "${provider}", targetProvider: "${targetProvider}"`);
+            const numCount = parseInt(count) || 1;
+            const client = await getFsmailClientFromSettings();
+            if (!client.configured) {
+                return res.status(400).json({ error: "Fsmail belum dikonfigurasi di Settings." });
+            }
+            const createdAccounts = [];
+            const errors = [];
+            for (let i = 0; i < numCount; i++) {
+                try {
+                    // Retry up to 3x with different human aliases (collision handling)
+                    let res = null;
+                    let lastErr = null;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        const aliasTry = generateHumanAlias();
+                        try {
+                            res = await client.createInbox(aliasTry, domain || null);
+                            break;
+                        }
+                        catch (err) {
+                            lastErr = err;
+                            const msg = String(err.message || err).toLowerCase();
+                            // Alias collision — try a different one
+                            if (msg.includes("alias") && (msg.includes("exist") || msg.includes("taken") || msg.includes("conflict"))) {
+                                continue;
+                            }
+                            break; // Other errors (auth, network) — stop retrying
+                        }
+                    }
+                    if (!res || !res.inbox || !res.inbox.address) {
+                        throw lastErr || new Error("Gagal membuat inbox dari Fsmail");
+                    }
+                    const email = res.inbox.address;
+                    const alias = res.inbox.alias;
+                    const password = generateStrongPassword(16);
+                    const profilesDir = path.resolve(process.cwd(), `profiles/${targetProvider}`);
+                    const safeEmail = email.replace("@", "_at_").replace(/[^a-z0-9._-]+/g, "_");
+                    const profileDir = path.join(profilesDir, safeEmail);
+                    const newId = await insertCodeBuddyAccount(email, password, profileDir, "email", alias, targetProvider);
+                    createdAccounts.push({ id: newId, email });
+                }
+                catch (err) {
+                    errors.push(err.message || String(err));
+                }
+            }
+            const response = {
+                ok: true,
+                created: createdAccounts,
+                errors
+            };
+            if (run_now && createdAccounts.length > 0) {
+                const targetIds = createdAccounts.map(a => a.id);
+                const jobId = uuidv4();
+                const concurrencyLimit = parseInt(concurrency) || 3;
+                await createCodeBuddyJob(jobId, "signup", targetIds.length);
+                runCodeBuddySignupJob(jobId, targetIds, concurrencyLimit).catch(console.error);
+                response.job_id = jobId;
+            }
+            return res.json(response);
+        }
+        // ── Action: Add manual Google accounts ───────────────────────────
+        if (action === "add-google") {
+            const { accounts_text, run_now, concurrency, provider } = body;
+            const targetProvider = provider || "codebuddy";
+            console.log(`[ADD-GOOGLE] Adding accounts for target provider: "${targetProvider}"`);
+            const raw = (accounts_text || "").trim();
+            if (!raw) {
+                return res.status(400).json({ error: "Input kosong." });
+            }
+            const existingAccounts = await listCodeBuddyAccounts();
+            const existingEmails = new Set(existingAccounts
+                .filter(a => (a.provider || "codebuddy") === targetProvider)
+                .map(a => a.email.toLowerCase()));
+            console.log(`[ADD-GOOGLE] Found ${existingEmails.size} existing accounts for provider "${targetProvider}".`);
+            const targetIds = [];
+            const skipped = [];
+            const parseErrors = [];
+            const lines = raw.split("\n");
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || line.startsWith("#"))
+                    continue;
+                const parts = line.replace(",", ":").split(":");
+                if (parts.length < 2) {
+                    parseErrors.append ? parseErrors.append(line) : parseErrors.push(line);
+                    continue;
+                }
+                const email = parts[0].trim().toLowerCase();
+                const password = parts.slice(1).join(":").trim();
+                if (!email || !password) {
+                    parseErrors.push(line);
+                    continue;
+                }
+                const alreadyExists = existingEmails.has(email);
+                if (alreadyExists) {
+                    console.log(`[ADD-GOOGLE] Skipping email "${email}" (already exists for provider "${targetProvider}")`);
+                    skipped.push(email);
+                    continue;
+                }
+                const profilesDir = targetProvider === "leonardo"
+                    ? path.resolve(process.cwd(), "profiles/leonardo")
+                    : targetProvider === "weavy"
+                        ? path.resolve(process.cwd(), "profiles/weavy")
+                        : (targetProvider === "kimi-coding" || targetProvider === "kimi")
+                            ? path.resolve(process.cwd(), "profiles/kimi")
+                            : targetProvider === "qoder"
+                                ? path.resolve(process.cwd(), "profiles/qoder")
+                                : path.resolve(process.cwd(), "profiles/codebuddy");
+                const safeEmail = email.replace("@", "_at_").replace(/[^a-z0-9._-]+/g, "_");
+                const profileDir = path.join(profilesDir, safeEmail);
+                const newId = await insertCodeBuddyAccount(email, password, profileDir, "google", "", targetProvider);
+                targetIds.push(newId);
+                existingEmails.add(email);
+            }
+            const response = {
+                created: targetIds,
+                skipped,
+                parse_errors: parseErrors,
+            };
+            if (run_now && targetIds.length > 0) {
+                const jobId = uuidv4();
+                const concurrencyLimit = parseInt(concurrency) || 3;
+                await createCodeBuddyJob(jobId, "signup", targetIds.length);
+                // Start background runner async
+                runCodeBuddySignupJob(jobId, targetIds, concurrencyLimit).catch(console.error);
+                response.job_id = jobId;
+            }
+            return res.json(response);
+        }
+        // ── Action: Run all pending/failed accounts ─────────────────────
+        if (action === "run-all") {
+            const concurrencyLimit = parseInt(body.concurrency) || 3;
+            const { provider } = body;
+            const accounts = await listCodeBuddyAccounts();
+            const targetIds = accounts
+                .filter(a => {
+                const matchesStatus = a.apiKeyStatus === "pending" || a.apiKeyStatus === "failed";
+                const matchesProvider = provider ? (a.provider || "codebuddy") === provider : true;
+                return matchesStatus && matchesProvider;
+            })
+                .map(a => a.id);
+            if (targetIds.length === 0) {
+                return res.status(400).json({ error: "Tidak ada akun pending/failed." });
+            }
+            if (global._codebuddyState.activeJobId) {
+                return res.status(400).json({ error: "Ada job lain yang sedang berjalan." });
+            }
+            const jobId = uuidv4();
+            await createCodeBuddyJob(jobId, "signup", targetIds.length);
+            runCodeBuddySignupJob(jobId, targetIds, concurrencyLimit).catch(console.error);
+            return res.json({ job_id: jobId, count: targetIds.length });
+        }
+        // ── Action: Stop active job ──────────────────────────────────────
+        if (action === "stop") {
+            const busy = global._codebuddyState.activeJobId;
+            if (!busy) {
+                return res.json({ ok: true, message: "Tidak ada job aktif." });
+            }
+            global._codebuddyState.stopFlag = true;
+            // Kill all active processes (and their descendants: xvfb-run → python → browser)
+            if (global._codebuddyState.activeProcesses) {
+                for (const child of global._codebuddyState.activeProcesses) {
+                    try {
+                        // detached:true makes child a process-group leader; negative pid kills the whole tree
+                        try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
+                        child.kill("SIGKILL");
+                    }
+                    catch (err) {
+                        console.error("Failed to kill child process:", err);
+                    }
+                }
+                global._codebuddyState.activeProcesses.clear();
+            }
+            return res.json({
+                ok: true,
+                active_job_id: busy,
+                message: "Stop signal terkirim. Akun yang sedang berjalan akan dihentikan.",
+            });
+        }
+        // ── Action: Bulk delete accounts ────────────────────────────────
+        if (action === "bulk-delete") {
+            const { statuses, provider, deleteFrom9router } = body;
+            const allowed = new Set(["pending", "failed", "ready"]);
+            const validStatuses = (statuses || []).filter(s => allowed.has(s));
+            if (validStatuses.length === 0) {
+                return res.status(400).json({ error: "No valid statuses provided" });
+            }
+            const deleted = await bulkDeleteCodeBuddyAccounts(validStatuses, provider);
+            // Delete their profiles folders
+            for (const acc of deleted) {
+                if (deleteFrom9router && acc.email && acc.provider) {
+                    await deleteProviderConnectionByEmailAndProvider(acc.email, acc.provider);
+                }
+                if (acc.profileDir && fs.existsSync(acc.profileDir)) {
+                    try {
+                        fs.rmSync(acc.profileDir, { recursive: true, force: true });
+                    }
+                    catch (e) {
+                        console.error("Failed to delete profile dir:", acc.profileDir, e);
+                    }
+                }
+            }
+            return res.json({ deleted: deleted.length, statuses: validStatuses });
+        }
+        if (action === "bulk-delete-ids") {
+            const { ids, provider, deleteFrom9router } = body;
+            if (!Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ error: "No IDs provided" });
+            }
+            let deletedCount = 0;
+            for (const id of ids) {
+                try {
+                    const acc = await getCodeBuddyAccount(id);
+                    if (acc) {
+                        if (deleteFrom9router && acc.email && acc.provider) {
+                            await deleteProviderConnectionByEmailAndProvider(acc.email, acc.provider);
+                        }
+                        await deleteCodeBuddyAccount(id);
+                        if (acc.profileDir && fs.existsSync(acc.profileDir)) {
+                            fs.rmSync(acc.profileDir, { recursive: true, force: true });
+                        }
+                        deletedCount++;
+                    }
+                }
+                catch (e) {
+                    console.error("Failed to delete account", id, e);
+                }
+            }
+            return res.json({ deleted: deletedCount });
+        }
+        // ── Action: Bulk add ready accounts to 9router ─────────────────
+        if (action === "bulk-add-to-9router" || action === "bulk-add-to-fsrouter") {
+            const { provider } = body;
+            const accounts = await listCodeBuddyAccounts();
+            const ready = accounts.filter(a => {
+                const matchesStatus = a.apiKeyStatus === "ready" && a.apiKey;
+                const matchesProvider = provider ? (a.provider || "codebuddy") === provider : true;
+                return matchesStatus && matchesProvider;
+            });
+            if (ready.length === 0) {
+                return res.json({ ok: true, total: 0, success: 0, failed: 0, message: "Tidak ada akun ready." });
+            }
+            let success = 0;
+            let failed = 0;
+            const errors = [];
+            for (const acc of ready) {
+                try {
+                    const provider = acc.provider || "codebuddy";
+                    const connData = {
+                        provider: provider,
+                        authType: "apikey",
+                        name: acc.email,
+                        apiKey: acc.apiKey,
+                        email: acc.email,
+                        priority: 1,
+                        isActive: true,
+                        testStatus: "unknown",
+                    };
+                    // Leonardo and Weavy use cookie-based auth
+                    if (provider === "leonardo" || provider === "weavy") {
+                        connData.authType = "cookie";
+                        connData.cookie = acc.apiKey;
+                        delete connData.apiKey;
+                    }
+                    else if (provider === "kimi-coding") {
+                        connData.authType = "oauth";
+                        connData.accessToken = acc.apiKey;
+                    }
+                    else if (provider === "kiro" || provider === "qoder") {
+                        connData.accessToken = acc.apiKey;
+                        if (provider === "qoder") {
+                            connData.providerSpecificData = {
+                                userId: acc.email,
+                            };
+                        }
+                    }
+                    await createProviderConnection(connData);
+                    success++;
+                }
+                catch (e) {
+                    failed++;
+                    errors.push({ email: acc.email, error: e.message || String(e) });
+                }
+            }
+            return res.json({
+                ok: true,
+                total: ready.length,
+                success,
+                failed,
+                errors,
+                message: `✓ ${success}/${ready.length} akun berhasil ditambahkan ke 9router.`
+            });
+        }
+        if (action === "clear-logs") {
+            try {
+                const { getAdapter } = await import("../../../lib/db/driver.js");
+                const db = await getAdapter();
+                // Update all completed/failed/stopped jobs to dismissed
+                db.run("UPDATE codebuddyJobs SET status = 'dismissed' WHERE status IN ('completed', 'failed', 'stopped', 'error')");
+                // Also clear memory state if no job is actually running
+                if (global._codebuddyState && !global._codebuddyState.activeProcesses?.size) {
+                    global._codebuddyState.activeJobId = null;
+                }
+            }
+            catch (e) {
+                console.error("clear-logs error:", e);
+            }
+            return res.json({ ok: true });
+        }
+        return res.status(400).json({ error: "Unknown action" });
+    }
+    catch (error) {
+        console.error("Error in POST /api/automation/codebuddy:", error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+// ── Background Runner Loop ───────────────────────────────────────────
+async function runCodeBuddySignupJob(jobId, accountIds, concurrencyLimit) {
+    global._codebuddyState.activeJobId = jobId;
+    global._codebuddyState.stopFlag = false;
+    const jobStartTimes = {}; // Track start time per account index
+    try {
+        await updateCodeBuddyJobStatus(jobId, "running");
+        const settings = await getSettings();
+        let index = 0;
+        const total = accountIds.length;
+        const worker = async () => {
+            while (index < total) {
+                if (global._codebuddyState.stopFlag)
+                    break;
+                const currentIdx = index++;
+                const accountId = accountIds[currentIdx];
+                jobStartTimes[currentIdx] = Date.now();
+                await markCodeBuddyRunning(accountId);
+                await updateCodeBuddyJobResult(jobId, currentIdx, {
+                    status: "running",
+                    step: "Memulai otomatisasi browser... [0s]"
+                });
+                try {
+                    await executeCodeBuddySignup(accountId, jobId, currentIdx, settings, jobStartTimes);
+                }
+                catch (e) {
+                    const elapsed = ((Date.now() - (jobStartTimes[currentIdx] || Date.now())) / 1000).toFixed(1);
+                    await markCodeBuddyError(accountId, e.message || String(e));
+                    await updateCodeBuddyJobResult(jobId, currentIdx, {
+                        status: "failed",
+                        error: `${e.message || String(e)} [${elapsed}s]`,
+                        ok: false
+                    });
+                }
+            }
+        };
+        const workers = [];
+        const limit = Math.min(concurrencyLimit, total);
+        for (let i = 0; i < limit; i++) {
+            workers.push(worker());
+        }
+        await Promise.all(workers);
+    }
+    catch (e) {
+        console.error("Error running CodeBuddy job:", e);
+    }
+    finally {
+        global._codebuddyState.activeJobId = null;
+        const finalStatus = global._codebuddyState.stopFlag ? "stopped" : "completed";
+        await updateCodeBuddyJobStatus(jobId, finalStatus);
+    }
+}
+function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes = {}) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const account = await getCodeBuddyAccount(accountId);
+            if (!account)
+                return reject(new Error("Account not found"));
+            // Helper: update step with auto-elapsed time
+            const elapsed = () => ((Date.now() - (jobStartTimes[idx] || Date.now())) / 1000).toFixed(1);
+            const updateResult = async (result) => {
+                if (result.step && !/\[\d+(\.\d+)?s\]$/.test(result.step)) {
+                    result.step = `${result.step} [${elapsed()}s]`;
+                }
+                return updateCodeBuddyJobResult(jobId, idx, result);
+            };
+            const isLeonardo = account.provider === "leonardo";
+            const isWeavy = account.provider === "weavy";
+            const isKimi = account.provider === "kimi-coding" || account.provider === "kimi";
+            const isQoder = account.provider === "qoder";
+            const isCloudflare = account.provider === "cloudflare";
+            const isOpenVecta = account.provider === "openvecta";
+            const isFlashloop = account.provider === "flashloop";
+            const isGrok = account.provider === "grok-cli" || account.provider === "grok";
+            const isMeta = account.provider === "meta";
+            // ── Cloudflare: Smart routing ─────────────────────────────────────
+            // password == GAK (>=37 char or cfk_ prefix) → API-based, no browser
+            // password == login password (short) → fall-through to Python browser automation
+            const cfPassword = (account.password || "").trim();
+            const cfEmail = (account.email || "").trim();
+            const isGAK = cfPassword.length >= 37 || cfPassword.startsWith("cfk_");
+            if (isCloudflare && isGAK) {
+                const globalApiKey = cfPassword;
+                const email = cfEmail;
+                if (!globalApiKey || !email) {
+                    return reject(new Error("Cloudflare account butuh email + Global API Key sebagai password."));
+                }
+                try {
+                    await updateResult({
+                        email: account.email,
+                        status: "running",
+                        step: "Menghubungi Cloudflare API..."
+                    });
+                    const CF_API = "https://api.cloudflare.com/client/v4";
+                    const cfHeaders = {
+                        "X-Auth-Key": globalApiKey,
+                        "X-Auth-Email": email,
+                        "Content-Type": "application/json",
+                    };
+                    const cfFetch = async (path, options = {}) => {
+                        const r = await fetch(`${CF_API}${path}`, {
+                            ...options,
+                            headers: { ...cfHeaders, ...(options.headers || {}) },
+                        });
+                        const d = await r.json();
+                        if (!d.success) {
+                            const msg = d.errors?.[0]?.message || "Cloudflare API error";
+                            throw new Error(msg);
+                        }
+                        return d.result;
+                    };
+                    // 1. Get accounts
+                    await updateResult({
+                        email: account.email, status: "running", step: "Memverifikasi akun Cloudflare..."
+                    });
+                    const accounts_ = await cfFetch("/accounts?per_page=1");
+                    if (!accounts_ || accounts_.length === 0) {
+                        throw new Error("Tidak ada akun Cloudflare yang ditemukan untuk kredensial ini.");
+                    }
+                    const cfAccount = accounts_[0];
+                    const accountId = cfAccount.id;
+                    const accountName = cfAccount.name;
+                    // 2. Get permission groups — exact match, exclude Metadata Read
+                    await updateResult({
+                        email: account.email, status: "running", step: "Mengambil permission groups..."
+                    });
+                    const permGroups = await cfFetch(`/accounts/${accountId}/tokens/permission_groups`);
+                    const readGroup = permGroups.find((g) => g.name === "Workers AI Read" || g.name === "Workers AI Write") ||
+                        permGroups.find((g) => g.name.toLowerCase().includes("workers ai") &&
+                            g.name.toLowerCase().includes("read") &&
+                            !g.name.toLowerCase().includes("metadata"));
+                    const editGroup = permGroups.find((g) => g.name === "Workers AI Write") ||
+                        permGroups.find((g) => g.name.toLowerCase().includes("workers ai") &&
+                            (g.name.toLowerCase().includes("write") || g.name.toLowerCase().includes("edit")) &&
+                            !g.name.toLowerCase().includes("metadata")) || readGroup;
+                    const analyticsGroup = permGroups.find((g) => g.name.toLowerCase().includes("account analytics") && g.name.toLowerCase().includes("read"));
+                    if (!readGroup) {
+                        throw new Error(`Workers AI permission groups tidak ditemukan. Tersedia: ${permGroups.map(g => g.name).join(", ")}`);
+                    }
+                    // 3. Create API token
+                    await updateResult({
+                        email: account.email, status: "running", step: "Membuat API Token Workers AI..."
+                    });
+                    const permissionGroups = [{ id: readGroup.id }, { id: editGroup.id }];
+                    if (analyticsGroup)
+                        permissionGroups.push({ id: analyticsGroup.id });
+                    const tokenResult = await cfFetch("/user/tokens", {
+                        method: "POST",
+                        body: JSON.stringify({
+                            name: `9router Workers AI - ${email}`,
+                            policies: [{
+                                    effect: "allow",
+                                    permission_groups: permissionGroups,
+                                    resources: { [`com.cloudflare.api.account.${accountId}`]: "*" },
+                                }],
+                        }),
+                    });
+                    const newApiToken = tokenResult.value;
+                    // 4. Save to DB
+                    await markCodeBuddySuccess(account.id, newApiToken);
+                    await updateResult({
+                        email: account.email,
+                        status: "done",
+                        api_key: newApiToken,
+                        ok: true
+                    });
+                    // 5. Auto-add to 9router connections
+                    try {
+                        const existing = await getProviderConnections({ provider: "cloudflare-ai" });
+                        if (existing.length > 0) {
+                            await updateProviderConnection(existing[0].id, {
+                                apiKey: newApiToken,
+                                providerSpecificData: { ...(existing[0].providerSpecificData || {}), accountId },
+                            });
+                        }
+                        else {
+                            await createProviderConnection({
+                                provider: "cloudflare-ai",
+                                authType: "apikey",
+                                name: `Cloudflare (${accountName})`,
+                                apiKey: newApiToken,
+                                email: "",
+                                priority: 1,
+                                globalPriority: null,
+                                defaultModel: null,
+                                providerSpecificData: { accountId },
+                                isActive: true,
+                                testStatus: "active",
+                            });
+                        }
+                    }
+                    catch (e) {
+                        console.error("Cloudflare auto-add to 9router failed:", e);
+                    }
+                    return resolve(undefined);
+                }
+                catch (err) {
+                    const errMsg = err.message || String(err);
+                    await markCodeBuddyError(account.id, errMsg);
+                    await updateResult({
+                        email: account.email,
+                        status: "failed",
+                        error: errMsg,
+                        ok: false
+                    });
+                    return resolve(undefined);
+                }
+            }
+            // ── End CF GAK path. isCloudflare + short password → Python browser below ──
+            if (isLeonardo && !settings.leonardo_invite_link) {
+                return reject(new Error("Leonardo invite link belum di-set di Settings."));
+            }
+            const nodeBin = process.execPath; // node runtime saat ini
+            const venvPython = path.resolve(process.cwd(), ".venv/bin/python");
+            const scriptPath = isLeonardo
+                ? path.resolve(process.cwd(), "src/automation/leonardo_signup.py")
+                : isWeavy
+                    ? path.resolve(process.cwd(), "src/automation/weavy_signup.py")
+                    : isKimi
+                        ? path.resolve(process.cwd(), "src/automation/kimi_signup.py")
+                        : isQoder
+                            ? path.resolve(process.cwd(), "src/automation/qoder_signup.py")
+                            : isCloudflare
+                                ? path.resolve(process.cwd(), "src/automation/cloudflare_signup.py")
+                                : isFlashloop
+                                    ? path.resolve(process.cwd(), "src/automation/flashloop_signup.py")
+                                    : isGrok
+                                        ? path.resolve(process.cwd(), "dist/automation/grok_cli_gac.js")
+                                        : isMeta
+                                            ? path.resolve(process.cwd(), "src/automation/meta_ai_signup.py")
+                                            : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
+            const profilesDir = isLeonardo
+                ? path.resolve(process.cwd(), "profiles/leonardo")
+                : isWeavy
+                    ? path.resolve(process.cwd(), "profiles/weavy")
+                    : isKimi
+                        ? path.resolve(process.cwd(), "profiles/kimi")
+                        : isQoder
+                            ? path.resolve(process.cwd(), "profiles/qoder")
+                            : isCloudflare
+                                ? path.resolve(process.cwd(), "profiles/cloudflare")
+                                : isOpenVecta
+                                    ? path.resolve(process.cwd(), "profiles/openvecta")
+                                    : isFlashloop
+                                        ? path.resolve(process.cwd(), "profiles/flashloop")
+                                        : isGrok
+                                            ? path.resolve(process.cwd(), "profiles/grok")
+                                            : isMeta
+                                                ? path.resolve(process.cwd(), "profiles/meta")
+                                                : path.resolve(process.cwd(), "profiles/codebuddy");
+            const args = [
+                scriptPath,
+                `--email=${account.email}`,
+                `--password=${account.password}`,
+                `--profiles-dir=${profilesDir}`,
+            ];
+            if (isLeonardo) {
+                args.push(`--invite-link=${settings.leonardo_invite_link || ""}`);
+                args.push(`--signup-method=${account.signupMethod || "google"}`);
+                if (account.canvaEnrolled === 1) {
+                    args.push("--skip-canva");
+                }
+                else {
+                    // Canva step: always non-headless to avoid bot detection.
+                    // Do NOT pass --canva-headless → Camoufox runs visible for Canva.
+                    // Add random pre-Canva delay (15-30s) to reduce rate-limit detection.
+                    args.push("--canva-delay=30");
+                }
+                if (settings.codebuddy_leave_canva_team === "1") {
+                    args.push("--leave-canva-team");
+                }
+            }
+            else if (isCloudflare) {
+                // Inject Fsmail credentials so the script can generate + verify email
+                const fsmailSettings = settings;
+                const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+                const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+                const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+                if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+                    args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+                    args.push(`--fsmail-api-key=${fsmailApiKey}`);
+                    args.push(`--fsmail-domain=${fsmailDomain}`);
+                }
+                // 2Captcha for Turnstile
+                const captchaKey = settings.codebuddy_2captcha_api_key || "";
+                if (captchaKey) {
+                    args.push(`--2captcha-key=${captchaKey}`);
+                }
+                // Stagger browser launches: each slot gets a 5s delay window
+                // so concurrent instances don't all launch at the same time
+                const slotDelay = (idx % 3) * 5; // max 3 concurrent → 0s, 5s, 10s
+                if (slotDelay > 0) {
+                    args.push(`--stagger-delay=${slotDelay}`);
+                }
+            }
+            else if (isWeavy) {
+                if (account.signupMethod === "google" || account.email.endsWith("@gmosel.com") || account.email.endsWith("@gmail.com")) {
+                    args.push("--gsuite");
+                }
+                args.push("--clean");
+            }
+            else if (isOpenVecta || isGrok || isMeta) {
+                // Inject Fsmail credentials so the script can verify email
+                const fsmailSettings = settings;
+                const fsmailBaseUrl = fsmailSettings.fsmail_base_url || "";
+                const fsmailApiKey = fsmailSettings.fsmail_api_key || "";
+                const fsmailDomain = fsmailSettings.fsmail_default_domain || "";
+                if (fsmailBaseUrl && fsmailApiKey && fsmailDomain) {
+                    args.push(`--fsmail-base-url=${fsmailBaseUrl}`);
+                    args.push(`--fsmail-api-key=${fsmailApiKey}`);
+                    args.push(`--fsmail-domain=${fsmailDomain}`);
+                }
+                if (isMeta) {
+                    args.push("--apikey");
+                    args.push("--vcc");
+                    if (settings.meta_proxy && settings.codebuddy_proxy_enabled !== "1") {
+                        args.push(`--proxy=${settings.meta_proxy}`);
+                    }
+                }
+                // Pass router target for Grok CLI Add Connection
+                if (isGrok) {
+                    const targetUrl = settings.grok_router_url || "http://127.0.0.1:20128";
+                    const targetPw = settings.grok_router_password || process.env.ADMIN_PASSWORD || "";
+                    if (targetUrl)
+                        args.push(`--router-url=${targetUrl}`);
+                    if (targetPw)
+                        args.push(`--router-password=${targetPw}`);
+                    const sealUnlockUrl = process.env.SEAL_UNLOCK_URL || "";
+                    const sealToken = process.env.SEAL_TOKEN || "";
+                    if (sealUnlockUrl)
+                        args.push(`--seal-unlock-url=${sealUnlockUrl}`);
+                    if (sealToken)
+                        args.push(`--seal-token=${sealToken}`);
+                }
+                // Stagger browser launches
+                const slotDelay = (idx % 3) * 5;
+                if (slotDelay > 0) {
+                    args.push(`--stagger-delay=${slotDelay}`);
+                }
+            }
+            if (settings.codebuddy_browser_headless !== "0") {
+                args.push("--headless");
+            }
+            if (settings.codebuddy_proxy_enabled === "1" && settings.codebuddy_proxy_pool && !isQoder) {
+                try {
+                    const pool = JSON.parse(settings.codebuddy_proxy_pool);
+                    if (Array.isArray(pool) && pool.length > 0) {
+                        // Round-robin anti-repeat: track last used index globally so the
+                        // same IP is not reused in back-to-back signups.
+                        if (!global._codebuddyState.proxyRoundRobinIdx) {
+                            global._codebuddyState.proxyRoundRobinIdx = 0;
+                        }
+                        const idx = global._codebuddyState.proxyRoundRobinIdx % pool.length;
+                        global._codebuddyState.proxyRoundRobinIdx = (idx + 1) % pool.length;
+                        const chosen = pool[idx];
+                        const parsed = parseProxyString(chosen);
+                        if (parsed) {
+                            if (isMeta) {
+                                let proxyUrl = "";
+                                if (parsed.username && parsed.password) {
+                                    proxyUrl = `http://${parsed.username}:${parsed.password}@${parsed.server.replace("http://", "").replace("https://", "")}`;
+                                }
+                                else {
+                                    proxyUrl = parsed.server.startsWith("http") ? parsed.server : `http://${parsed.server}`;
+                                }
+                                args.push(`--proxy=${proxyUrl}`);
+                                console.log(`[proxy-meta] Using: ${proxyUrl}`);
+                            }
+                            else {
+                                args.push(`--proxy-server=${parsed.server}`);
+                                if (parsed.username)
+                                    args.push(`--proxy-user=${parsed.username}`);
+                                if (parsed.password)
+                                    args.push(`--proxy-pass=${parsed.password}`);
+                            }
+                            console.log(`[proxy] Using (slot ${idx}/${pool.length}): ${parsed.server} (auth: ${!!parsed.username})`);
+                        }
+                        else {
+                            console.error("[proxy] Could not parse proxy string:", chosen);
+                        }
+                    }
+                }
+                catch (e) {
+                    console.error("Failed to parse proxy pool:", e);
+                }
+            }
+            try {
+                const logDir = path.join(process.env.DATA_DIR || path.join(process.env.HOME || process.env.USERPROFILE || "/tmp", ".fsrouter"), "logs");
+                fs.mkdirSync(logDir, { recursive: true });
+                fs.appendFileSync(`${logDir}/automation_spawn.log`, `[${new Date().toISOString()}] route.js spawning python: ${venvPython} ${args.join(" ")}\n`);
+            }
+            catch (err) {
+                console.error("Failed to write to automation_spawn.log:", err);
+            }
+            let spawnCmd = "xvfb-run";
+            let spawnArgs = ["-a", venvPython, ...args];
+            if (isGrok) {
+                // Pakai engine Node (puppeteer-core) grok_cli_gac.js — tidak butuh python/venv.
+                spawnCmd = nodeBin;
+                spawnArgs = [scriptPath, ...args.slice(1)];
+                if (settings.codebuddy_browser_headless === "0" && process.platform === "linux") {
+                    spawnCmd = "xvfb-run";
+                    spawnArgs = ["-a", nodeBin, scriptPath, ...args.slice(1)];
+                }
+            }
+            const child = spawn(spawnCmd, spawnArgs, {
+                env: { ...process.env, DISPLAY: process.env.DISPLAY || ":1" },
+                detached: true
+            });
+            if (global._codebuddyState.activeProcesses) {
+                global._codebuddyState.activeProcesses.add(child);
+            }
+            // Hard timeout: if the python child hangs (e.g. stuck on a captcha/await),
+            // kill it so the worker can mark this account failed and move on instead of
+            // blocking the whole job (which leaves the UI stuck on "running").
+            const HARD_TIMEOUT_MS = 8 * 60 * 1000;
+            const hardTimer = setTimeout(() => {
+                if (!done) {
+                    console.error(`[automation] account ${account.email} exceeded ${HARD_TIMEOUT_MS}ms, killing child`);
+                    try {
+                        try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
+                        child.kill("SIGKILL");
+                    }
+                    catch { }
+                }
+            }, HARD_TIMEOUT_MS);
+            let stderrAccumulator = "";
+            child.stderr.on("data", (data) => {
+                console.error(`[child stderr] ${data.toString()}`);
+                stderrAccumulator += data.toString();
+            });
+            let lastStep = "Browser diluncurkan...";
+            let done = false;
+            child.stdout.on("data", async (data) => {
+                const lines = data.toString().split("\n");
+                for (const line of lines) {
+                    if (!line.trim())
+                        continue;
+                    try {
+                        const parsed = JSON.parse(line);
+                        if (parsed.step) {
+                            lastStep = parsed.step;
+                            await updateResult({
+                                email: account.email,
+                                status: "running",
+                                step: lastStep
+                            });
+                        }
+                        else if (parsed.canva_enrolled) {
+                            await markCanvaEnrolled(account.id, 1);
+                            await updateResult({
+                                email: account.email,
+                                status: "running",
+                                step: "Canva Enrolled. Menghubungkan ke Leonardo AI..."
+                            });
+                        }
+                        else if (parsed.needs_human_verify) {
+                            done = true;
+                            await updateResult({
+                                email: account.email,
+                                status: "needs_human",
+                                step: "Blocked by Meta human verification. Open account in a real browser, complete the challenge, then Retry.",
+                                lastError: parsed.api_key_error || "needs_human_verify"
+                            });
+                        }
+                        else if (parsed.status === "success") {
+                            done = true;
+                            const apiKeyToSave = (isLeonardo || isWeavy) ? parsed.cookie : parsed.api_key;
+                            await markCodeBuddySuccess(account.id, apiKeyToSave);
+                            await updateResult({
+                                email: account.email,
+                                status: "done",
+                                api_key: apiKeyToSave,
+                                balance: parsed.balance,
+                                left_team: parsed.left_team,
+                                ok: true
+                            });
+                            if (settings.codebuddy_auto_9router === "1" || isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta || isMeta) {
+                                try {
+                                    const provider = account.provider || "codebuddy";
+                                    const connData = {
+                                        provider: provider,
+                                        authType: (isLeonardo || isWeavy) ? "cookie" : (isKimi || isQoder || isGrok) ? "oauth" : "apikey",
+                                        name: account.email,
+                                        apiKey: apiKeyToSave,
+                                        email: account.email,
+                                        priority: 1,
+                                        isActive: true,
+                                        testStatus: (isLeonardo || isWeavy || isKimi || isQoder || isCloudflare || isOpenVecta || isFlashloop || isGrok || isMeta) ? "active" : "unknown",
+                                    };
+                                    if (isLeonardo || isWeavy) {
+                                        connData.cookie = parsed.cookie;
+                                        connData.last_balance = parsed.balance !== undefined ? parsed.balance : 150;
+                                        if (isLeonardo || isWeavy) {
+                                            connData.accessToken = parsed.jwt;
+                                            connData.cached_jwt = parsed.jwt;
+                                            connData.jwt_expires_at = Math.floor(Date.now() / 1000) + 1800;
+                                        }
+                                        if (isWeavy && (parsed.firebase_refresh_token || parsed.firebase_api_key)) {
+                                            connData.providerSpecificData = {
+                                                firebase_refresh_token: parsed.firebase_refresh_token || "",
+                                                firebase_api_key: parsed.firebase_api_key || "",
+                                            };
+                                        }
+                                    }
+                                    else if (isCloudflare) {
+                                        connData.provider = "cloudflare-ai";
+                                        connData.authType = "apikey";
+                                        connData.apiKey = parsed.api_key;
+                                        connData.providerSpecificData = {
+                                            accountId: parsed.account_id || "",
+                                        };
+                                    }
+                                    else if (isKimi) {
+                                        connData.accessToken = parsed.api_key;
+                                        connData.refreshToken = parsed.refresh_token;
+                                        connData.expiresAt = parsed.expires_in
+                                            ? new Date(Date.now() + parsed.expires_in * 1000).toISOString()
+                                            : null;
+                                    }
+                                    else if (isQoder) {
+                                        connData.accessToken = parsed.api_key;
+                                        connData.refreshToken = parsed.refresh_token;
+                                        connData.expiresAt = parsed.expires_in
+                                            ? new Date(Date.now() + parsed.expires_in * 1000).toISOString()
+                                            : null;
+                                        connData.displayName = parsed.name || null;
+                                        connData.email = parsed.email || account.email;
+                                        connData.providerSpecificData = {
+                                            authMethod: "device",
+                                            userId: parsed.user_id || "",
+                                            machineId: parsed.machine_id || "",
+                                            organizationId: parsed.organization_id || "",
+                                        };
+                                    }
+                                    else if (isGrok) {
+                                        connData.provider = "grok-cli";
+                                        connData.authType = "oauth";
+                                        connData.accessToken = parsed.api_key;
+                                        connData.refreshToken = parsed.refresh_token;
+                                        connData.expiresAt = parsed.expires_in
+                                            ? new Date(Date.now() + parsed.expires_in * 1000).toISOString()
+                                            : null;
+                                    }
+                                    else if (provider === "kiro") {
+                                        connData.accessToken = apiKeyToSave;
+                                    }
+                                    else if (isOpenVecta) {
+                                        connData.provider = "openvecta";
+                                        connData.authType = "apikey";
+                                        connData.apiKey = parsed.api_key;
+                                    }
+                                    else if (isMeta) {
+                                        connData.provider = "meta";
+                                        connData.authType = "apikey";
+                                        connData.apiKey = parsed.api_key;
+                                    }
+                                    await createProviderConnection(connData);
+                                }
+                                catch (e) {
+                                    console.error("Auto add to 9router failed:", e);
+                                }
+                            }
+                        }
+                        else if (parsed.status === "error") {
+                            done = true;
+                            const errMsg = parsed.error || parsed.message || "Unknown error";
+                            await markCodeBuddyError(account.id, errMsg);
+                            await updateResult({
+                                email: account.email,
+                                status: "failed",
+                                error: errMsg,
+                                ok: false
+                            });
+                        }
+                    }
+                    catch (e) {
+                        // ignore
+                    }
+                }
+            });
+            child.on("close", async (code) => {
+                clearTimeout(hardTimer);
+                if (global._codebuddyState.activeProcesses) {
+                    global._codebuddyState.activeProcesses.delete(child);
+                }
+                if (!done) {
+                    let errMsg = global._codebuddyState.stopFlag
+                        ? "Dihentikan oleh pengguna."
+                        : `Proses terhenti dengan exit code ${code}.`;
+                    if (stderrAccumulator.trim()) {
+                        errMsg += ` | Stderr: ${stderrAccumulator.trim()}`;
+                    }
+                    await markCodeBuddyError(account.id, errMsg);
+                    await updateResult({
+                        email: account.email,
+                        status: "failed",
+                        error: errMsg,
+                        ok: false
+                    });
+                }
+                resolve(undefined);
+            });
+            child.on("error", async (err) => {
+                if (global._codebuddyState.activeProcesses) {
+                    global._codebuddyState.activeProcesses.delete(child);
+                }
+                if (!done) {
+                    const errMsg = global._codebuddyState.stopFlag
+                        ? "Dihentikan oleh pengguna."
+                        : (err.message || String(err));
+                    await markCodeBuddyError(account.id, errMsg);
+                    await updateResult({
+                        email: account.email,
+                        status: "failed",
+                        error: errMsg,
+                        ok: false
+                    });
+                }
+                resolve(undefined);
+            });
+        }
+        catch (e) {
+            reject(e);
+        }
+    });
+}

@@ -860,6 +860,8 @@ function executeCodeBuddySignup(accountId, jobId, idx, settings, jobStartTimes =
         ? path.resolve(process.cwd(), "dist/automation/grok_cli_gac.js")
         : isMeta
         ? path.resolve(process.cwd(), "src/automation/meta_ai_signup.py")
+        : isOpenVecta
+        ? path.resolve(process.cwd(), "src/automation/openvecta_signup.py")
         : path.resolve(process.cwd(), "src/automation/codebuddy_signup.py");
       const profilesDir = isLeonardo
         ? path.resolve(process.cwd(), "profiles/leonardo")

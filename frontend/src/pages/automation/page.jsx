@@ -808,6 +808,21 @@ function CodeBuddyTab() {
                   )}
                 </div>
               )}
+
+              {/* 2Captcha API Key — used by Cloudflare/Meta signup automation */}
+              <div className="pt-3 border-t border-border-subtle space-y-1.5">
+                <label className="text-xs font-medium text-text-main">2Captcha API Key</label>
+                <p className="text-[11px] text-text-muted">
+                  Used by Cloudflare &amp; Meta AI automation to solve Turnstile captcha (falls back to local solver if empty).
+                </p>
+                <input
+                  type="password"
+                  value={codebuddy2CaptchaApiKey}
+                  onChange={(e) => setCodebuddy2CaptchaApiKey(e.target.value)}
+                  placeholder="paste 2captcha api key"
+                  className="w-full text-xs p-2 rounded-lg border border-border-subtle bg-surface text-text-main"
+                />
+              </div>
             </div>
 
             <Button variant="secondary" size="sm" fullWidth onClick={handleSaveSettings} disabled={savingSettings}>

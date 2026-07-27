@@ -714,7 +714,7 @@ def main():
     parser.add_argument("--fsmail-domain", default="")
     parser.add_argument("--profiles-dir", default="profiles/cloudflare")
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--engine", default="camoufox", choices=["camoufox", "patchright"])
+    parser.add_argument("--engine", default="patchright", choices=["camoufox", "patchright"])
     parser.add_argument("--proxy-server")
     parser.add_argument("--proxy-user")
     parser.add_argument("--proxy-pass")
@@ -968,20 +968,31 @@ def main():
         # Fallback: 2Captcha (if key set) or local patchright solver (no key needed)
         if not turnstile_solved:
             if getattr(args, "engine", "camoufox") == "patchright":
-                # Solve Turnstile IN-SESSION (patchright chromium is trusted by CF)
-                log_step("Patchright engine: klik Turnstile checkbox in-session...")
-                try_click_turnstile_checkbox(page)
-                # wait for token to appear in the hidden field (no cross-session injection)
-                for _w in range(20):
-                    try:
-                        _tv = page.evaluate("() => { const el = document.querySelector('input[name=\"cf-turnstile-response\"]'); return el && el.value ? el.value : ''; }")
-                        if _tv and len(_tv.strip()) > 10:
-                            turnstile_solved = True
-                            log_step("Turnstile solved in-session!")
-                            break
-                    except Exception:
-                        pass
-                    time.sleep(3)
+                # Solve Turnstile via local patchright solver API (trusted token injection)
+                log_step("Patchright engine: solve Turnstile via solver API...")
+                try:
+                    token_2c = solve_turnstile_patchright(CF_SIGNUP_PAGE_URL, actual_sitekey, timeout=90)
+                except Exception as _e:
+                    log_step(f"solver API error: {_e}")
+                    token_2c = None
+                if token_2c:
+                    inject_turnstile_token(page, token_2c)
+                    turnstile_solved = True
+                    log_step("Turnstile solved via solver API!")
+                else:
+                    # fallback to in-session click
+                    log_step("Solver API kosong, coba klik checkbox in-session...")
+                    try_click_turnstile_checkbox(page)
+                    for _w in range(20):
+                        try:
+                            _tv = page.evaluate("() => { const el = document.querySelector('input[name=\"cf-turnstile-response\"]'); return el && el.value ? el.value : ''; }")
+                            if _tv and len(_tv.strip()) > 10:
+                                turnstile_solved = True
+                                log_step("Turnstile solved in-session!")
+                                break
+                        except Exception:
+                            pass
+                        time.sleep(3)
             else:
                 log_step("Turnstile belum solved, coba solver (2Captcha/patchright)...")
                 token_2c = solve_turnstile_any(
