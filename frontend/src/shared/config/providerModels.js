@@ -1178,6 +1178,10 @@ export const PROVIDER_MODELS = {
     { id: "aisingapore/Qwen-SEA-LION-v4-32B-IT", name: "aisingapore/Qwen-SEA-LION-v4-32B-IT" },
     { id: "allenai/Olmo-3-32B-Think", name: "allenai/Olmo-3-32B-Think" },
   ],
+  zcode: [
+    { id: "GLM-5.2", name: "GLM 5.2" },
+    { id: "GLM-5-Turbo", name: "GLM 5 Turbo" },
+  ],
   "nous-research": [
     { id: "tencent/hy3:free", name: "Tencent: Hy3 (Free)" },
     { id: "poolside/laguna-s-2.1:free", name: "Poolside: Laguna S 2.1 (Free)" },

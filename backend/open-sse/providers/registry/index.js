@@ -101,6 +101,7 @@ import p98 from "./xiaomi-tokenplan.js";
 import p99 from "./youcom.js";
 import digitalocean from "./digitalocean.js";
 import p100 from "./nous-research.js";
+import p101 from "./zcode.js";
 
 export default [
   p0,
@@ -204,5 +205,6 @@ export default [
   p98,
   p99,
   digitalocean,
-  p100
+  p100,
+  p101
 ];

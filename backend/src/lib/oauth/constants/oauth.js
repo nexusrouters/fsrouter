@@ -118,6 +118,9 @@ export const KIMCHI_CONFIG = { ...PROVIDER_OAUTH["kimchi"] };
 // Endpoint: cli-chat-proxy.grok.com — same client_id as xai, different flow + scopes
 export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 
+// ZCode (Z.ai) OAuth Configuration
+export const ZCODE_CONFIG = { ...PROVIDER_OAUTH["zcode"] };
+
 export const NOUS_CONFIG = { ...PROVIDER_OAUTH["nous-research"] };
 
 // OAuth timeout (5 minutes)

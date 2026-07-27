@@ -441,6 +441,7 @@ export const PROVIDERS = {
   nscale: { baseUrl: "https://inference.api.nscale.com/v1/chat/completions", format: "openai" },
   baseten: { baseUrl: "https://inference.baseten.co/v1/chat/completions", format: "openai" },
   publicai: { baseUrl: "https://api.publicai.co/v1/chat/completions", format: "openai" },
+  zcode: { baseUrl: "https://api.z.ai/api/coding/paas/v4/chat/completions", format: "openai" },
   "nous-research": { baseUrl: "https://inference-api.nousresearch.com/v1/chat/completions", format: "openai" },
   glhf: { baseUrl: "https://glhf.chat/api/openai/v1/chat/completions", format: "openai" },
   blackbox: { baseUrl: "https://api.blackbox.ai/chat/completions", format: "openai" },

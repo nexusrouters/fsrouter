@@ -28,6 +28,7 @@ import {
   CODEBUDDY_CONFIG,
   KIMCHI_CONFIG,
   GROK_CLI_CONFIG,
+  ZCODE_CONFIG,
   NOUS_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth.js";
@@ -453,6 +454,45 @@ const PROVIDERS = {
         providerSpecificData: {
           authMethod: "device_code",
           email: email || null,
+        },
+      };
+    },
+  },
+
+  zcode: {
+    config: ZCODE_CONFIG,
+    flowType: "authorization_code",
+    buildAuthUrl: (config, redirectUri, state) => {
+      const targetRedirect = config.redirectUri || redirectUri;
+      return `${config.authorizeUrl}?response_type=code&client_id=${encodeURIComponent(config.clientId)}&redirect_uri=${encodeURIComponent(targetRedirect)}&state=${encodeURIComponent(state)}`;
+    },
+    exchangeToken: async (config, code, redirectUri) => {
+      const response = await fetch(config.tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: config.clientId,
+          code,
+          redirect_uri: config.redirectUri || redirectUri,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`ZCode token exchange failed: ${errorText}`);
+      }
+      return await response.json();
+    },
+    mapTokens: (tokens) => {
+      return {
+        accessToken: tokens.access_token || tokens.token || tokens.jwt,
+        refreshToken: tokens.refresh_token || null,
+        expiresIn: tokens.expires_in || 2592000,
+        providerSpecificData: {
+          zcodeJwtToken: tokens.zcodejwttoken || tokens.jwt || tokens.access_token,
         },
       };
     },
