@@ -169,7 +169,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "codebuddy-cn",
         "qoder",
         "grok-cli",
-        "zcode",
         "nous-research",
       ];
       if (deviceCodeProviders.includes(provider)) {
