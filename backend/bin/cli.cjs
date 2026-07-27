@@ -529,30 +529,45 @@ function startServer(latestVersion) {
   function spawnServer() {
     serverStartTime = Date.now();
     crashLog = [];
-    // Resolve tsx loader path (works cross-platform; bare --import tsx fails on Windows,
-    // absolute paths need file:// URL on Windows ESM loader)
-    let tsxImport;
-    try {
-      tsxImport = pathToFileURL(require.resolve("tsx/esm")).href;
-    } catch (_) {
+    // dist/server.js is a pre-compiled ESM bundle (esbuild) — run it directly
+    // with node. Only fall back to tsx when running from raw TS source (dev).
+    const useTsx = serverPath.endsWith(".ts");
+    let child;
+    if (useTsx) {
+      let tsxImport;
       try {
-        tsxImport = pathToFileURL(require.resolve("tsx")).href;
+        tsxImport = pathToFileURL(require.resolve("tsx/esm")).href;
       } catch (_) {
-        tsxImport = "tsx";
+        try {
+          tsxImport = pathToFileURL(require.resolve("tsx")).href;
+        } catch (_) {
+          tsxImport = "tsx";
+        }
       }
+      child = spawn(RUNTIME, ["--import", tsxImport, "--max-old-space-size=6144", serverPath], {
+        cwd: standaloneDir,
+        stdio: showLog ? "inherit" : ["ignore", "ignore", "pipe"],
+        detached: true,
+        windowsHide: true,
+        env: {
+          ...buildEnvWithRuntime(process.env),
+          PORT: port.toString(),
+          HOSTNAME: host
+        }
+      });
+    } else {
+      child = spawn(RUNTIME, ["--max-old-space-size=6144", serverPath], {
+        cwd: standaloneDir,
+        stdio: showLog ? "inherit" : ["ignore", "ignore", "pipe"],
+        detached: true,
+        windowsHide: true,
+        env: {
+          ...buildEnvWithRuntime(process.env),
+          PORT: port.toString(),
+          HOSTNAME: host
+        }
+      });
     }
-    // tsx resolves the entrypoint relative to cwd; only the loader needs a file URL.
-    const child = spawn(RUNTIME, ["--import", tsxImport, "--max-old-space-size=6144", serverPath], {
-      cwd: standaloneDir,
-      stdio: showLog ? "inherit" : ["ignore", "ignore", "pipe"],
-      detached: true,
-      windowsHide: true,
-      env: {
-        ...buildEnvWithRuntime(process.env),
-        PORT: port.toString(),
-        HOSTNAME: host
-      }
-    });
     if (!showLog && child.stderr) {
       child.stderr.on("data", (data) => {
         const lines = data.toString().split("\n").filter(Boolean);
