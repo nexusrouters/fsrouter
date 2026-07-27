@@ -34,6 +34,11 @@ function rewriteBody(chunk: string): string {
   // Rewrite CDN (jsdelivr) URLs to same-origin /agent/cdn/ so they are fetched
   // by the fsrouter backend (which can reach the CDN) instead of the client.
   s = s.split("https://cdn.jsdelivr.net/").join("/agent/cdn/");
+  // Rewrite absolute /api/ calls (single quote, double quote, backtick template)
+  // so the same-origin fetch hits /agent/api/ instead of /api/ (which 404s on fsrouter).
+  // Guard against double-prefixing an already-rewritten /agent/api/ path.
+  s = s.replace(/(['"`])\/api\//g, "$1/agent/api/");
+  s = s.replace(/(?<!agent)\/api\//g, "/agent/api/");
   return s;
 }
 
@@ -49,6 +54,8 @@ export function agentProxy(req: Request, res: Response, _next: NextFunction) {
 
   const headers: Record<string, any> = { ...req.headers };
   headers["host"] = TARGET_HOST + ":" + TARGET_PORT;
+  // Request plaintext (no gzip) so we can rewrite /api/ and /static/ in the body.
+  delete headers["accept-encoding"];
   delete headers["connection"];
 
   const options: http.RequestOptions = {
