@@ -1618,11 +1618,9 @@ const PROVIDERS = {
     config: ZCODE_CONFIG,
     flowType: "authorization_code",
     buildAuthUrl: (config, redirectUri, state) => {
-      const targetRedirect = config.redirectUri || redirectUri;
-      return `${config.authorizeUrl}?response_type=code&client_id=${encodeURIComponent(config.clientId)}&redirect_uri=${encodeURIComponent(targetRedirect)}&state=${encodeURIComponent(state)}`;
+      return `${config.authorizeUrl}?response_type=code&client_id=${encodeURIComponent(config.clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
     },
     exchangeToken: async (config, code, redirectUri, _codeVerifier, state) => {
-      const targetRedirect = config.redirectUri || redirectUri;
       const response = await fetch(config.tokenUrl, {
         method: "POST",
         headers: {
@@ -1632,7 +1630,7 @@ const PROVIDERS = {
         body: JSON.stringify({
           provider: "zai",
           code,
-          redirect_uri: targetRedirect,
+          redirect_uri: redirectUri,
           state: state || "",
         }),
       });
@@ -1646,7 +1644,7 @@ const PROVIDERS = {
       const data = res?.data || {};
       const token = data.token || "";
       const zai = data.zai || {};
-      const accessToken = zai.access_token || token;
+      const accessToken = token || zai.access_token;
       const refreshToken = zai.refresh_token || null;
       return {
         accessToken,
@@ -1655,6 +1653,7 @@ const PROVIDERS = {
         providerSpecificData: {
           zcodeJwtToken: token,
           token,
+          oauthAccessToken: zai.access_token || null,
         },
       };
     },

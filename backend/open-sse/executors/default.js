@@ -41,6 +41,7 @@ const HEADER_HOOKS = {
   zcodeHeaders: (h, c) => {
     const jwtToken = c.providerSpecificData?.zcodeJwtToken || c.providerSpecificData?.token || c.accessToken;
     if (jwtToken) {
+      c.accessToken = jwtToken;
       h["zcodejwttoken"] = jwtToken;
       h["Authorization"] = `Bearer ${jwtToken}`;
       h["User-Agent"] = "ZCode/3.5.2";
