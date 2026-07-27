@@ -6,7 +6,8 @@
   "description": "9Router v2 — Express Backend (API, SSE, DB, Auth, MITM)",
   "main": "src/server.ts",
   "bin": {
-    "amrouter": "bin/cli.cjs"
+    "amrouter": "bin/cli.cjs",
+    "fsrouter": "bin/cli.cjs"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
